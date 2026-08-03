@@ -186,6 +186,21 @@ export function tideFavorabilityOf(
   return Math.max(0, 1 - distance / TIDE_TAPER_FT)
 }
 
+/**
+ * Place a height in a beach's three-way judgement.
+ *
+ * Used to compare the surf forecast against the model without ever subtracting
+ * one from the other, since they measure different things.
+ */
+export function bandOf(
+  value: number,
+  thresholds: { great: number; caution: number },
+): 'calm' | 'marginal' | 'excessive' {
+  if (value > thresholds.caution) return 'excessive'
+  if (value > thresholds.great) return 'marginal'
+  return 'calm'
+}
+
 function statusOf(hour: HourlyBeachConditions, provider: ProviderId): SourceStatus {
   return hour.sourceFreshness[provider]?.status ?? 'missing'
 }
@@ -301,19 +316,37 @@ export function assessHour(
     )
   }
 
-  // --- NWS surf-face bound. Bounds magnitude; the model bounds shape. ---
-  if (context.srfSouthFacingMaxFt !== null) {
-    if (context.srfSouthFacingMaxFt > thresholds.srfSurfFaceFt.caution) {
+  // --- NWS surf forecast: a cross-check on the model, plus an extreme backstop. ---
+  //
+  // Deliberately NOT an independent gate. The Weather Service publishes one figure
+  // for a whole shore; `exposedSwellHeightFt` is filtered to the directions this
+  // cove is actually open to. Letting the shore-wide number veto the beach-specific
+  // one inverts which is more relevant, and capped entire weeks at caution twice.
+  const srfMax = context.srfSouthFacingMaxFt
+  if (srfMax !== null) {
+    if (srfMax >= thresholds.srfExtremeSurfFaceFt) {
+      // The one unilateral case: no local sheltering argument should survive this.
       reasons.push(
         reason(
           'SRF_EXCEEDS_THRESHOLD',
-          `National Weather Service surf up to ${context.srfSouthFacingMaxFt} ft on south-facing shores`,
+          `National Weather Service surf up to ${srfMax} ft on ${context.profile.shoreAspect}-facing shores`,
         ),
       )
-    } else if (context.srfSouthFacingMaxFt > thresholds.srfSurfFaceFt.great) {
-      reasons.push(
-        reason('SRF_MARGINAL_SURF', `up to ${context.srfSouthFacingMaxFt} ft on ${context.profile.shoreAspect}-facing shores`),
-      )
+    } else if (exposed !== null) {
+      // Compare the two as JUDGEMENTS, never as feet: a surf-face height and an
+      // offshore height are different measurements (DECISIONS.md #1), so the only
+      // sound comparison is which band each lands in.
+      const modelBand = bandOf(exposed, thresholds.exposedSwellFt)
+      const srfBand = bandOf(srfMax, thresholds.srfSurfFaceFt)
+
+      if (srfBand !== 'calm' && modelBand === 'calm') {
+        reasons.push(
+          reason(
+            'SRF_DISAGREES_WITH_MODEL',
+            `Weather Service up to ${srfMax} ft on ${context.profile.shoreAspect}-facing shores, model ${exposed.toFixed(1)} ft reaching this cove`,
+          ),
+        )
+      }
     }
   }
 

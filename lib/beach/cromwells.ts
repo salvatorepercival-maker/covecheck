@@ -69,18 +69,29 @@ export const CROMWELLS: BeachProfile = {
     exposedSwellFt: { great: 3, caution: 4 },
 
     /**
-     * Applied to the UPPER bound of the NWS south-facing surf-face band.
+     * Categorisation bands for the NWS surf-face forecast. NOT a gate.
      *
-     * Raised from 2 ft on 2026-08-02. NWS publishes ranges, and 1-3 ft is about
-     * the narrowest calm band it issues for a Hawaii south shore — so comparing
-     * its upper bound against a 2 ft ceiling could never pass, in any conditions.
+     * These place the SRF band in the same calm/marginal/excessive judgement as
+     * `exposedSwellFt` places the model, purely so the two can be compared. When
+     * they disagree the engine flags it and drops confidence; it does not override
+     * the beach-specific number. See DECISIONS.md #15.
      *
-     * A 4-6 ft band still blocks outright (6 > 4), matching HANDOFF.md. A 2-4 ft
-     * band reads as caution. This is a deliberate deviation from HANDOFF.md's
-     * "0-2 ft preferred" figure, which was written as a point value rather than
-     * as the upper bound of a published range.
+     * Chasing this number is what produced the same wall twice: a 2 ft ceiling
+     * could never pass NWS's narrowest calm band (1-3 ft), and a 3 ft ceiling
+     * could never pass its very common summer band (2-4 ft). The ceiling was
+     * never the problem — the role was.
      */
     srfSurfFaceFt: { great: 3, caution: 4 },
+
+    /**
+     * Advisory-adjacent backstop, and the only unilateral surf-forecast gate left.
+     *
+     * 6 ft matches the top of HANDOFF.md's "4-6 ft: not recommended" band and sits
+     * near where NWS begins considering High Surf Advisories for Hawaii south
+     * shores. Above this, no amount of local sheltering should produce a
+     * recommendation. Ordinary seasonal drift (2-4, 3-5) stays well clear of it.
+     */
+    srfExtremeSurfFaceFt: 6,
 
     /**
      * Direction-dependent, because fetch is.
@@ -165,5 +176,5 @@ export const CROMWELLS: BeachProfile = {
     'Trade winds typically strengthen through the morning, so early windows are usually the calmest.',
   ],
 
-  configVersion: '2026-08-02.3',
+  configVersion: '2026-08-03.1',
 }

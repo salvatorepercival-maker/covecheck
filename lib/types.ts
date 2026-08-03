@@ -223,8 +223,24 @@ export type BeachThresholds = {
    * NOT comparable to an NWS surf-face band.
    */
   exposedSwellFt: { great: number; caution: number }
-  /** Ceilings on the NWS south-facing surf-face band's upper bound. */
+  /**
+   * Bands used to CATEGORISE the NWS surf-face forecast, so it can be compared
+   * against the direction-filtered model like-for-like.
+   *
+   * These do not gate anything by themselves. Their only job is to place the SRF
+   * band in the same three-way judgement (calm / marginal / excessive) that
+   * `exposedSwellFt` places the model in, so the two can be checked against each
+   * other as *judgements* rather than as feet — a surf-face height and an offshore
+   * height are different measurements and must never be subtracted. See
+   * DECISIONS.md #1 and #15.
+   */
   srfSurfFaceFt: { great: number; caution: number }
+  /**
+   * The one place the surf forecast may still gate on its own: a clearly extreme
+   * reading, approaching advisory territory, where no beach-specific reasoning
+   * should be able to talk us into a recommendation.
+   */
+  srfExtremeSurfFaceFt: number
   windSpeedMph: DirectionalWindLimits
   windGustMph: DirectionalWindLimits
   /** The tide band this beach is pleasant in, in feet above MLLW. */

@@ -218,7 +218,7 @@ describe('NWS surf-face bound', () => {
     expect(srfBoundFor(null, 'south')).toBeNull()
   })
 
-  it('blocks when the surf-face band exceeds the caution threshold', () => {
+  it('blocks only at the advisory-adjacent extreme', () => {
     const result = evaluateForecast({
       profile: CROMWELLS_FULLY_CALIBRATED,
       hours: EXCELLENT_CALM_MORNING,
@@ -226,27 +226,55 @@ describe('NWS surf-face bound', () => {
       nowUtc: NOW,
     })
 
-    // The model said 0.5 ft; the authoritative surf-face forecast says up to 6 ft.
+    // 6 ft is the one case where no local sheltering argument should survive.
     expect(result.hours.every((h) => h.verdict === 'not_recommended')).toBe(true)
     expect(codesAt(result.hours, 0)).toContain('SRF_EXCEEDS_THRESHOLD')
   })
 
-  it('downgrades to caution when the band is marginal', () => {
-    // 3 ft now passes as good, so 4 ft is the marginal case. See DECISIONS.md #11.
+  /**
+   * The structural fix, and the regression that bit twice.
+   *
+   * A shore-wide surf forecast must not veto the beach-specific number. Chasing
+   * the ceiling produced the same wall two ways: 2 ft could never pass NWS's
+   * narrowest calm band (1-3 ft), then 3 ft could never pass its very common
+   * summer band (2-4 ft). Both capped all 91 hours of a week while the model said
+   * the cove was calm.
+   */
+  it('flags a disagreement without forcing caution', () => {
     const result = evaluateForecast({
       profile: CROMWELLS_FULLY_CALIBRATED,
       hours: EXCELLENT_CALM_MORNING,
       surfZoneForecast: forecast(4),
       nowUtc: NOW,
     })
-    expect(result.hours.every((h) => h.verdict === 'caution')).toBe(true)
-    expect(codesAt(result.hours, 0)).toContain('SRF_MARGINAL_SURF')
+
+    // Model says the cove is calm; the shore forecast is elevated. Reported and
+    // costed in confidence — not overridden.
+    expect(result.hours.every((h) => h.verdict === 'great')).toBe(true)
+    const codes = codesAt(result.hours, 0)
+    expect(codes).toContain('SRF_DISAGREES_WITH_MODEL')
+    expect(codes).toContain('LOW_WAVE_ENERGY')
+    expect(result.hours[0].confidence).not.toBe('high')
   })
 
-  it('treats a 1-3 ft band as an ordinary calm week, not a marginal one', () => {
-    // The regression that made every day read "use caution": 1-3 ft is about the
-    // narrowest calm band NWS publishes for a Hawaii south shore, so comparing
-    // its upper bound against a 2 ft ceiling could never pass in any conditions.
+  it('cannot cap a week on ordinary seasonal band drift', () => {
+    // 2-4 and 3-5 are unremarkable summer south-shore bands. Neither may wall off
+    // the whole forecast while the cove itself reads calm.
+    for (const maxFt of [3, 4, 5]) {
+      const result = evaluateForecast({
+        profile: CROMWELLS_FULLY_CALIBRATED,
+        hours: EXCELLENT_CALM_MORNING,
+        surfZoneForecast: forecast(maxFt),
+        nowUtc: NOW,
+      })
+      expect(
+        result.hours.filter((h) => h.verdict === 'great').length,
+        `a ${maxFt} ft band capped every hour`,
+      ).toBeGreaterThan(0)
+    }
+  })
+
+  it('stays quiet when both agree the shore is calm', () => {
     const result = evaluateForecast({
       profile: CROMWELLS_FULLY_CALIBRATED,
       hours: EXCELLENT_CALM_MORNING,
@@ -254,25 +282,21 @@ describe('NWS surf-face bound', () => {
       nowUtc: NOW,
     })
     expect(result.hours.every((h) => h.verdict === 'great')).toBe(true)
-    expect(codesAt(result.hours, 0)).not.toContain('SRF_MARGINAL_SURF')
+    expect(codesAt(result.hours, 0)).not.toContain('SRF_DISAGREES_WITH_MODEL')
   })
 
-  it('does not contradict itself when the model and the surf forecast disagree', () => {
-    // The model can show almost nothing reaching this beach while the Weather
-    // Service still calls the whole shore borderline. Both are true, so both are
-    // reported — but they must not read as one measurement contradicting itself.
+  it('does not raise a disagreement when the model is already elevated', () => {
+    // Both point the same way, so the model gates on its own and the cross-check
+    // has nothing to add. No double-counting of one physical situation.
     const result = evaluateForecast({
       profile: CROMWELLS_FULLY_CALIBRATED,
-      hours: EXCELLENT_CALM_MORNING,
+      hours: BORDERLINE_SOUTH_SWELL,
       surfZoneForecast: forecast(4),
       nowUtc: NOW,
     })
-
     const codes = codesAt(result.hours, 0)
-    expect(codes).toContain('LOW_WAVE_ENERGY')
-    expect(codes).toContain('SRF_MARGINAL_SURF')
-    // The model-derived marginal code must not fire; the model said 0.5 ft.
-    expect(codes).not.toContain('MARGINAL_SWELL')
+    expect(codes).toContain('MARGINAL_SWELL')
+    expect(codes).not.toContain('SRF_DISAGREES_WITH_MODEL')
   })
 
   it('allows great when the band agrees the shore is small', () => {

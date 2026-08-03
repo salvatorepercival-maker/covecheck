@@ -6,6 +6,65 @@ deviates from it and why.
 
 ---
 
+## 15. The surf forecast cross-checks the model; it does not outvote it
+
+**Decided:** 2026-08-03 · **Status:** active · **supersedes the SRF gating in #6 and #11**
+
+The same structural failure happened twice, and the second time made the cause
+unmistakable:
+
+| | ceiling | NWS band | result |
+| --- | --- | --- | --- |
+| 2026-08-02 | 2 ft | 1–3 ft | all 91 hours capped |
+| 2026-08-03 | 3 ft | 2–4 ft | all 91 hours capped |
+
+Both times the response was to raise the ceiling. That was treating a role error
+as a calibration error. South-shore surf varies seasonally, so **any** fixed
+ceiling read against the upper bound of a drifting published range will wall off
+the forecast again — the third occurrence was already loaded.
+
+Worse, #1 already stated the correct rule and the code did not implement it:
+
+> *"the NWS SRF south-facing band bounds magnitude but never gates a verdict alone"*
+
+`SRF_MARGINAL_SURF` carried `negative` severity and its own thresholds. It never
+read `exposedSwellHeightFt` at all, so it was not cross-checking anything — it
+voted independently and could veto a week while the direction-filtered model said
+the cove was calm. That inverts which figure is more relevant: NWS publishes one
+number for an entire shore, the model figure is filtered to the directions this
+specific cove is open to.
+
+**The fix restores the intended role rather than picking a fourth number.**
+
+*The comparison is categorical, never numeric.* A surf-face height and an offshore
+height are different measurements — #1 forbids subtracting them, so "SRF is N ft
+above the model" was not available. Instead `bandOf` places each in the same
+three-way judgement (`calm` / `marginal` / `excessive`) and the *judgements* are
+compared. Sound, and immune to the units confusion.
+
+*Disagreement is reported, not enforced.* When the model reads calm and the shore
+forecast is elevated, `SRF_DISAGREES_WITH_MODEL` fires as a `caveat`: it appears
+in the reasoning and costs confidence, but does not force `caution`. When both
+agree the model gates on its own and the cross-check stays silent, so one physical
+situation is never counted twice.
+
+*One unilateral gate remains, deliberately narrow.* `srfExtremeSurfFaceFt` (6 ft)
+blocks outright — advisory-adjacent, matching the top of HANDOFF.md's "4–6 ft: not
+recommended". Above that, no local sheltering argument should produce a
+recommendation. Ordinary drift (2–4, 3–5) stays clear of it.
+
+Effect on the live week: 0/91 great hours → 57/91, with tide the discriminating
+factor, which is what it should have been all along.
+
+**The wider lesson, and it is the same one as #12.** There, two gridded models
+agreeing was mistaken for ground truth. Here, an authoritative-sounding source
+disagreeing with the beach-specific number was mistaken for grounds to override
+it. Both times the error was letting a broader, less local signal outrank a
+narrower, more local one. A disagreement between sources is a reason to flag and
+investigate, not to hand the verdict to whichever source sounds more official.
+
+---
+
 ## 13. Tide is a band, not a scale — and the band is still open
 
 **Decided:** 2026-08-02 · **Status:** band **unresolved**; logic and labelling fixed

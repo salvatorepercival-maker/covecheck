@@ -23,7 +23,7 @@ export type ReasonCode =
   // Negative contributions
   | 'DIRECT_SOUTH_SWELL'
   | 'MARGINAL_SWELL'
-  | 'SRF_MARGINAL_SURF'
+  | 'SRF_DISAGREES_WITH_MODEL'
   | 'STRONG_GUSTS'
   | 'ONSHORE_WIND'
   | 'LOW_TIDE_OVER_REEF'
@@ -102,17 +102,23 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
     text: 'Borderline swell energy for a family outing',
   },
   /**
-   * Distinct from `MARGINAL_SWELL` on purpose.
+   * `caveat`, not `negative`, and that distinction is the whole point.
    *
-   * The two describe different measurements and can legitimately disagree: the
-   * model may show almost no swell arriving from a direction this beach is open
-   * to, while the Weather Service still forecasts a borderline surf face for the
-   * whole shore. Sharing one code produced the contradiction "borderline swell
-   * energy" directly above "little swell energy is reaching this beach".
+   * The Weather Service forecasts one figure for an entire shore; the model
+   * figure is filtered to the swell directions this specific cove is open to. They
+   * can legitimately disagree, and when they do the honest response is to say so
+   * and be less certain — NOT to let the shore-wide number override the
+   * beach-specific one.
+   *
+   * This previously carried `negative` severity and its own thresholds, which made
+   * it an independent veto: it capped all 91 hours of a week at "caution" while the
+   * model said the cove was calm. That was a stronger role than "cross-check" ever
+   * meant, and it produced the same wall twice as NWS's seasonal band drifted up.
+   * See DECISIONS.md #15.
    */
-  SRF_MARGINAL_SURF: {
-    severity: 'negative',
-    text: 'The National Weather Service surf forecast is borderline for this shore',
+  SRF_DISAGREES_WITH_MODEL: {
+    severity: 'caveat',
+    text: 'The National Weather Service forecasts more surf for this shore than the swell reaching this cove suggests — worth a look at the water',
   },
   STRONG_GUSTS: {
     severity: 'negative',
