@@ -9,7 +9,7 @@ import type { BeachProfile, HourlyBeachConditions } from '@/lib/types'
 import { ConditionsGrid } from './conditions-grid'
 import { NearbySurfCard } from './nearby-surf-card'
 import { TideCard } from './tide-card'
-import { HourlyTimeline } from './hourly-timeline'
+import { HourlyTimeline, toTimelineDays } from './hourly-timeline'
 import { TechnicalDetails } from './technical-details'
 import { ConfidenceNote, VerdictIcon, VerdictPill, VERDICT_STYLE } from './verdict'
 
@@ -167,15 +167,20 @@ export function ReportView({
             conditionsByTimestamp={conditionsByTimestamp}
             tideExtremes={report.tideExtremes}
             nowIso={nowIso}
+            latitude={profile.latitude}
+            longitude={profile.longitude}
+            date={day.date}
           />
         ) : null}
 
+        {/*
+          Spans several days rather than just the selected one: the point is to see
+          at a glance which day this week holds the best window.
+        */}
         <HourlyTimeline
-          hours={day.hours}
+          days={toTimelineDays(evaluation.days)}
           usableHours={DEFAULT_USABLE_HOURS}
-          highlightRange={
-            window ? { start: window.startTimestamp, end: window.endTimestamp } : null
-          }
+          todayDate={today}
         />
       </section>
 

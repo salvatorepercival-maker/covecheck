@@ -3,6 +3,7 @@
 import type { HourAssessment } from '@/lib/engine'
 import { formatClockTime, formatTideStage } from '@/lib/format'
 import type { TideExtreme } from '@/lib/providers/tides'
+import { formatSunTime, sunTimesFor } from '@/lib/sun'
 import { honoluluLocalToUtc, toHonoluluLocal, utcToHonoluluLocal } from '@/lib/time'
 import type { HourlyBeachConditions } from '@/lib/types'
 
@@ -121,12 +122,19 @@ export function TideCard({
   conditionsByTimestamp,
   tideExtremes,
   nowIso,
+  latitude,
+  longitude,
+  date,
 }: {
   assessment: HourAssessment
   conditions: HourlyBeachConditions | undefined
   conditionsByTimestamp: Record<string, HourlyBeachConditions>
   tideExtremes: readonly TideExtreme[]
   nowIso: string
+  latitude: number
+  longitude: number
+  /** Honolulu-local date the sun times are for. */
+  date: string
 }) {
   const nowLocal = utcToHonoluluLocal(new Date(nowIso))
   const curve = buildCurve(conditionsByTimestamp, nowLocal)
@@ -145,6 +153,22 @@ export function TideCard({
     (entry): entry is typeof entry & { at: { x: number; y: number } } => entry.at !== null,
   )
   const offChart = placed.filter((entry) => entry.at === null)
+
+  const sun = sunTimesFor(date, latitude, longitude)
+  const sunLine = (
+    [
+      ['First light', sun.firstLight],
+      ['Sunrise', sun.sunrise],
+      ['Sunset', sun.sunset],
+      ['Last light', sun.lastLight],
+    ] as const
+  )
+    .map(([label, minutes]) => {
+      const time = formatSunTime(minutes)
+      return time ? `${label} ${time}` : null
+    })
+    .filter((entry): entry is string => entry !== null)
+    .join(' · ')
 
   const qualifier =
     assessment.metrics.tideHeightFt === null
@@ -272,6 +296,9 @@ export function TideCard({
       ) : (
         <p className="mt-2 text-xs text-muted/80">Tide curve unavailable for this window.</p>
       )}
+
+      {/* Supporting context, deliberately the quietest text in the card. */}
+      {sunLine ? <p className="mt-2 text-[11px] leading-relaxed text-muted/70">{sunLine}</p> : null}
     </section>
   )
 }
