@@ -11,15 +11,21 @@ import { NowStrip } from './now-strip'
 import { NearbySurfCard } from './nearby-surf-card'
 import { TideCard } from './tide-card'
 import { HourlyTimeline, toTimelineDays } from './hourly-timeline'
-import { TechnicalDetails } from './technical-details'
 import { ConfidenceNote, VerdictIcon, VerdictPill, VERDICT_STYLE } from './verdict'
 
 /**
  * The beach screen.
  *
  * Ordering follows the product's first principle — decision first, data second.
- * The verdict and the window come before any number, the four conditions follow,
- * and everything technical is behind a disclosure.
+ * A glanceable "right now" strip leads, then the verdict and its window, then the
+ * supporting condition cards.
+ *
+ * The "Forecast detail" disclosure that used to close the page was removed on
+ * request. Note what went with it: the offshore-versus-exposed comparison table
+ * that let a sceptical local check the swell filter's work, the per-provider
+ * freshness list, and the Known Limitations panel. The provisional tide band is
+ * still surfaced twice — in the verdict bullets and on the tide card — so that
+ * framing did not go with it.
  */
 
 export function ReportView({
@@ -228,21 +234,11 @@ export function ReportView({
         </p>
       </section>
 
-      {/* ---------- Detail ---------- */}
-      {headline ? (
-        <TechnicalDetails
-          assessment={headline}
-          conditions={conditionsByTimestamp[headline.timestamp]}
-          profile={profile}
-          engineVersion={evaluation.engineVersion}
-          configVersion={evaluation.configVersion}
-          updatedAtUtc={report.updatedAtUtc}
-          surfZoneIssuedUtc={report.surfZoneIssuedUtc}
-          nowIso={nowIso}
-          warnings={report.warnings}
-          failures={report.failures}
-        />
-      ) : null}
+      {/*
+        The "Forecast detail" disclosure was removed on request.
+        `report` still carries `warnings`, `failures` and `surfZoneIssuedUtc` — they
+        remain part of the report model for logging, they simply have no UI now.
+      */}
 
       {/* ---------- Reminder and freshness ---------- */}
       <section className="rounded-xl border border-border/60 bg-surface-sunk/70 p-3.5">
