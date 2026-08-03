@@ -182,7 +182,7 @@ export function ReportView({
           type="button"
           disabled
           aria-describedby="alerts-unavailable"
-          className="mt-3 w-full rounded-lg bg-sea px-4 py-2.5 text-sm font-medium text-white opacity-45"
+          className="mt-3 w-full rounded-lg bg-sea px-4 py-2.5 text-sm font-medium text-on-sea opacity-45"
         >
           Set up alerts
         </button>

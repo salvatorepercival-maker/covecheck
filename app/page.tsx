@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { Suspense } from 'react'
 import { ReportView } from '@/components/report-view'
 import { CROMWELLS } from '@/lib/beach/cromwells'
@@ -48,8 +49,23 @@ export default function Page() {
   return (
     <main className="mx-auto w-full max-w-xl px-4 pt-6">
       <header className="mb-5">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-sea">CoveCheck</p>
-        <h1 className="mt-1 text-xl font-semibold tracking-tight">{CROMWELLS.name}</h1>
+        {/*
+         * The wordmark is deep navy, which all but disappears on the dark
+         * background. Rather than recolour someone else's artwork, the lockup
+         * sits on a light plaque in dark mode so the brand renders exactly as
+         * supplied and stays legible in both themes.
+         */}
+        <span className="inline-flex rounded-lg dark:bg-white/95 dark:px-2.5 dark:py-1.5">
+          <Image
+            src="/brand/covecheck-logo.png"
+            alt="CoveCheck"
+            width={687}
+            height={176}
+            priority
+            className="h-9 w-auto"
+          />
+        </span>
+        <h1 className="mt-3 text-xl font-semibold tracking-tight">{CROMWELLS.name}</h1>
         <p className="mt-0.5 text-sm text-muted">Black Point, Honolulu · Know when the water is right</p>
       </header>
 

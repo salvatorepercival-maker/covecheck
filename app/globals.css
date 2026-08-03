@@ -18,8 +18,21 @@
   --muted: #646a67;
   --border: #e4ded4;
 
-  /* Accent, used sparingly for focus and emphasis. */
-  --sea: #2f6f72;
+  /*
+   * Brand colours, sampled from the CoveCheck mark.
+   * navy #042b75 · teal #03a6b3 · sun #f9764f
+   */
+  --brand-navy: #042b75;
+  --brand-teal: #03a6b3;
+
+  /*
+   * The single UI accent: focus rings, the selected day, the primary button.
+   * Navy in light mode because it carries white button text at full contrast —
+   * the brand teal only reaches about 2.5:1 against white.
+   */
+  --sea: var(--brand-navy);
+  /* Text that sits on top of --sea. Paired so the button never loses contrast. */
+  --on-sea: #ffffff;
 
   --verdict-great: #3a6b49;
   --verdict-great-bg: #eaf2ec;
@@ -40,7 +53,10 @@
     --muted: #9aa2a0;
     --border: #303639;
 
-    --sea: #7fbfc0;
+    /* Navy is unreadable on a dark ground, so the accent becomes the brand teal, lifted for contrast. */
+    --sea: #3fbecb;
+    /* Bright teal needs dark text on top, not white. */
+    --on-sea: #05222a;
 
     --verdict-great: #8fc39d;
     --verdict-great-bg: #1e2a22;
@@ -61,6 +77,9 @@
   --color-muted: var(--muted);
   --color-border: var(--border);
   --color-sea: var(--sea);
+  --color-on-sea: var(--on-sea);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-teal: var(--brand-teal);
 
   --color-great: var(--verdict-great);
   --color-great-bg: var(--verdict-great-bg);
