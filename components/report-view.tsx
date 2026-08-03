@@ -7,6 +7,7 @@ import { formatDayLabel, formatDayShort, formatWindowRange } from '@/lib/format'
 import { honoluluDateOf } from '@/lib/time'
 import type { BeachProfile, HourlyBeachConditions } from '@/lib/types'
 import { ConditionsGrid } from './conditions-grid'
+import { NearbySurfCard } from './nearby-surf-card'
 import { HourlyTimeline } from './hourly-timeline'
 import { TechnicalDetails } from './technical-details'
 import { ConfidenceNote, VerdictIcon, VerdictPill, VERDICT_STYLE } from './verdict'
@@ -169,6 +170,9 @@ export function ReportView({
           }
         />
       </section>
+
+      {/* ---------- Supplementary, clearly separated from CoveCheck's own reading ---------- */}
+      <NearbySurfCard report={report.nearbySurf} date={day.date} />
 
       {/* ---------- Primary action ---------- */}
       <section aria-labelledby="alerts-heading" className="rounded-xl border border-border bg-surface p-4">
