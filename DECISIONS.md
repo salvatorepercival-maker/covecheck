@@ -6,6 +6,98 @@ deviates from it and why.
 
 ---
 
+## 13. Tide is a band, not a scale — and the band is still open
+
+**Decided:** 2026-08-02 · **Status:** band **unresolved**; logic and labelling fixed
+
+The original model was monotonic: more water over the reef scored better, and the
+UI labelled a near-high tide "Plenty of water". **That is backwards at this
+beach.** At a shallow reef-entry cove both ends are worse than the middle — low
+exposes reef and rock, high means stronger current and less shallow standing area
+for children.
+
+Two changes followed:
+
+**Unit.** Tide position moved from *fraction of the day's range* to **feet above
+MLLW**. Reef coverage is absolute: the rock sits at a fixed elevation, so depth
+over it is what matters, not where the tide sits within a varying daily swing.
+This corrects #3, which was right that absolute feet are meaningless for "is the
+tide relatively high" and wrong to conclude they are the wrong unit for "is there
+enough water over the reef".
+
+**Shape.** `favorableTideFt` is a band with a negative at *each* end
+(`LOW_TIDE_OVER_REEF`, `HIGH_TIDE_LESS_SHALLOW`), and `tideFavorability` — 1
+inside the band, tapering outside — replaces "more is better" in window ranking.
+
+One in-water observation (2026-08-02 ~09:00, just after the 07:51 low of 0.0 ft,
+rising — a good session) points the band **low-to-mid**. That is one point, not a
+curve, so **the engine does not gate on tide at all** and the UI says the range is
+not yet set rather than implying a judgement. `TIDE_NOT_CALIBRATED` is a `caveat`,
+not a `negative`: unlike wind, the swell picture is fully assessable without tide,
+so it costs confidence rather than capping the verdict.
+
+Still open: where the band edges sit, and whether **stage** belongs in the model
+at all — the good session was low *and rising*, and rising may matter
+independently of height.
+
+---
+
+## 12. Two models agreeing is not ground truth
+
+**Decided:** 2026-08-02 · **Status:** active · **supersedes the reasoning in #2**
+
+Sequence worth recording, because the reasoning failed twice in opposite
+directions:
+
+1. Open-Meteo read 23 mph at the cove. The SRF *narrative* said "northeast winds
+   15 to 20 mph", so a calibration gap was raised. **Wrong comparison** — that
+   sentence is a rounded, zone-wide statement in the TONIGHT section, not a point
+   forecast.
+2. Checked against NWS *gridded* data for the exact beach point, the two agreed
+   within ~2 mph, so the gap was closed and the data declared sound. **Also
+   wrong** — for the opposite reason.
+3. An in-water observation at 2026-08-02 ~09:00 reported **calm** water while both
+   models read 23 mph sustained / 29 mph gusts ENE.
+
+Both models run on grids of kilometres. This cove is tens of metres wide, in the
+lee of Black Point and Diamond Head. Neither resolves the sheltering, so their
+agreement measured shared blindness, not accuracy. **Only observation settles a
+micro-location.**
+
+The fix keeps the data honest and puts the shelter in the *threshold*: offshore
+ceilings are anchored above the observed reading (`great: 25`, `caution: 32`
+sustained) rather than the raw figure being offset downward. Anchored on **n=1** —
+a genuinely rough ENE morning is needed to find where the ceiling really sits.
+
+---
+
+## 11. Wind gating is direction-dependent, because fetch is
+
+**Decided:** 2026-08-02 · **Status:** active
+
+A single speed limit treats 20 mph blowing out to sea the same as 20 mph blowing
+in off it. Only the onshore case has ocean fetch to build chop on; offshore wind
+flattens the surface. This is why Oahu's south shores are the swimmable ones in
+trade season while the east shores are rough.
+
+`windExposureFor` derives offshore / onshore / cross geometrically from
+`shoreAspect`, so there is one source of truth. The hand-listed
+`favorableWindDirections` arc was deleted — it was set to 315–45°, which excluded
+the ENE trades that actually blow offshore here and were the dominant wind all
+week. Cross-shore is gated with the stricter onshore limits, since alongshore
+fetch can still build chop.
+
+Also corrected in the same pass: `exposedSwellFt` and `srfSurfFaceFt` had been set
+to identical values (2 / 3 ft), which is exactly what #1 forbids — a copy-paste
+across two different measurements. And `srfSurfFaceFt.great` of 2 ft was
+unreachable by construction: NWS publishes surf as a *range*, and 1–3 ft is about
+the narrowest calm band it issues for a Hawaii south shore, so comparing the upper
+bound against 2 ft could never pass in any conditions. Both are now 3 / 4 ft,
+which coincide **empirically for this beach in summer, not as a rule** — the
+comment in the profile says so explicitly, to stop a future edit merging them.
+
+---
+
 ## 10. The screen shows the offshore-versus-exposed gap rather than hiding it
 
 **Decided:** 2026-08-02 · **Status:** active

@@ -229,8 +229,9 @@ export function scoreWindow(
   const meanWindPercentile = mean(hours.map((h) => h.metrics.windPercentile))
   const windTerm = meanWindPercentile ?? 0.5
 
-  // Tide: more water over the reef is better, so invert.
-  const meanTide = mean(hours.map((h) => h.metrics.tideRangeFraction))
+  // Tide: closeness to this beach's favourable band, inverted so lower is better.
+  // Not depth — at a reef cove a near-high tide is not the best tide.
+  const meanTide = mean(hours.map((h) => h.metrics.tideFavorability))
   const tideTerm = meanTide === null ? 0.5 : 1 - meanTide
 
   // Morning preference, measured across the usable part of the day.

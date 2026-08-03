@@ -3,11 +3,12 @@ import { CROMWELLS } from '../beach/cromwells'
 import {
   assessHour,
   buildContext,
+  hasUnresolvedTideCalibration,
   hasUnresolvedWindCalibration,
   percentileOf,
   recentRainInches,
 } from './assess'
-import { buildSeries, CROMWELLS_WIND_CALIBRATED, HIGH_SURF_ADVISORY } from './fixtures'
+import { buildSeries, CROMWELLS_FULLY_CALIBRATED, HIGH_SURF_ADVISORY } from './fixtures'
 
 describe('percentileOf', () => {
   const sorted = [1, 2, 3, 4, 5]
@@ -61,26 +62,39 @@ describe('recentRainInches', () => {
   })
 })
 
-describe('hasUnresolvedWindCalibration', () => {
-  it('detects the open gap on the real profile', () => {
-    expect(hasUnresolvedWindCalibration(CROMWELLS)).toBe(true)
+describe('calibration gap detection', () => {
+  it('reports the real profile as wind-calibrated and tide-uncalibrated', () => {
+    // Wind was anchored to an in-water observation; the tide band has not been.
+    expect(hasUnresolvedWindCalibration(CROMWELLS)).toBe(false)
+    expect(hasUnresolvedTideCalibration(CROMWELLS)).toBe(true)
   })
 
-  it('is false once the gap is marked resolved', () => {
-    expect(hasUnresolvedWindCalibration(CROMWELLS_WIND_CALIBRATED)).toBe(false)
+  it('is false for both once every gap is resolved', () => {
+    expect(hasUnresolvedWindCalibration(CROMWELLS_FULLY_CALIBRATED)).toBe(false)
+    expect(hasUnresolvedTideCalibration(CROMWELLS_FULLY_CALIBRATED)).toBe(false)
   })
 
-  it('ignores unresolved gaps that do not affect wind thresholds', () => {
+  it('matches on the affected threshold, not the gap id', () => {
     const profile = {
       ...CROMWELLS,
-      calibration: CROMWELLS.calibration.filter((gap) => !gap.id.includes('wind')),
+      calibration: [
+        {
+          id: 'something-unrelated',
+          providerObservation: '',
+          referenceObservation: '',
+          affectedThresholds: ['thresholds.windSpeedMph.offshore'],
+          status: 'unresolved' as const,
+          note: '',
+        },
+      ],
     }
-    expect(hasUnresolvedWindCalibration(profile)).toBe(false)
+    expect(hasUnresolvedWindCalibration(profile)).toBe(true)
+    expect(hasUnresolvedTideCalibration(profile)).toBe(false)
   })
 })
 
 describe('assessHour precedence', () => {
-  const assess = (hours: ReturnType<typeof buildSeries>, profile = CROMWELLS_WIND_CALIBRATED) =>
+  const assess = (hours: ReturnType<typeof buildSeries>, profile = CROMWELLS_FULLY_CALIBRATED) =>
     assessHour(hours, 0, buildContext(profile, hours, null))
 
   it('lets a hazard outrank stale data', () => {
@@ -116,7 +130,7 @@ describe('assessHour precedence', () => {
   })
 
   it('treats missing tide as critical, given the shallow reef', () => {
-    const hours = buildSeries([{ hour: 8, tideRangeFraction: null }])
+    const hours = buildSeries([{ hour: 8, tideHeightFt: null }])
     expect(assess(hours).verdict).toBe('insufficient_data')
   })
 
@@ -124,7 +138,7 @@ describe('assessHour precedence', () => {
     const incomplete = [
       { hour: 8, exposedSwellHeightFt: null },
       { hour: 8, windSpeedMph: null },
-      { hour: 8, tideRangeFraction: null },
+      { hour: 8, tideHeightFt: null },
       { hour: 8, freshnessOverrides: { marine: 'stale' as const } },
       { hour: 8, freshnessOverrides: { alerts: 'missing' as const } },
     ]
@@ -138,10 +152,18 @@ describe('assessHour precedence', () => {
 
 describe('assessHour wind handling', () => {
   it('does not gate on absolute wind while calibration is unresolved', () => {
+    const uncalibrated = {
+      ...CROMWELLS,
+      calibration: CROMWELLS.calibration.map((gap) =>
+        gap.affectedThresholds.some((t) => t.includes('wind'))
+          ? { ...gap, status: 'unresolved' as const }
+          : gap,
+      ),
+    }
     // 40 mph at the model cell. With the gap open the engine reports it but
     // refuses to treat it as a measured gust, capping at caution instead.
     const hours = buildSeries([{ hour: 8, windSpeedMph: 40, windGustMph: 55 }])
-    const result = assessHour(hours, 0, buildContext(CROMWELLS, hours, null))
+    const result = assessHour(hours, 0, buildContext(uncalibrated, hours, null))
 
     expect(result.verdict).toBe('caution')
     const codes = result.reasons.map((r) => r.code)
@@ -151,7 +173,7 @@ describe('assessHour wind handling', () => {
 
   it('gates on absolute wind once calibration is resolved', () => {
     const hours = buildSeries([{ hour: 8, windSpeedMph: 40, windGustMph: 55 }])
-    const result = assessHour(hours, 0, buildContext(CROMWELLS_WIND_CALIBRATED, hours, null))
+    const result = assessHour(hours, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null))
 
     expect(result.verdict).toBe('caution')
     expect(result.reasons.map((r) => r.code)).toContain('STRONG_GUSTS')
@@ -160,16 +182,17 @@ describe('assessHour wind handling', () => {
   it('classifies onshore wind by the beach’s own exposure arc', () => {
     // 180° is straight in off the water at a south-facing beach.
     const onshore = buildSeries([{ hour: 8, windDirectionDeg: 180 }])
-    const codes = assessHour(onshore, 0, buildContext(CROMWELLS_WIND_CALIBRATED, onshore, null))
+    const codes = assessHour(onshore, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, onshore, null))
       .reasons.map((r) => r.code)
     expect(codes).toContain('ONSHORE_WIND')
   })
 
-  it('does not call a cross-shore trade wind onshore', () => {
-    // 70° is neither offshore-favorable nor blowing in off the south shore, so
-    // it should produce no directional reason at all rather than a wrong one.
-    const cross = buildSeries([{ hour: 8, windDirectionDeg: 70 }])
-    const codes = assessHour(cross, 0, buildContext(CROMWELLS_WIND_CALIBRATED, cross, null))
+  it('classifies a due-east wind as cross-shore, neither favourable nor onshore', () => {
+    // 90° is exactly alongshore at a south-facing beach, so it earns no
+    // directional reason either way — and is gated with the stricter onshore
+    // limits, since alongshore fetch can still build chop.
+    const cross = buildSeries([{ hour: 8, windDirectionDeg: 90 }])
+    const codes = assessHour(cross, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, cross, null))
       .reasons.map((r) => r.code)
     expect(codes).not.toContain('ONSHORE_WIND')
     expect(codes).not.toContain('FAVORABLE_WIND_DIRECTION')
@@ -183,7 +206,7 @@ describe('assessHour runoff', () => {
       { hour: 7, precipitationIn: 0.2 },
       { hour: 8, precipitationIn: 0 },
     ])
-    const result = assessHour(hours, 2, buildContext(CROMWELLS_WIND_CALIBRATED, hours, null))
+    const result = assessHour(hours, 2, buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null))
 
     expect(result.verdict).toBe('caution')
     const rain = result.reasons.find((r) => r.code === 'RECENT_HEAVY_RAIN')
@@ -192,14 +215,14 @@ describe('assessHour runoff', () => {
 
   it('ignores light rain below the threshold', () => {
     const hours = buildSeries([{ hour: 8, precipitationIn: 0.05 }])
-    const result = assessHour(hours, 0, buildContext(CROMWELLS_WIND_CALIBRATED, hours, null))
+    const result = assessHour(hours, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null))
     expect(result.reasons.map((r) => r.code)).not.toContain('RECENT_HEAVY_RAIN')
   })
 })
 
 describe('assessHour confidence', () => {
   const context = (hours: ReturnType<typeof buildSeries>) =>
-    buildContext(CROMWELLS_WIND_CALIBRATED, hours, null)
+    buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null)
 
   it('is high when everything is measured and fresh', () => {
     const hours = buildSeries([{ hour: 8 }])
@@ -210,7 +233,7 @@ describe('assessHour confidence', () => {
     for (const spec of [
       { hour: 8, windSpeedMph: null },
       { hour: 8, exposedSwellHeightFt: null },
-      { hour: 8, tideRangeFraction: null },
+      { hour: 8, tideHeightFt: null },
     ]) {
       const hours = buildSeries([spec])
       const result = assessHour(hours, 0, context(hours))
@@ -228,10 +251,13 @@ describe('assessHour confidence', () => {
     expect(result.confidence).toBe('medium')
   })
 
-  it('is medium while wind calibration is unresolved', () => {
+  it('is medium while the tide band is unset, without capping the verdict', () => {
+    // The real profile: wind is calibrated, tide is not. Tide is a caveat rather
+    // than a cap, so the verdict survives but confidence does not.
     const hours = buildSeries([{ hour: 8 }])
     const result = assessHour(hours, 0, buildContext(CROMWELLS, hours, null))
-    expect(result.verdict).toBe('caution')
+    expect(result.verdict).toBe('great')
     expect(result.confidence).toBe('medium')
+    expect(result.reasons.map((r) => r.code)).toContain('TIDE_NOT_CALIBRATED')
   })
 })

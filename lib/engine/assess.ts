@@ -1,4 +1,4 @@
-import { isDirectionInAnyRange } from '../geo'
+import { windExposureFor, type WindExposure } from '../geo'
 import type { BeachProfile, HourlyBeachConditions, ProviderId, SourceStatus } from '../types'
 import {
   reason,
@@ -35,7 +35,17 @@ export type HourMetrics = {
   windGustMph: number | null
   /** Position in the period's wind distribution, 0 = calmest hour. */
   windPercentile: number | null
-  tideRangeFraction: number | null
+  tideHeightFt: number | null
+  /**
+   * How well the tide sits inside this beach's favourable band: 1 inside it,
+   * falling toward 0 as it moves away from either edge. Null while the band is
+   * uncalibrated.
+   *
+   * Deliberately not "fraction of the day's range" — that ranked a near-high tide
+   * as best, which is wrong at a reef-entry cove where both ends are worse than
+   * the middle.
+   */
+  tideFavorability: number | null
   recentRainIn: number | null
   srfSouthFacingMaxFt: number | null
 }
@@ -64,18 +74,30 @@ export type EngineContext = {
    * thresholds; it judges wind relatively instead.
    */
   windUncalibrated: boolean
+  /**
+   * True when the beach's favourable tide band is not yet established. While
+   * true the engine does not gate on tide at all — a guessed band would be worse
+   * than none, because at a reef cove both ends of the tide are unfavourable.
+   */
+  tideUncalibrated: boolean
   /** Sorted non-null wind speeds across the period, for percentile lookup. */
   windDistribution: readonly number[]
 }
 
-/** Does this beach have an unresolved calibration gap affecting wind thresholds? */
-export function hasUnresolvedWindCalibration(profile: BeachProfile): boolean {
+/** Is there an unresolved calibration gap affecting thresholds matching `needle`? */
+export function hasUnresolvedCalibration(profile: BeachProfile, needle: string): boolean {
   return profile.calibration.some(
     (gap) =>
       gap.status === 'unresolved' &&
-      gap.affectedThresholds.some((threshold) => threshold.includes('wind')),
+      gap.affectedThresholds.some((threshold) => threshold.toLowerCase().includes(needle)),
   )
 }
+
+export const hasUnresolvedWindCalibration = (profile: BeachProfile) =>
+  hasUnresolvedCalibration(profile, 'wind')
+
+export const hasUnresolvedTideCalibration = (profile: BeachProfile) =>
+  hasUnresolvedCalibration(profile, 'tide')
 
 export function buildContext(
   profile: BeachProfile,
@@ -91,6 +113,7 @@ export function buildContext(
     profile,
     srfSouthFacingMaxFt,
     windUncalibrated: hasUnresolvedWindCalibration(profile),
+    tideUncalibrated: hasUnresolvedTideCalibration(profile),
     windDistribution,
   }
 }
@@ -131,6 +154,23 @@ export function recentRainInches(
   return slice.reduce<number>((sum, value) => sum + (value ?? 0), 0)
 }
 
+/**
+ * 1 inside the favourable band, tapering to 0 over `TIDE_TAPER_FT` beyond either
+ * edge. Symmetric, because too much water is as unhelpful as too little here.
+ */
+const TIDE_TAPER_FT = 0.8
+
+export function tideFavorabilityOf(
+  heightFt: number | null,
+  band: { minFt: number; maxFt: number },
+): number | null {
+  if (heightFt === null) return null
+  if (heightFt >= band.minFt && heightFt <= band.maxFt) return 1
+
+  const distance = heightFt < band.minFt ? band.minFt - heightFt : heightFt - band.maxFt
+  return Math.max(0, 1 - distance / TIDE_TAPER_FT)
+}
+
 function statusOf(hour: HourlyBeachConditions, provider: ProviderId): SourceStatus {
   return hour.sourceFreshness[provider]?.status ?? 'missing'
 }
@@ -166,7 +206,7 @@ function resolveConfidence(
   const missingCritical = [
     metrics.exposedSwellHeightFt,
     metrics.windSpeedMph,
-    metrics.tideRangeFraction,
+    metrics.tideHeightFt,
   ].filter((value) => value === null).length
 
   if (missingCritical >= 2) return 'low'
@@ -257,17 +297,23 @@ export function assessHour(
     }
   }
 
-  // --- Wind. Direction is bias-free and gates normally; magnitude may not. ---
-  if (hour.windDirectionDeg !== null) {
-    if (isDirectionInAnyRange(hour.windDirectionDeg, context.profile.favorableWindDirections)) {
-      reasons.push(reason('FAVORABLE_WIND_DIRECTION', `from ${hour.windDirectionDeg}°`))
-    } else if (
-      isDirectionInAnyRange(hour.windDirectionDeg, context.profile.exposedSwellDirections)
-    ) {
-      // Blowing in off the water this beach faces.
-      reasons.push(reason('ONSHORE_WIND', `from ${hour.windDirectionDeg}°`))
-    }
+  // --- Wind. Direction decides which speed limits apply, because fetch does. ---
+  const exposure: WindExposure | null =
+    hour.windDirectionDeg === null
+      ? null
+      : windExposureFor(hour.windDirectionDeg, context.profile.shoreAspect)
+
+  if (exposure === 'offshore') {
+    reasons.push(reason('FAVORABLE_WIND_DIRECTION', `from ${hour.windDirectionDeg}°`))
+  } else if (exposure === 'onshore') {
+    reasons.push(reason('ONSHORE_WIND', `from ${hour.windDirectionDeg}°`))
   }
+
+  // Cross-shore is treated as onshore: alongshore fetch can still build chop.
+  const windLimits =
+    exposure === 'offshore' ? thresholds.windSpeedMph.offshore : thresholds.windSpeedMph.onshore
+  const gustLimits =
+    exposure === 'offshore' ? thresholds.windGustMph.offshore : thresholds.windGustMph.onshore
 
   const windPercentile = percentileOf(hour.windSpeedMph, context.windDistribution)
 
@@ -283,33 +329,29 @@ export function assessHour(
       reasons.push(reason('CALM_WIND', 'among the calmest hours in this forecast'))
     }
   } else {
-    // Calibrated: absolute thresholds are meaningful.
-    if (hour.windSpeedMph <= thresholds.windSpeedMph.great) {
-      reasons.push(reason('CALM_WIND', `${hour.windSpeedMph.toFixed(0)} mph`))
-    } else if (hour.windSpeedMph > thresholds.windSpeedMph.caution) {
+    if (hour.windSpeedMph <= windLimits.great) {
+      reasons.push(reason('CALM_WIND', `${hour.windSpeedMph.toFixed(0)} mph ${exposure ?? 'wind'}`))
+    } else if (hour.windSpeedMph > windLimits.caution) {
       reasons.push(reason('STRONG_GUSTS', `${hour.windSpeedMph.toFixed(0)} mph sustained`))
     }
 
-    if (hour.windGustMph !== null && hour.windGustMph > thresholds.windGustMph.caution) {
+    if (hour.windGustMph !== null && hour.windGustMph > gustLimits.caution) {
       reasons.push(reason('STRONG_GUSTS', `gusts to ${hour.windGustMph.toFixed(0)} mph`))
     }
   }
 
-  // --- Tide over the reef. Expressed as a fraction of the local day's range. ---
-  if (hour.tideRangeFraction === null) {
+  // --- Tide. A band in feet above MLLW: both ends are unfavourable here. ---
+  if (hour.tideHeightFt === null) {
     // The profile calls out a shallow reef shelf, so water depth is critical here.
     reasons.push(reason('MISSING_CRITICAL_DATA', 'no usable tide data for this hour'))
-  } else if (hour.tideRangeFraction >= thresholds.minTideRangeFraction) {
-    reasons.push(
-      reason('FAVORABLE_TIDE', `${Math.round(hour.tideRangeFraction * 100)}% of today's tide range`),
-    )
+  } else if (context.tideUncalibrated) {
+    reasons.push(reason('TIDE_NOT_CALIBRATED', `${hour.tideHeightFt.toFixed(2)} ft above MLLW`))
+  } else if (hour.tideHeightFt < thresholds.favorableTideFt.minFt) {
+    reasons.push(reason('LOW_TIDE_OVER_REEF', `${hour.tideHeightFt.toFixed(2)} ft above MLLW`))
+  } else if (hour.tideHeightFt > thresholds.favorableTideFt.maxFt) {
+    reasons.push(reason('HIGH_TIDE_LESS_SHALLOW', `${hour.tideHeightFt.toFixed(2)} ft above MLLW`))
   } else {
-    reasons.push(
-      reason(
-        'LOW_TIDE_OVER_REEF',
-        `${Math.round(hour.tideRangeFraction * 100)}% of today's tide range`,
-      ),
-    )
+    reasons.push(reason('FAVORABLE_TIDE', `${hour.tideHeightFt.toFixed(2)} ft above MLLW`))
   }
 
   // --- Runoff. ---
@@ -325,7 +367,10 @@ export function assessHour(
     windSpeedMph: hour.windSpeedMph,
     windGustMph: hour.windGustMph,
     windPercentile,
-    tideRangeFraction: hour.tideRangeFraction,
+    tideHeightFt: hour.tideHeightFt,
+    tideFavorability: context.tideUncalibrated
+      ? null
+      : tideFavorabilityOf(hour.tideHeightFt, thresholds.favorableTideFt),
     recentRainIn,
     srfSouthFacingMaxFt: context.srfSouthFacingMaxFt,
   }

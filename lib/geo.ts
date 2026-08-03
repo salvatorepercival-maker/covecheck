@@ -46,6 +46,40 @@ export function angularDistanceDeg(a: number, b: number): number {
   return diff > 180 ? 360 - diff : diff
 }
 
+/** Compass bearing a shore faces out to sea. */
+export const SEAWARD_BEARING = { north: 0, east: 90, south: 180, west: 270 } as const
+
+export type ShoreFacing = keyof typeof SEAWARD_BEARING
+
+/**
+ * Whether the wind blows land-to-sea, sea-to-land, or across the shore.
+ *
+ * This is derived geometrically rather than hand-listed per beach, because it is
+ * pure geometry: wind directions are reported as the bearing the wind comes
+ * *from*, so it travels toward `origin + 180`. Projected onto the shore's seaward
+ * normal, a positive component means it is heading out to sea.
+ *
+ * It matters because fetch does. Offshore wind has no open water upwind to build
+ * chop on, so it flattens the surface; onshore wind arrives with the whole ocean
+ * behind it. At a south-facing Oahu cove the ENE trades therefore come over the
+ * land and leave the water smooth, which is exactly why the south shores are the
+ * swimmable ones in trade season while the east shores are rough.
+ */
+export type WindExposure = 'offshore' | 'onshore' | 'cross'
+
+/** Below this |component| the wind is essentially alongshore. */
+const CROSS_SHORE_DEADBAND = 0.25
+
+export function windExposureFor(originDeg: number, facing: ShoreFacing): WindExposure {
+  const travellingToward = normalizeDeg(originDeg + 180)
+  const seaward = SEAWARD_BEARING[facing]
+  const component = Math.cos(((travellingToward - seaward) * Math.PI) / 180)
+
+  if (component > CROSS_SHORE_DEADBAND) return 'offshore'
+  if (component < -CROSS_SHORE_DEADBAND) return 'onshore'
+  return 'cross'
+}
+
 /**
  * Combine independent wave partitions into a single significant height.
  *

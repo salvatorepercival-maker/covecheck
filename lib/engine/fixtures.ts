@@ -60,6 +60,7 @@ export type HourSpec = {
   windDirectionDeg?: number | null
   precipitationIn?: number | null
   tideRangeFraction?: number | null
+  tideHeightFt?: number | null
   tideStage?: TideStage
   hazards?: readonly BeachHazard[]
   freshnessOverrides?: Partial<Record<ProviderId, SourceStatus>>
@@ -98,7 +99,7 @@ export function buildHour(spec: HourSpec): HourlyBeachConditions {
     windDirectionDeg: spec.windDirectionDeg === undefined ? 350 : spec.windDirectionDeg,
     precipitationIn: spec.precipitationIn === undefined ? 0 : spec.precipitationIn,
 
-    tideHeightFt: 1.2,
+    tideHeightFt: spec.tideHeightFt === undefined ? 1.2 : spec.tideHeightFt,
     tideStage: spec.tideStage ?? 'rising',
     tideRangeFraction: spec.tideRangeFraction === undefined ? 0.7 : spec.tideRangeFraction,
 
@@ -131,10 +132,10 @@ export const EXCELLENT_CALM_MORNING = withMorning((hour) => ({
   tideRangeFraction: 0.75,
 }))
 
-/** 2. Borderline 2-3 ft south swell — above "great", below "not recommended". */
+/** 2. Borderline south swell — above "great" (3 ft), below "not recommended" (4 ft). */
 export const BORDERLINE_SOUTH_SWELL = withMorning((hour) => ({
   hour,
-  exposedSwellHeightFt: 2.6,
+  exposedSwellHeightFt: 3.5,
   swellDirectionDeg: 182,
   windSpeedMph: 6 + (hour - 6) * 0.5,
   tideRangeFraction: 0.7,
@@ -164,8 +165,8 @@ export const WIND_BUILDS_THROUGH_DAY = buildSeries(
   [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map((hour) => ({
     hour,
     exposedSwellHeightFt: 0.6,
-    // 5 mph at dawn climbing to 25 mph by mid-afternoon.
-    windSpeedMph: 5 + Math.max(0, hour - 8) * 2.5,
+    // 5 mph at dawn climbing past the 32 mph offshore ceiling by mid-afternoon.
+    windSpeedMph: 5 + Math.max(0, hour - 8) * 4,
     windGustMph: 8 + Math.max(0, hour - 8) * 3,
     windDirectionDeg: hour < 9 ? 350 : 70,
     tideRangeFraction: 0.7,
@@ -176,10 +177,10 @@ export const WIND_BUILDS_THROUGH_DAY = buildSeries(
 export const STRONG_OFFSHORE_WIND = withMorning((hour) => ({
   hour,
   exposedSwellHeightFt: 0.4,
-  // Uniformly strong. Note that with calibration unresolved the engine cannot
-  // gate on the absolute figure, only on its position in the distribution.
-  windSpeedMph: 28 + (hour - 6) * 0.5,
-  windGustMph: 38,
+  // Uniformly strong, past the 32 mph offshore ceiling — a genuinely rough ENE,
+  // not the sheltered 23 mph that observation showed to be calm here.
+  windSpeedMph: 34 + (hour - 6) * 0.5,
+  windGustMph: 45,
   windDirectionDeg: 350,
   tideRangeFraction: 0.7,
 }))
@@ -190,22 +191,27 @@ export const FAVORABLE_TIDE_EXCESSIVE_SWELL = withMorning((hour) => ({
   exposedSwellHeightFt: 5.5,
   swellDirectionDeg: 190,
   windSpeedMph: 6,
+  // Squarely inside CROMWELLS_FULLY_CALIBRATED's 0.8-1.6 ft band.
+  tideHeightFt: 1.2,
   tideRangeFraction: 0.95,
 }))
 
 /**
- * Cromwell's with the wind calibration gap marked resolved.
+ * Cromwell's with every calibration gap marked resolved and a concrete tide band.
  *
- * Not a claim that it *is* resolved — it is not. This exists so tests can
- * exercise the calibrated code path and demonstrate exactly what resolving the
- * gap would unlock, since while it is open no hour can be rated `great`.
+ * Not a claim that they are resolved — the tide band in particular is still
+ * genuinely unknown. This exists so tests can exercise the fully-gating code
+ * paths, including tide, which the real profile deliberately skips while its band
+ * is unset.
  */
-export const CROMWELLS_WIND_CALIBRATED: BeachProfile = {
+export const CROMWELLS_FULLY_CALIBRATED: BeachProfile = {
   ...CROMWELLS,
-  calibration: CROMWELLS.calibration.map((gap) =>
-    gap.id === 'wind-offshore-vs-shoreline' ? { ...gap, status: 'resolved' as const } : gap,
-  ),
-  configVersion: `${CROMWELLS.configVersion}-test-wind-calibrated`,
+  thresholds: {
+    ...CROMWELLS.thresholds,
+    favorableTideFt: { minFt: 0.8, maxFt: 1.6 },
+  },
+  calibration: CROMWELLS.calibration.map((gap) => ({ ...gap, status: 'resolved' as const })),
+  configVersion: `${CROMWELLS.configVersion}-test-fully-calibrated`,
 }
 
 export const SCENARIOS = {

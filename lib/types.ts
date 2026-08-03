@@ -163,6 +163,38 @@ export type ProviderCell = {
   rationale: string
 }
 
+/**
+ * Wind limits that depend on whether the wind blows land-to-sea or sea-to-land.
+ *
+ * A single speed limit is the wrong model. 20 mph blowing offshore leaves a
+ * sheltered cove glassy; 12 mph blowing onshore chops it up, because only the
+ * onshore wind has ocean fetch behind it. Cross-shore is treated as onshore,
+ * conservatively, since alongshore fetch can still build chop.
+ */
+export type DirectionalWindLimits = {
+  offshore: { great: number; caution: number }
+  onshore: { great: number; caution: number }
+}
+
+/**
+ * The tide window a beach is actually pleasant in.
+ *
+ * Deliberately a band, not a minimum. At a shallow reef-entry cove both ends are
+ * worse than the middle: too low exposes reef and rock, too high can mean
+ * stronger current and less shallow standing area for children. A "more water is
+ * better" scale gets the high end exactly backwards.
+ *
+ * Expressed in feet above MLLW rather than as a fraction of the day's range,
+ * because reef coverage is absolute — the rock sits at a fixed elevation, so what
+ * matters is depth over it, not where the tide sits within a varying daily swing.
+ */
+export type TideBandFt = {
+  /** Below this, reef and rock start to be exposed. */
+  minFt: number
+  /** Above this, current strengthens and the shallow standing area shrinks. */
+  maxFt: number
+}
+
 export type BeachThresholds = {
   /**
    * Ceilings on `exposedSwellHeightFt` — direction-filtered offshore height.
@@ -171,10 +203,10 @@ export type BeachThresholds = {
   exposedSwellFt: { great: number; caution: number }
   /** Ceilings on the NWS south-facing surf-face band's upper bound. */
   srfSurfFaceFt: { great: number; caution: number }
-  windSpeedMph: { great: number; caution: number }
-  windGustMph: { great: number; caution: number }
-  /** Minimum fraction of the local day's tide range for adequate reef cover. */
-  minTideRangeFraction: number
+  windSpeedMph: DirectionalWindLimits
+  windGustMph: DirectionalWindLimits
+  /** The tide band this beach is pleasant in, in feet above MLLW. */
+  favorableTideFt: TideBandFt
   /** Rain in the preceding window that blocks a green verdict. */
   recentRainInchesBlocking: number
   /** Minimum continuous favorable hours to call something a "Great window". */
@@ -215,8 +247,6 @@ export type BeachProfile = {
   shoreAspect: ShoreAspect
   /** Swell arcs with a direct path to this beach. Energy outside these is discounted. */
   exposedSwellDirections: readonly DirectionRange[]
-  /** Wind arcs that produce calm water here (typically offshore-blowing). */
-  favorableWindDirections: readonly DirectionRange[]
   /** Explicitly pinned provider sample points. */
   cells: { marine: ProviderCell; weather: ProviderCell }
   thresholds: BeachThresholds

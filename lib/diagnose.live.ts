@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CROMWELLS } from './beach/cromwells'
-import { CROMWELLS_WIND_CALIBRATED } from './engine/fixtures'
+import { CROMWELLS_FULLY_CALIBRATED } from './engine/fixtures'
 import { evaluateForecast } from './engine'
 import { normalizeConditions } from './normalize'
 import { fetchAlerts } from './providers/alerts'
@@ -75,10 +75,10 @@ describe('diagnose caution-everywhere', () => {
       }
     }
 
-    scenario('AS SHIPPED (wind uncalibrated, SRF bound on)', CROMWELLS, forecast)
-    scenario('if wind were calibrated', CROMWELLS_WIND_CALIBRATED, forecast)
-    scenario('if SRF bound removed (wind still uncalibrated)', CROMWELLS, null)
-    scenario('if BOTH resolved', CROMWELLS_WIND_CALIBRATED, null)
+    scenario('AS SHIPPED', CROMWELLS, forecast)
+    scenario('if every calibration gap were resolved', CROMWELLS_FULLY_CALIBRATED, forecast)
+    scenario('if the NWS surf bound were removed', CROMWELLS, null)
+    scenario('if both', CROMWELLS_FULLY_CALIBRATED, null)
 
     // What the actual swell reaching the beach looks like, for context.
     const exposed = hours.filter(usable).map((h) => h.exposedSwellHeightFt ?? 0)

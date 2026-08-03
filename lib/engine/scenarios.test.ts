@@ -4,7 +4,7 @@ import { evaluateForecast, srfBoundFor } from './index'
 import type { ReasonCode } from './reasons'
 import {
   BORDERLINE_SOUTH_SWELL,
-  CROMWELLS_WIND_CALIBRATED,
+  CROMWELLS_FULLY_CALIBRATED,
   EXCELLENT_CALM_MORNING,
   FAVORABLE_TIDE_EXCESSIVE_SWELL,
   HIGH_SURF_ADVISORY_DAY,
@@ -19,26 +19,28 @@ const NOW = new Date('2026-08-02T18:00:00.000Z') // 08:00 HST
 const evaluate = (hours: readonly HourlyBeachConditions[], profile = CROMWELLS) =>
   evaluateForecast({ profile, hours, nowUtc: NOW })
 
-/** Calibrated evaluation, showing what resolving the wind gap unlocks. */
+/** Evaluation with every calibration gap resolved, so tide gates too. */
 const evaluateCalibrated = (hours: readonly HourlyBeachConditions[]) =>
-  evaluate(hours, CROMWELLS_WIND_CALIBRATED)
+  evaluate(hours, CROMWELLS_FULLY_CALIBRATED)
 
 const codesAt = (hours: readonly { reasons: { code: ReasonCode }[] }[], index: number) =>
   hours[index].reasons.map((r) => r.code)
 
 describe('scenario 1 — excellent calm morning', () => {
-  it('is capped at caution while wind calibration is unresolved', () => {
+  it('is great on the real profile: an unset tide band does not cap the verdict', () => {
     const result = evaluate(EXCELLENT_CALM_MORNING)
 
-    // Conditions are ideal, but wind cannot be assessed, so CoveCheck declines
-    // to call it great. This is the intended conservative behavior.
-    expect(result.hours.every((h) => h.verdict === 'caution')).toBe(true)
-    expect(codesAt(result.hours, 0)).toContain('WIND_NOT_CALIBRATED')
+    // Tide is one factor among several and the swell/wind picture is fully
+    // assessable without it, so its gap is a caveat rather than a cap. Contrast
+    // with stale marine data, which does force insufficient_data.
+    expect(result.hours.every((h) => h.verdict === 'great')).toBe(true)
+    expect(codesAt(result.hours, 0)).toContain('TIDE_NOT_CALIBRATED')
     expect(codesAt(result.hours, 0)).toContain('LOW_WAVE_ENERGY')
-    expect(result.warnings.some((w) => /wind calibration is unresolved/.test(w))).toBe(true)
+    // But it does cost confidence.
+    expect(result.hours[0].confidence).toBe('medium')
   })
 
-  it('becomes a great window once wind calibration is resolved', () => {
+  it('reaches high confidence once the tide band is set', () => {
     const result = evaluateCalibrated(EXCELLENT_CALM_MORNING)
 
     expect(result.hours.every((h) => h.verdict === 'great')).toBe(true)
@@ -46,6 +48,7 @@ describe('scenario 1 — excellent calm morning', () => {
     expect(result.bestWindow?.lengthHours).toBe(7)
     expect(result.days[0].verdict).toBe('great')
     expect(result.days[0].label).toBe('Great window')
+    expect(result.hours[0].confidence).toBe('high')
   })
 
   it('reports the positive reasons that justify the verdict', () => {
@@ -65,7 +68,7 @@ describe('scenario 1 — excellent calm morning', () => {
   })
 })
 
-describe('scenario 2 — borderline 2-3 ft south swell', () => {
+describe('scenario 2 — borderline south swell', () => {
   const result = evaluateCalibrated(BORDERLINE_SOUTH_SWELL)
 
   it('is caution, not great, even with calibration resolved', () => {
@@ -216,7 +219,7 @@ describe('NWS surf-face bound', () => {
 
   it('blocks when the surf-face band exceeds the caution threshold', () => {
     const result = evaluateForecast({
-      profile: CROMWELLS_WIND_CALIBRATED,
+      profile: CROMWELLS_FULLY_CALIBRATED,
       hours: EXCELLENT_CALM_MORNING,
       surfZoneForecast: forecast(6),
       nowUtc: NOW,
@@ -228,14 +231,29 @@ describe('NWS surf-face bound', () => {
   })
 
   it('downgrades to caution when the band is marginal', () => {
+    // 3 ft now passes as good, so 4 ft is the marginal case. See DECISIONS.md #11.
     const result = evaluateForecast({
-      profile: CROMWELLS_WIND_CALIBRATED,
+      profile: CROMWELLS_FULLY_CALIBRATED,
       hours: EXCELLENT_CALM_MORNING,
-      surfZoneForecast: forecast(3),
+      surfZoneForecast: forecast(4),
       nowUtc: NOW,
     })
     expect(result.hours.every((h) => h.verdict === 'caution')).toBe(true)
     expect(codesAt(result.hours, 0)).toContain('SRF_MARGINAL_SURF')
+  })
+
+  it('treats a 1-3 ft band as an ordinary calm week, not a marginal one', () => {
+    // The regression that made every day read "use caution": 1-3 ft is about the
+    // narrowest calm band NWS publishes for a Hawaii south shore, so comparing
+    // its upper bound against a 2 ft ceiling could never pass in any conditions.
+    const result = evaluateForecast({
+      profile: CROMWELLS_FULLY_CALIBRATED,
+      hours: EXCELLENT_CALM_MORNING,
+      surfZoneForecast: forecast(3),
+      nowUtc: NOW,
+    })
+    expect(result.hours.every((h) => h.verdict === 'great')).toBe(true)
+    expect(codesAt(result.hours, 0)).not.toContain('SRF_MARGINAL_SURF')
   })
 
   it('does not contradict itself when the model and the surf forecast disagree', () => {
@@ -243,9 +261,9 @@ describe('NWS surf-face bound', () => {
     // Service still calls the whole shore borderline. Both are true, so both are
     // reported — but they must not read as one measurement contradicting itself.
     const result = evaluateForecast({
-      profile: CROMWELLS_WIND_CALIBRATED,
+      profile: CROMWELLS_FULLY_CALIBRATED,
       hours: EXCELLENT_CALM_MORNING,
-      surfZoneForecast: forecast(3),
+      surfZoneForecast: forecast(4),
       nowUtc: NOW,
     })
 
@@ -258,7 +276,7 @@ describe('NWS surf-face bound', () => {
 
   it('allows great when the band agrees the shore is small', () => {
     const result = evaluateForecast({
-      profile: CROMWELLS_WIND_CALIBRATED,
+      profile: CROMWELLS_FULLY_CALIBRATED,
       hours: EXCELLENT_CALM_MORNING,
       surfZoneForecast: forecast(2),
       nowUtc: NOW,

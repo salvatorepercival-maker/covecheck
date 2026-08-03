@@ -42,37 +42,46 @@ function swellQualifier(heightFt: number | null): string {
 }
 
 /**
- * Wind is described relatively while calibration is unresolved.
+ * Derived from the engine's own reason codes rather than from thresholds
+ * duplicated here.
  *
- * The absolute figure is still shown, labelled as a model reading, because
- * hiding it would be worse than showing it with a caveat.
+ * This matters because the wind limits are direction-dependent: 20 mph blowing
+ * offshore is light *for this beach*, while 12 mph onshore is not. A UI copy of
+ * the numbers would drift from the engine and mislabel exactly those cases.
  */
-function windQualifier(speedMph: number | null, uncalibrated: boolean): string {
+function windQualifier(codes: readonly string[], speedMph: number | null): string {
   if (speedMph === null) return 'Not available'
-  if (uncalibrated) return 'Not yet calibrated'
-  if (speedMph <= 8) return 'Light'
-  if (speedMph <= 12) return 'Moderate'
-  if (speedMph <= 20) return 'Fresh'
-  return 'Strong'
+  if (codes.includes('WIND_NOT_CALIBRATED')) return 'Not yet calibrated'
+  if (codes.includes('STRONG_GUSTS')) return 'Strong for this beach'
+  if (codes.includes('CALM_WIND')) return 'Light for this beach'
+  return 'Moderate'
 }
 
-function tideQualifier(fraction: number | null): string {
-  if (fraction === null) return 'Not available'
-  if (fraction >= 0.7) return 'Plenty of water'
-  if (fraction >= 0.4) return 'Adequate water'
-  return 'Low over the reef'
+/**
+ * Tide is a band here, not a scale.
+ *
+ * "Plenty of water" was wrong at the high end: at a reef-entry cove a high tide
+ * can mean stronger current and less shallow standing area for children, so more
+ * water is not simply better. While the band is uncalibrated we say so rather
+ * than implying a judgement.
+ */
+function tideQualifier(favorability: number | null, heightFt: number | null): string {
+  if (heightFt === null) return 'Not available'
+  if (favorability === null) return 'Not yet set for this beach'
+  if (favorability >= 1) return 'In the good range'
+  if (favorability >= 0.5) return 'Near the edge of the good range'
+  return 'Outside the good range'
 }
 
 export function ConditionsGrid({
   assessment,
   conditions,
-  windUncalibrated,
 }: {
   assessment: HourAssessment
   conditions: HourlyBeachConditions | undefined
-  windUncalibrated: boolean
 }) {
   const { metrics } = assessment
+  const codes = assessment.reasons.map((entry) => entry.code)
   const hazards = conditions?.activeHazards ?? []
   const hazardsKnown = conditions?.sourceFreshness.alerts?.status === 'ok'
 
@@ -98,24 +107,30 @@ export function ConditionsGrid({
 
       <ConditionCard
         label="Wind"
-        qualifier={windQualifier(metrics.windSpeedMph, windUncalibrated)}
+        qualifier={windQualifier(codes, metrics.windSpeedMph)}
         value={`${formatMph(metrics.windSpeedMph)}${
           metrics.windGustMph !== null ? `, gusts ${formatMph(metrics.windGustMph)}` : ''
         }`}
         footnote={
           conditions?.windDirectionDeg !== null && conditions?.windDirectionDeg !== undefined
-            ? `From the ${formatCompass(conditions.windDirectionDeg)}`
+            ? `From the ${formatCompass(conditions.windDirectionDeg)}${
+                codes.includes('FAVORABLE_WIND_DIRECTION')
+                  ? ' — blowing offshore'
+                  : codes.includes('ONSHORE_WIND')
+                    ? ' — blowing onshore'
+                    : ''
+              }`
             : undefined
         }
       />
 
       <ConditionCard
         label="Tide"
-        qualifier={tideQualifier(metrics.tideRangeFraction)}
+        qualifier={tideQualifier(metrics.tideFavorability, metrics.tideHeightFt)}
         value={formatTideStage(conditions?.tideStage ?? 'unknown')}
         footnote={
-          metrics.tideRangeFraction !== null
-            ? `${Math.round(metrics.tideRangeFraction * 100)}% of today's range`
+          metrics.tideHeightFt !== null
+            ? `${metrics.tideHeightFt.toFixed(1)} ft above MLLW`
             : undefined
         }
       />

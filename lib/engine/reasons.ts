@@ -27,6 +27,7 @@ export type ReasonCode =
   | 'STRONG_GUSTS'
   | 'ONSHORE_WIND'
   | 'LOW_TIDE_OVER_REEF'
+  | 'HIGH_TIDE_LESS_SHALLOW'
   | 'RECENT_HEAVY_RAIN'
   // Hard blockers
   | 'ACTIVE_BEACH_HAZARD'
@@ -37,6 +38,7 @@ export type ReasonCode =
   | 'MISSING_CRITICAL_DATA'
   | 'HAZARD_STATE_UNKNOWN'
   | 'WIND_NOT_CALIBRATED'
+  | 'TIDE_NOT_CALIBRATED'
   // Windowing
   | 'INSUFFICIENT_WINDOW'
 
@@ -109,7 +111,16 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
   },
   LOW_TIDE_OVER_REEF: {
     severity: 'negative',
-    text: 'Low water over a shallow reef',
+    text: 'Low water over a shallow reef — rock and reef start to be exposed',
+  },
+  /**
+   * The high end of the tide is a negative here too, which a "more water is
+   * better" scale gets backwards. At a reef-entry cove a high tide can mean
+   * stronger current and less shallow standing area for children.
+   */
+  HIGH_TIDE_LESS_SHALLOW: {
+    severity: 'negative',
+    text: 'Higher tide — stronger current and less shallow standing area for children',
   },
   RECENT_HEAVY_RAIN: {
     severity: 'negative',
@@ -158,6 +169,16 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
   WIND_NOT_CALIBRATED: {
     severity: 'negative',
     text: 'Wind strength at this beach is not yet calibrated, so CoveCheck will not call conditions great',
+  },
+
+  /**
+   * `caveat`, not `negative`: unlike wind, tide is one factor among several and
+   * the swell/wind picture is still fully assessable without it. It lowers
+   * confidence and is shown to the user, but does not cap the verdict.
+   */
+  TIDE_NOT_CALIBRATED: {
+    severity: 'caveat',
+    text: 'The favourable tide range for this beach is not yet set, so tide is not counted in this verdict',
   },
 
   INSUFFICIENT_WINDOW: {

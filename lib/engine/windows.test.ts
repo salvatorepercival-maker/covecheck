@@ -37,7 +37,8 @@ function hour(stub: HourStub): HourAssessment {
       windSpeedMph: 8,
       windGustMph: 12,
       windPercentile: stub.windPercentile ?? 0.5,
-      tideRangeFraction: stub.tide ?? 0.7,
+      tideHeightFt: 1.2,
+      tideFavorability: stub.tide ?? 0.7,
       recentRainIn: 0,
       srfSouthFacingMaxFt: null,
     },
@@ -226,16 +227,17 @@ describe('ranking two candidate windows', () => {
     expect(rankWindows([breezy, light])[0]).toBe(light)
   })
 
-  it('prefers more water over the reef', () => {
-    const deep = build([
-      { hour: 7, verdict: 'great', tide: 0.9 },
-      { hour: 8, verdict: 'great', tide: 0.9 },
+  it('prefers a tide closer to the beach\'s favourable band', () => {
+    // Not "more water" — favourability, so a near-high tide is not automatically best.
+    const inBand = build([
+      { hour: 7, verdict: 'great', tide: 1 },
+      { hour: 8, verdict: 'great', tide: 1 },
     ])
-    const shallow = build([
-      { hour: 7, verdict: 'great', tide: 0.45 },
-      { hour: 8, verdict: 'great', tide: 0.45 },
+    const offBand = build([
+      { hour: 7, verdict: 'great', tide: 0.3 },
+      { hour: 8, verdict: 'great', tide: 0.3 },
     ])
-    expect(rankWindows([shallow, deep])[0]).toBe(deep)
+    expect(rankWindows([offBand, inBand])[0]).toBe(inBand)
   })
 
   it('prefers the morning of two otherwise identical windows', () => {
@@ -309,7 +311,7 @@ describe('ranking two candidate windows', () => {
       ...measured,
       hours: measured.hours.map((h) => ({
         ...h,
-        metrics: { ...h.metrics, exposedSwellHeightFt: null, tideRangeFraction: null, windPercentile: null },
+        metrics: { ...h.metrics, exposedSwellHeightFt: null, tideFavorability: null, windPercentile: null },
       })),
     }
     const rescored = { ...unknown, score: scoreWindow(unknown) }

@@ -155,9 +155,6 @@ export function ReportView({
           <ConditionsGrid
             assessment={headline}
             conditions={conditionsByTimestamp[headline.timestamp]}
-            windUncalibrated={report.warnings.some((warning) =>
-              warning.includes('wind calibration is unresolved'),
-            )}
           />
         ) : null}
 
