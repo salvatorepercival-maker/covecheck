@@ -23,6 +23,7 @@ export type ReasonCode =
   // Negative contributions
   | 'DIRECT_SOUTH_SWELL'
   | 'MARGINAL_SWELL'
+  | 'SRF_MARGINAL_SURF'
   | 'STRONG_GUSTS'
   | 'ONSHORE_WIND'
   | 'LOW_TIDE_OVER_REEF'
@@ -84,6 +85,19 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
   MARGINAL_SWELL: {
     severity: 'negative',
     text: 'Borderline swell energy for a family outing',
+  },
+  /**
+   * Distinct from `MARGINAL_SWELL` on purpose.
+   *
+   * The two describe different measurements and can legitimately disagree: the
+   * model may show almost no swell arriving from a direction this beach is open
+   * to, while the Weather Service still forecasts a borderline surf face for the
+   * whole shore. Sharing one code produced the contradiction "borderline swell
+   * energy" directly above "little swell energy is reaching this beach".
+   */
+  SRF_MARGINAL_SURF: {
+    severity: 'negative',
+    text: 'The National Weather Service surf forecast is borderline for this shore',
   },
   STRONG_GUSTS: {
     severity: 'negative',

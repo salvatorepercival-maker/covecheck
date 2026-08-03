@@ -6,6 +6,59 @@ deviates from it and why.
 
 ---
 
+## 10. The screen shows the offshore-versus-exposed gap rather than hiding it
+
+**Decided:** 2026-08-02 · **Status:** active
+
+The expandable detail panel prints both figures side by side. On 2026-08-02 that
+reads:
+
+```
+Reaching this beach          0.0 ft   inside 135–225°
+Total sea state offshore     5.4 ft   from the E
+Primary swell                2.2 ft   from the ENE
+Wind-driven waves            4.1 ft   from the ENE
+Weather Service surf face    up to 3 ft   south-facing shores
+```
+
+A sceptical local who knows the east shore is big that day can see exactly why
+CoveCheck is not alarmed about a south-facing cove, instead of being asked to
+trust a single number. Unresolved calibration gaps are printed in the same panel,
+verbatim from the beach profile — a limitation the engine knows about should not
+be visible only in the repository.
+
+The colour system never carries meaning alone: every verdict pairs a distinct icon
+*silhouette* (calm horizon, warning triangle, struck-through circle, question)
+with a text label, and the hourly timeline encodes verdict in bar *height* as well
+as hue.
+
+---
+
+## 9. Caching is split so freshness cannot lie
+
+**Decided:** 2026-08-02 · **Status:** active
+
+`getForecastBundle` is cached (`use cache` + `cacheTag`); `getBeachReport` is
+dynamic, behind `connection()`. Only the six network calls are cached. Freshness,
+staleness and "which hour is now" are recomputed per request, because a clock read
+inside the cached function would freeze a timestamp into the cache entry and make
+the "updated N minutes ago" line wrong.
+
+`cacheLife` is `{ stale: 300, revalidate: 900, expire: 1800 }`. **The `expire`
+value is not arbitrary**: it equals the tightest staleness limit in
+`STALENESS_LIMITS_SECONDS` (alerts, 30 minutes). Serving an entry older than that
+would make the engine correctly report its own inputs as stale and refuse to give
+a verdict. If either number changes, both must.
+
+The whole `BeachProfile` is passed as a cache-key argument so editing a threshold
+or exposure window produces a new entry rather than serving a verdict computed
+under old configuration.
+
+The page is Partial Prerendered: branding and the shoreline framing prerender into
+the static shell, the report streams in behind `<Suspense>`.
+
+---
+
 ## 8. A recommendation is a tightened slice, not the whole favorable stretch
 
 **Decided:** 2026-08-02 · **Status:** active

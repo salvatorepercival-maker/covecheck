@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -13,8 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CoveCheck",
-  description: "Know when the water is right.",
+  title: "CoveCheck — Know when the water is right",
+  description:
+    "Forecast conditions for calm family snorkelling and swimming at a specific beach. Decision support, not a safety assessment.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // The screen is read on a phone in bright sun; let people zoom.
+  maximumScale: 5,
 };
 
 export default function RootLayout({

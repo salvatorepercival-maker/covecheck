@@ -252,7 +252,7 @@ export function assessHour(
       )
     } else if (context.srfSouthFacingMaxFt > thresholds.srfSurfFaceFt.great) {
       reasons.push(
-        reason('MARGINAL_SWELL', `National Weather Service surf up to ${context.srfSouthFacingMaxFt} ft`),
+        reason('SRF_MARGINAL_SURF', `up to ${context.srfSouthFacingMaxFt} ft on ${context.profile.shoreAspect}-facing shores`),
       )
     }
   }

@@ -1,26 +1,97 @@
 @import "tailwindcss";
 
+/**
+ * CoveCheck palette.
+ *
+ * Warm and coastal rather than clinical or nautical: bone and sand grounds,
+ * deep ink text, and one restrained sea-glass accent. Deliberately not the
+ * turquoise-gradient look of a generic ocean app.
+ *
+ * Every verdict colour is paired with an icon and a text label in the UI —
+ * colour never carries meaning on its own.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --background: #faf7f2;
+  --surface: #ffffff;
+  --surface-sunk: #f4f0e9;
+  --foreground: #1b1f1e;
+  --muted: #646a67;
+  --border: #e4ded4;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Accent, used sparingly for focus and emphasis. */
+  --sea: #2f6f72;
+
+  --verdict-great: #3a6b49;
+  --verdict-great-bg: #eaf2ec;
+  --verdict-caution: #8a5a10;
+  --verdict-caution-bg: #fbf2e2;
+  --verdict-nogo: #96463a;
+  --verdict-nogo-bg: #f9eae6;
+  --verdict-unknown: #4d5964;
+  --verdict-unknown-bg: #eef1f3;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #14171a;
+    --surface: #1c2023;
+    --surface-sunk: #23282b;
+    --foreground: #ecebe6;
+    --muted: #9aa2a0;
+    --border: #303639;
+
+    --sea: #7fbfc0;
+
+    --verdict-great: #8fc39d;
+    --verdict-great-bg: #1e2a22;
+    --verdict-caution: #e0b268;
+    --verdict-caution-bg: #2b2317;
+    --verdict-nogo: #dd9384;
+    --verdict-nogo-bg: #2c1e1b;
+    --verdict-unknown: #a8b4bf;
+    --verdict-unknown-bg: #22282c;
   }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-sea: var(--sea);
+
+  --color-great: var(--verdict-great);
+  --color-great-bg: var(--verdict-great-bg);
+  --color-caution: var(--verdict-caution);
+  --color-caution-bg: var(--verdict-caution-bg);
+  --color-nogo: var(--verdict-nogo);
+  --color-nogo-bg: var(--verdict-nogo-bg);
+  --color-unknown: var(--verdict-unknown);
+  --color-unknown-bg: var(--verdict-unknown-bg);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Visible, consistent focus for keyboard users. */
+:focus-visible {
+  outline: 2px solid var(--sea);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

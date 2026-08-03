@@ -235,7 +235,25 @@ describe('NWS surf-face bound', () => {
       nowUtc: NOW,
     })
     expect(result.hours.every((h) => h.verdict === 'caution')).toBe(true)
-    expect(codesAt(result.hours, 0)).toContain('MARGINAL_SWELL')
+    expect(codesAt(result.hours, 0)).toContain('SRF_MARGINAL_SURF')
+  })
+
+  it('does not contradict itself when the model and the surf forecast disagree', () => {
+    // The model can show almost nothing reaching this beach while the Weather
+    // Service still calls the whole shore borderline. Both are true, so both are
+    // reported — but they must not read as one measurement contradicting itself.
+    const result = evaluateForecast({
+      profile: CROMWELLS_WIND_CALIBRATED,
+      hours: EXCELLENT_CALM_MORNING,
+      surfZoneForecast: forecast(3),
+      nowUtc: NOW,
+    })
+
+    const codes = codesAt(result.hours, 0)
+    expect(codes).toContain('LOW_WAVE_ENERGY')
+    expect(codes).toContain('SRF_MARGINAL_SURF')
+    // The model-derived marginal code must not fire; the model said 0.5 ft.
+    expect(codes).not.toContain('MARGINAL_SWELL')
   })
 
   it('allows great when the band agrees the shore is small', () => {

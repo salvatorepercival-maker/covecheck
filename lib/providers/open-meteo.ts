@@ -84,7 +84,13 @@ export const WEATHER_HOURLY_VARIABLES = [
   'precipitation',
 ] as const
 
-export function buildMarineUrl(cell: ProviderCell, timezone: string, forecastDays = 7): string {
+/**
+ * Only the requested coordinates are needed to build a URL. Narrowing the
+ * parameter keeps callers from having to fabricate the calibration fields.
+ */
+export type CellRequest = Pick<ProviderCell, 'requestedLat' | 'requestedLon'>
+
+export function buildMarineUrl(cell: CellRequest, timezone: string, forecastDays = 7): string {
   const params = new URLSearchParams({
     latitude: String(cell.requestedLat),
     longitude: String(cell.requestedLon),
@@ -96,7 +102,7 @@ export function buildMarineUrl(cell: ProviderCell, timezone: string, forecastDay
   return `${MARINE_BASE}?${params.toString()}`
 }
 
-export function buildWeatherUrl(cell: ProviderCell, timezone: string, forecastDays = 7): string {
+export function buildWeatherUrl(cell: CellRequest, timezone: string, forecastDays = 7): string {
   const params = new URLSearchParams({
     latitude: String(cell.requestedLat),
     longitude: String(cell.requestedLon),
@@ -133,7 +139,7 @@ export function checkResolvedCell(
 }
 
 export function fetchMarine(
-  cell: ProviderCell,
+  cell: CellRequest,
   timezone: string,
   overrides: { fetchImpl?: typeof fetch; forecastDays?: number } = {},
 ): Promise<ProviderResult<MarineResponse>> {
@@ -146,7 +152,7 @@ export function fetchMarine(
 }
 
 export function fetchWeather(
-  cell: ProviderCell,
+  cell: CellRequest,
   timezone: string,
   overrides: { fetchImpl?: typeof fetch; forecastDays?: number } = {},
 ): Promise<ProviderResult<WeatherResponse>> {
