@@ -36,6 +36,15 @@ function ConditionCard({ label, value, qualifier, footnote, extra }: ConditionCa
   )
 }
 
+/**
+ * A physical description of the swell, on its own scale.
+ *
+ * This is allowed to differ from the engine's band — "Moderate" at 2.2 ft while
+ * the engine judges the same figure inside its calm range is not a contradiction,
+ * because one describes the water and the other judges suitability. What is NOT
+ * allowed is the two making competing magnitude claims in words, which is why
+ * LOW_WAVE_ENERGY no longer says "little". See lib/engine/reasons.ts.
+ */
 function swellQualifier(heightFt: number | null): string {
   if (heightFt === null) return 'Not available'
   if (heightFt < 1) return 'Very little'

@@ -68,9 +68,21 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
     severity: 'positive',
     text: 'Wind is among the lightest in this forecast period',
   },
+  /**
+   * Deliberately makes no magnitude claim.
+   *
+   * This fires across the entire 0 ft to `exposedSwellFt.great` range — 0-3 ft at
+   * Cromwell's — so wording it "little swell energy" overclaimed at the top of
+   * that band and directly contradicted the swell card, which called the same
+   * 2.2 ft reading "Moderate". Both were faithful to their own scale; only the
+   * words disagreed. The card keeps its physical description; this states the
+   * engine's judgement instead of competing with it.
+   *
+   * `reasons.test.ts` guards against a magnitude adjective creeping back in.
+   */
   LOW_WAVE_ENERGY: {
     severity: 'positive',
-    text: 'Little swell energy is reaching this beach',
+    text: 'Swell energy is within this beach\'s calm range',
   },
   FAVORABLE_TIDE: {
     severity: 'positive',

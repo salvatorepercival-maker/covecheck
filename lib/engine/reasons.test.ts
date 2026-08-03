@@ -91,6 +91,22 @@ describe('reason copy', () => {
   })
 })
 
+describe('copy cannot contradict the condition cards', () => {
+  it('makes no magnitude claim in the wave-energy reason', () => {
+    // The bug: LOW_WAVE_ENERGY fires from 0 ft up to the "great" ceiling (3 ft at
+    // Cromwell's), so "little swell energy" contradicted the swell card calling
+    // the same 2.2 ft reading "Moderate". The engine judges suitability; the card
+    // describes the water. Only one of them may use magnitude adjectives.
+    const magnitudeWords = /\b(little|small|moderate|large|tiny|huge|big)\b/i
+    expect(reason('LOW_WAVE_ENERGY').text).not.toMatch(magnitudeWords)
+  })
+
+  it('still says something substantive rather than going vague', () => {
+    expect(reason('LOW_WAVE_ENERGY').text).toMatch(/swell/i)
+    expect(reason('LOW_WAVE_ENERGY').text.length).toBeGreaterThan(20)
+  })
+})
+
 describe('reason severities', () => {
   it('classifies hazards and excessive swell as hard blockers', () => {
     expect(severityOf('ACTIVE_BEACH_HAZARD')).toBe('blocker')
