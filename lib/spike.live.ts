@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CROMWELLS } from './beach/cromwells'
+import { evaluateForecast, VERDICT_LABEL } from './engine'
 import { normalizeConditions } from './normalize'
 import { honoluluDateOf, utcToHonoluluLocal } from './time'
 import { fetchAlerts } from './providers/alerts'
@@ -162,6 +163,69 @@ describe('live provider spike — Cromwell\'s Beach', () => {
     if (warnings.length > 0) {
       console.log('\n=== normalization warnings ===')
       for (const warning of warnings) console.log(`  ⚠ ${warning}`)
+    }
+
+    // --- Run the engine over the live series. ---
+    const evaluation = evaluateForecast({
+      profile: CROMWELLS,
+      hours,
+      surfZoneForecast: srf.ok ? srf.data.forecast : null,
+      nowUtc,
+    })
+
+    console.log('\n=== engine verdicts by day ===')
+    console.log('  date        verdict                  recommended    full stretch   conf')
+    for (const day of evaluation.days) {
+      const span = (w: typeof day.bestWindow) =>
+        w ? `${w.startTimestamp.slice(11)}-${w.endTimestamp.slice(11)}` : '—'
+      console.log(
+        [
+          ` ${day.date}`,
+          VERDICT_LABEL[day.verdict].padEnd(24),
+          span(day.recommendedWindow).padEnd(14),
+          span(day.bestWindow).padEnd(14),
+          (day.bestWindow?.confidence ?? '—').padStart(6),
+        ].join(' '),
+      )
+    }
+
+    console.log('\n=== current hour ===')
+    if (evaluation.current) {
+      line('time', evaluation.current.timestamp)
+      line('verdict', VERDICT_LABEL[evaluation.current.verdict])
+      line('confidence', evaluation.current.confidence)
+      console.log('  reasons:')
+      for (const entry of evaluation.current.reasons) {
+        console.log(`    [${entry.severity}] ${entry.text}${entry.detail ? ` (${entry.detail})` : ''}`)
+      }
+    } else {
+      console.log('  no assessment covers the present moment')
+    }
+
+    console.log('\n=== best window overall ===')
+    if (evaluation.bestWindow) {
+      const best = evaluation.bestWindow
+      line('when', `${best.date} ${best.startTimestamp.slice(11)}-${best.endTimestamp.slice(11)}`)
+      line('verdict', VERDICT_LABEL[best.verdict])
+      line('confidence', best.confidence)
+      line('score', best.score.toFixed(3))
+      for (const entry of best.reasons) {
+        console.log(`    [${entry.severity}] ${entry.text}`)
+      }
+    } else {
+      console.log('  no window met the bar')
+    }
+
+    line('engine / config', `${evaluation.engineVersion} / ${evaluation.configVersion}`)
+
+    if (evaluation.warnings.length > 0) {
+      console.log('\n=== engine warnings ===')
+      for (const warning of evaluation.warnings) console.log(`  ⚠ ${warning}`)
+    }
+
+    // A verdict without an explanation is never acceptable.
+    for (const assessment of evaluation.hours) {
+      expect(assessment.reasons.length, `no reasons at ${assessment.timestamp}`).toBeGreaterThan(0)
     }
     console.log()
   })

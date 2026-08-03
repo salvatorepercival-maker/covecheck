@@ -6,6 +6,87 @@ deviates from it and why.
 
 ---
 
+## 8. A recommendation is a tightened slice, not the whole favorable stretch
+
+**Decided:** 2026-08-02 · **Status:** active
+
+Grouping adjacent favorable hours produced a correct but useless answer: because
+uncalibrated wind (see #7) caps every hour at the same verdict, every usable hour
+merged into a single 06:00–18:00 block on all seven days. "Come to the beach
+sometime today" is not the specific window HANDOFF.md asks for.
+
+`bestSubWindow` slides a fixed-length frame (default three hours, never shorter
+than `minWindowHours`) across the stretch and scores each position with the *same*
+weights as the top-level ranking, so the recommended slice can never contradict
+the day ranking. Live output now varies meaningfully by day — 06:00–08:00,
+07:00–09:00, 11:00–13:00 — driven by real tide and wind movement.
+
+Both are kept: `bestWindow` is the full favorable stretch, `recommendedWindow` is
+what the UI should lead with.
+
+---
+
+## 7. Uncalibrated wind caps every verdict at "use caution"
+
+**Decided:** 2026-08-02 · **Status:** active while calibration gap #2 is open
+
+`WIND_NOT_CALIBRATED` has severity `negative`, not `caveat`, so no hour can be
+rated `great` while the wind calibration gap is unresolved. **The product
+currently has no green days, by design.**
+
+Wind is a primary determinant of calm water. HANDOFF.md is explicit that
+uncertain data must not produce an enthusiastic green recommendation, and an
+unassessable primary factor is exactly that. This also keeps the calibration gap
+*visible* rather than papered over.
+
+An intermediate approach was tried and rejected. Judging wind by its percentile
+within the forecast period is bias-invariant, so it looked like a way to keep
+gating on wind — but on a uniformly calm morning the top quartile is *still calm*,
+and labelling a 8 mph hour "gusty" because 5 mph hours exist elsewhere would be
+simply false. Fitting an offset from the observed cell-vs-shoreline difference was
+also rejected: it would be unvalidated guesswork that drifts with wind direction.
+
+What the relative signal is still used for, because ordering survives an unknown
+bias: **ranking** windows, and reporting `CALM_WIND` as a positive. It is never
+used to downgrade.
+
+Resolving gap #2 flips every affected hour to absolute-threshold gating.
+`CROMWELLS_WIND_CALIBRATED` in `lib/engine/fixtures.ts` exercises that path so the
+behavior is tested and the unlock is demonstrable.
+
+---
+
+## 6. The NWS surf-face bound is day-level and deliberately conservative
+
+**Decided:** 2026-08-02 · **Status:** active, refine later
+
+The SRF's columns are labelled by day and period — "Tonight PM", "Monday AM" —
+and mapping those labels onto calendar hours means parsing relative day names
+against an issuance time, which is fragile in exactly the way the fixed-width
+table already is.
+
+Until that mapping exists, `srfBoundFor` takes the **worst** south-facing band in
+the product and applies it to every hour. This can over-constrain: a 1–3 ft
+tonight alongside a 4–6 ft Monday bounds everything at 6 ft. That errs toward
+caution, which is the correct direction to err, but it is a known imprecision and
+the reason a day-level bound is recorded rather than an hourly one.
+
+Only the beach's own `shoreAspect` row is read. The east-facing band — which is
+what the raw wave model was actually reporting, per #1 — is ignored entirely.
+
+---
+
+## 5b. Usable hours bound candidate windows
+
+**Decided:** 2026-08-02 · **Status:** active
+
+Candidate windows are restricted to 06:00–18:00 local. Without it, "favor morning
+hours" ranks 04:00 as the best window of the day. This is a usability bound, not a
+safety threshold, and it is overridable per evaluation — Phase 5's alert
+preferences ("earliest and latest acceptable time") will pass a user's own range.
+
+---
+
 ## 1. Surf height is direction-filtered, and every height field is named for its measurement
 
 **Decided:** 2026-08-02 · **Status:** active
