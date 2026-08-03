@@ -9,6 +9,7 @@ import type {
   ProviderId,
   SourceFreshness,
   SourceStatus,
+  SwellPartitionName,
 } from './types'
 import type { MarineResponse, WeatherResponse } from './providers/open-meteo'
 import type { TideExtreme, TidePrediction } from './providers/tides'
@@ -105,11 +106,15 @@ function freshnessFor(input: NormalizeInput): SourceFreshness {
  * missing data, not calm water, and must not become 0.
  */
 export function exposedSwell(
-  partitions: readonly { partition: 'swell' | 'wind_wave'; heightFt: number | null; directionDeg: number | null }[],
+  partitions: readonly {
+    partition: SwellPartitionName
+    heightFt: number | null
+    directionDeg: number | null
+  }[],
   profile: BeachProfile,
 ): { heightFt: number | null; counted: ExposedPartition[] } {
   const usable = partitions.filter(
-    (p): p is { partition: 'swell' | 'wind_wave'; heightFt: number; directionDeg: number } =>
+    (p): p is { partition: SwellPartitionName; heightFt: number; directionDeg: number } =>
       p.heightFt !== null && p.directionDeg !== null,
   )
 
@@ -205,6 +210,12 @@ export function normalizeConditions(input: NormalizeInput): NormalizeResult {
     )
   }
 
+  if (input.marine.status === 'ok' && input.marine.data.hourly.secondary_swell_wave_height === undefined) {
+    warnings.push(
+      'marine payload has no secondary swell partition; a south swell sitting beneath the dominant windswell would be invisible and exposed energy under-reported',
+    )
+  }
+
   const freshness = freshnessFor(input)
   const marineHourly = input.marine.status === 'ok' ? input.marine.data.hourly : null
   const weatherHourly = input.weather.status === 'ok' ? input.weather.data.hourly : null
@@ -226,12 +237,21 @@ export function normalizeConditions(input: NormalizeInput): NormalizeResult {
 
     const modelSwellHeightFt = marineHourly ? at(marineHourly.swell_wave_height, m) : null
     const modelSwellDirectionDeg = marineHourly ? at(marineHourly.swell_wave_direction, m) : null
+    const secondaryHeightFt = marineHourly ? at(marineHourly.secondary_swell_wave_height ?? [], m) : null
+    const secondaryDirectionDeg = marineHourly ? at(marineHourly.secondary_swell_wave_direction ?? [], m) : null
+    const tertiaryHeightFt = marineHourly ? at(marineHourly.tertiary_swell_wave_height ?? [], m) : null
+    const tertiaryDirectionDeg = marineHourly ? at(marineHourly.tertiary_swell_wave_direction ?? [], m) : null
     const modelWindWaveHeightFt = marineHourly ? at(marineHourly.wind_wave_height, m) : null
     const modelWindWaveDirectionDeg = marineHourly ? at(marineHourly.wind_wave_direction, m) : null
 
+    // Every train is offered to the filter, which admits each on its own
+    // direction. Passing only the primary swell hid south swell sitting beneath a
+    // dominant easterly windswell.
     const exposed = exposedSwell(
       [
         { partition: 'swell', heightFt: modelSwellHeightFt, directionDeg: modelSwellDirectionDeg },
+        { partition: 'secondary_swell', heightFt: secondaryHeightFt, directionDeg: secondaryDirectionDeg },
+        { partition: 'tertiary_swell', heightFt: tertiaryHeightFt, directionDeg: tertiaryDirectionDeg },
         { partition: 'wind_wave', heightFt: modelWindWaveHeightFt, directionDeg: modelWindWaveDirectionDeg },
       ],
       profile,
@@ -249,6 +269,12 @@ export function normalizeConditions(input: NormalizeInput): NormalizeResult {
       modelSwellHeightFt,
       modelSwellDirectionDeg,
       modelSwellPeriodSec: marineHourly ? at(marineHourly.swell_wave_period, m) : null,
+      modelSecondarySwellHeightFt: secondaryHeightFt,
+      modelSecondarySwellDirectionDeg: secondaryDirectionDeg,
+      modelSecondarySwellPeriodSec: marineHourly ? at(marineHourly.secondary_swell_wave_period ?? [], m) : null,
+      modelTertiarySwellHeightFt: tertiaryHeightFt,
+      modelTertiarySwellDirectionDeg: tertiaryDirectionDeg,
+      modelTertiarySwellPeriodSec: marineHourly ? at(marineHourly.tertiary_swell_wave_period ?? [], m) : null,
       modelWindWaveHeightFt,
       modelWindWaveDirectionDeg,
       modelWindWavePeriodSec: marineHourly ? at(marineHourly.wind_wave_period, m) : null,

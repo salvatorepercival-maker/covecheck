@@ -81,6 +81,35 @@ describe('exposedSwell', () => {
     expect(result.counted.map((p) => p.partition)).toEqual(['swell'])
   })
 
+  it('admits a secondary swell even when the primary points away', () => {
+    // The exact shipped bug: primary east, secondary south. Reading only the
+    // primary reported 0 ft while ~1.8 ft was genuinely arriving.
+    const result = exposedSwell(
+      [
+        { partition: 'swell', heightFt: 2.36, directionDeg: 71 },
+        { partition: 'secondary_swell', heightFt: 1.84, directionDeg: 185 },
+        { partition: 'wind_wave', heightFt: 3.48, directionDeg: 64 },
+      ],
+      CROMWELLS,
+    )
+    expect(result.heightFt).toBeCloseTo(1.84, 6)
+    expect(result.counted.map((p) => p.partition)).toEqual(['secondary_swell'])
+  })
+
+  it('combines every in-window train, not just the first it finds', () => {
+    const result = exposedSwell(
+      [
+        { partition: 'swell', heightFt: 3, directionDeg: 90 },
+        { partition: 'secondary_swell', heightFt: 2, directionDeg: 180 },
+        { partition: 'tertiary_swell', heightFt: 2, directionDeg: 200 },
+      ],
+      CROMWELLS,
+    )
+    // Two 2 ft south trains combine in quadrature.
+    expect(result.heightFt).toBeCloseTo(2.828, 3)
+    expect(result.counted).toHaveLength(2)
+  })
+
   it('combines two in-window partitions in quadrature', () => {
     const result = exposedSwell(
       [
@@ -130,11 +159,10 @@ describe('normalizeConditions against the real 2026-08-02 payloads', () => {
   /**
    * The regression this whole phase exists to prevent.
    *
-   * Raw model height on the morning of 2026-08-02 was ~4.6 ft, which lands in the
-   * spec's 4-6 ft "not recommended" band. The direction-filtered figure is ~0 ft,
-   * consistent with NWS's 1-3 ft south-facing surf. If these two ever converge,
-   * the exposure filter has stopped working and the product will read red on an
-   * ordinary trade-wind morning.
+   * Raw model height on the morning of 2026-08-02 was ~4.6 ft from the east, which
+   * lands in the spec's 4-6 ft "not recommended" band. The direction-filtered
+   * figure is far lower. If the two ever converge, the exposure filter has stopped
+   * working and the product will read red on an ordinary trade-wind morning.
    */
   it('separates raw model height from direction-filtered exposed height', () => {
     const morning = hours.find((h) => h.timestamp === '2026-08-02T08:00')!
@@ -143,8 +171,46 @@ describe('normalizeConditions against the real 2026-08-02 payloads', () => {
     expect(morning.modelSigWaveDirectionDeg).toBeGreaterThan(60)
     expect(morning.modelSigWaveDirectionDeg).toBeLessThan(135)
 
-    expect(morning.exposedSwellHeightFt).toBe(0)
-    expect(morning.exposedPartitions).toEqual([])
+    // Well under the raw figure, because the easterly energy is discarded.
+    expect(morning.exposedSwellHeightFt).toBeLessThan(morning.modelSigWaveHeightFt! / 2)
+  })
+
+  /**
+   * The opposite regression, and a bug that shipped.
+   *
+   * On Oahu in trade season a small south swell routinely sits *beneath* a
+   * dominant easterly windswell, so the only train pointing at this beach is the
+   * secondary one. Reading the primary partition alone reported 0 ft of exposed
+   * energy on 39 of 168 hours in this fixture that genuinely had south-window
+   * swell — under-reporting, which errs toward "great". Cross-checked against
+   * Surfline, which showed 1.7 ft from S 188° at the same hour Open-Meteo's
+   * secondary train read 1.84 ft from 185°.
+   */
+  it('counts south swell hiding in the secondary partition', () => {
+    const evening = hours.find((h) => h.timestamp === '2026-08-02T20:00')!
+
+    // The primary train points east — outside the window — and the secondary south.
+    expect(evening.modelSwellDirectionDeg).toBeLessThan(135)
+    expect(evening.modelSecondarySwellDirectionDeg).toBeGreaterThanOrEqual(135)
+    expect(evening.modelSecondarySwellDirectionDeg).toBeLessThanOrEqual(225)
+
+    // Before the fix this was 0. It must now reflect the secondary train.
+    expect(evening.exposedSwellHeightFt).toBeGreaterThan(1)
+    expect(evening.exposedPartitions.map((p) => p.partition)).toContain('secondary_swell')
+  })
+
+  it('never reports zero exposed energy while any train points into the window', () => {
+    const inWindow = (deg: number | null) => deg !== null && deg >= 135 && deg <= 225
+    for (const hour of hours) {
+      const anyPointsIn =
+        inWindow(hour.modelSwellDirectionDeg) ||
+        inWindow(hour.modelSecondarySwellDirectionDeg) ||
+        inWindow(hour.modelTertiarySwellDirectionDeg) ||
+        inWindow(hour.modelWindWaveDirectionDeg)
+      if (anyPointsIn) {
+        expect(hour.exposedSwellHeightFt, `zero exposed energy at ${hour.timestamp}`).toBeGreaterThan(0)
+      }
+    }
   })
 
   it('keeps the raw model height out of any field a threshold would reach for', () => {

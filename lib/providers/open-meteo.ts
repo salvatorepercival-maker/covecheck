@@ -38,6 +38,21 @@ const marineSchema = z.object({
     swell_wave_height: nullableNumbers,
     swell_wave_direction: nullableNumbers,
     swell_wave_period: nullableNumbers,
+    /**
+     * Secondary and tertiary swell trains.
+     *
+     * Optional rather than required, deliberately: if Open-Meteo ever stops
+     * returning them, a required field would fail the whole marine payload and
+     * blank every verdict. Absence is reported as a normalization warning instead,
+     * so the degradation is visible rather than a silent return of the bug these
+     * fields exist to fix.
+     */
+    secondary_swell_wave_height: nullableNumbers.optional(),
+    secondary_swell_wave_direction: nullableNumbers.optional(),
+    secondary_swell_wave_period: nullableNumbers.optional(),
+    tertiary_swell_wave_height: nullableNumbers.optional(),
+    tertiary_swell_wave_direction: nullableNumbers.optional(),
+    tertiary_swell_wave_period: nullableNumbers.optional(),
     wind_wave_height: nullableNumbers,
     wind_wave_direction: nullableNumbers,
     wind_wave_period: nullableNumbers,
@@ -76,6 +91,14 @@ export const MARINE_HOURLY_VARIABLES = [
   'swell_wave_height',
   'swell_wave_direction',
   'swell_wave_period',
+  // A south swell hiding under a dominant trade windswell lives here, not in the
+  // primary partition. Omitting these under-reported exposed energy — see DECISIONS #14.
+  'secondary_swell_wave_height',
+  'secondary_swell_wave_direction',
+  'secondary_swell_wave_period',
+  'tertiary_swell_wave_height',
+  'tertiary_swell_wave_direction',
+  'tertiary_swell_wave_period',
   'wind_wave_height',
   'wind_wave_direction',
   'wind_wave_period',

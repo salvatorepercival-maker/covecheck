@@ -37,6 +37,20 @@ export type HourlyBeachConditions = {
   modelSwellHeightFt: number | null
   modelSwellDirectionDeg: number | null
   modelSwellPeriodSec: number | null
+  /**
+   * Secondary and tertiary swell trains.
+   *
+   * Load-bearing, not decoration: on Oahu in trade season a small south swell
+   * routinely sits *beneath* a dominant easterly windswell, so the only partition
+   * pointing at this beach is often the secondary one. Reading the primary alone
+   * reported 0 ft on 23% of hours that actually had south-window energy.
+   */
+  modelSecondarySwellHeightFt: number | null
+  modelSecondarySwellDirectionDeg: number | null
+  modelSecondarySwellPeriodSec: number | null
+  modelTertiarySwellHeightFt: number | null
+  modelTertiarySwellDirectionDeg: number | null
+  modelTertiarySwellPeriodSec: number | null
   /** Locally-generated windswell partition — the trade-wind signal we must exclude. */
   modelWindWaveHeightFt: number | null
   modelWindWaveDirectionDeg: number | null
@@ -81,8 +95,10 @@ export type HourlyBeachConditions = {
   sourceFreshness: SourceFreshness
 }
 
+export type SwellPartitionName = 'swell' | 'secondary_swell' | 'tertiary_swell' | 'wind_wave'
+
 export type ExposedPartition = {
-  partition: 'swell' | 'wind_wave'
+  partition: SwellPartitionName
   heightFt: number
   directionDeg: number
 }
