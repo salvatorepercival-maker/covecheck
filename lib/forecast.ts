@@ -120,6 +120,8 @@ export type BeachReport = {
    * so a date can hold up to four events and the count varies day to day.
    */
   tideExtremesByDate: Record<string, TideExtreme[]>
+  /** Every extreme in the fetched range, chronological — the chart needs to cross midnight. */
+  tideExtremes: TideExtreme[]
   /** Newest provider fetch time across the bundle, for "updated at". */
   updatedAtUtc: string
   /**
@@ -217,6 +219,10 @@ export const getBeachReport = cache(async function getBeachReport(
     tideExtremesByDate: groupExtremesByDate(
       bundle.tideExtremes.status === 'ok' ? bundle.tideExtremes.data.extremes : [],
     ),
+    tideExtremes:
+      bundle.tideExtremes.status === 'ok'
+        ? [...bundle.tideExtremes.data.extremes].sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+        : [],
     updatedAtUtc: fetchTimes[fetchTimes.length - 1] ?? nowUtc.toISOString(),
     surfZoneIssuedUtc: bundle.surfZoneForecast?.issuedUtc ?? null,
     warnings: [...normalizeWarnings, ...evaluation.warnings, ...bundle.srfWarnings],

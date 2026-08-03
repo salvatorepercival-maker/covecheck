@@ -28,6 +28,7 @@ const marineSchema = z.object({
     wave_height: z.string(),
     swell_wave_height: z.string(),
     wind_wave_height: z.string(),
+    sea_surface_temperature: z.string().optional(),
   }),
   hourly: z.object({
     time: z.array(z.string()),
@@ -40,6 +41,7 @@ const marineSchema = z.object({
     wind_wave_height: nullableNumbers,
     wind_wave_direction: nullableNumbers,
     wind_wave_period: nullableNumbers,
+    sea_surface_temperature: nullableNumbers,
   }),
 })
 
@@ -52,6 +54,7 @@ const weatherSchema = z.object({
     wind_speed_10m: z.string(),
     wind_gusts_10m: z.string(),
     precipitation: z.string(),
+    temperature_2m: z.string().optional(),
   }),
   hourly: z.object({
     time: z.array(z.string()),
@@ -59,6 +62,7 @@ const weatherSchema = z.object({
     wind_direction_10m: nullableNumbers,
     wind_gusts_10m: nullableNumbers,
     precipitation: nullableNumbers,
+    temperature_2m: nullableNumbers,
   }),
 })
 
@@ -75,6 +79,8 @@ export const MARINE_HOURLY_VARIABLES = [
   'wind_wave_height',
   'wind_wave_direction',
   'wind_wave_period',
+  // Sea surface temperature. Verified non-null at the pinned sea cell.
+  'sea_surface_temperature',
 ] as const
 
 export const WEATHER_HOURLY_VARIABLES = [
@@ -82,6 +88,7 @@ export const WEATHER_HOURLY_VARIABLES = [
   'wind_direction_10m',
   'wind_gusts_10m',
   'precipitation',
+  'temperature_2m',
 ] as const
 
 /**
@@ -98,6 +105,7 @@ export function buildMarineUrl(cell: CellRequest, timezone: string, forecastDays
     timezone,
     forecast_days: String(forecastDays),
     length_unit: 'imperial',
+    temperature_unit: 'fahrenheit',
   })
   return `${MARINE_BASE}?${params.toString()}`
 }
@@ -111,6 +119,7 @@ export function buildWeatherUrl(cell: CellRequest, timezone: string, forecastDay
     forecast_days: String(forecastDays),
     wind_speed_unit: 'mph',
     precipitation_unit: 'inch',
+    temperature_unit: 'fahrenheit',
   })
   return `${WEATHER_BASE}?${params.toString()}`
 }

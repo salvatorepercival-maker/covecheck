@@ -94,6 +94,9 @@ export function buildHour(spec: HourSpec): HourlyBeachConditions {
         ? []
         : [{ partition: 'swell', heightFt: exposed, directionDeg: swellDirection }],
 
+    seaSurfaceTempF: 80,
+    airTempF: 78,
+
     windSpeedMph: spec.windSpeedMph === undefined ? 7 : spec.windSpeedMph,
     windGustMph: spec.windGustMph === undefined ? 10 : spec.windGustMph,
     windDirectionDeg: spec.windDirectionDeg === undefined ? 350 : spec.windDirectionDeg,

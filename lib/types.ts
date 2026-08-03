@@ -52,6 +52,12 @@ export type HourlyBeachConditions = {
   /** Which partitions were counted, for explainability. */
   exposedPartitions: readonly ExposedPartition[]
 
+  // --- Temperature. Display only; the engine does not read these. ---
+  /** Sea surface temperature from the marine model, °F. */
+  seaSurfaceTempF: number | null
+  /** Air temperature at 2 m, °F. */
+  airTempF: number | null
+
   // --- Wind ---
   windSpeedMph: number | null
   windGustMph: number | null

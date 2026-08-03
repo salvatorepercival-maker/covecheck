@@ -256,6 +256,9 @@ export function normalizeConditions(input: NormalizeInput): NormalizeResult {
       exposedSwellHeightFt: exposed.heightFt,
       exposedPartitions: exposed.counted,
 
+      seaSurfaceTempF: marineHourly ? at(marineHourly.sea_surface_temperature, m) : null,
+      airTempF: weatherHourly ? at(weatherHourly.temperature_2m, w) : null,
+
       windSpeedMph: weatherHourly ? at(weatherHourly.wind_speed_10m, w) : null,
       windGustMph: weatherHourly ? at(weatherHourly.wind_gusts_10m, w) : null,
       windDirectionDeg: weatherHourly ? at(weatherHourly.wind_direction_10m, w) : null,

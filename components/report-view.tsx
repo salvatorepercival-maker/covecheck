@@ -8,6 +8,7 @@ import { honoluluDateOf } from '@/lib/time'
 import type { BeachProfile, HourlyBeachConditions } from '@/lib/types'
 import { ConditionsGrid } from './conditions-grid'
 import { NearbySurfCard } from './nearby-surf-card'
+import { TideCard } from './tide-card'
 import { HourlyTimeline } from './hourly-timeline'
 import { TechnicalDetails } from './technical-details'
 import { ConfidenceNote, VerdictIcon, VerdictPill, VERDICT_STYLE } from './verdict'
@@ -155,10 +156,17 @@ export function ReportView({
           <ConditionsGrid
             assessment={headline}
             conditions={conditionsByTimestamp[headline.timestamp]}
-            tideExtremes={report.tideExtremesByDate[day.date] ?? []}
-            recommendedWindow={
-              window ? { start: window.startTimestamp, end: window.endTimestamp } : null
-            }
+          />
+        ) : null}
+
+        {/* Full width, because the curve needs the room the 2-up grid cannot give it. */}
+        {headline ? (
+          <TideCard
+            assessment={headline}
+            conditions={conditionsByTimestamp[headline.timestamp]}
+            conditionsByTimestamp={conditionsByTimestamp}
+            tideExtremes={report.tideExtremes}
+            nowIso={nowIso}
           />
         ) : null}
 
