@@ -53,7 +53,7 @@ function ReportSkeleton() {
       <div className="h-44 rounded-2xl border border-border bg-surface-sunk" />
       <div className="flex gap-2">
         {Array.from({ length: 5 }, (_, index) => (
-          <div key={index} className="h-[5.25rem] min-w-[4rem] flex-1 rounded-xl border border-border bg-surface-sunk" />
+          <div key={index} className="h-[5.25rem] min-w-[3.5rem] flex-1 rounded-xl border border-border/60 bg-surface-sunk/70" />
         ))}
       </div>
       <div className="grid grid-cols-2 gap-3">
@@ -67,8 +67,8 @@ function ReportSkeleton() {
 
 export default function Page() {
   return (
-    <main className="mx-auto w-full max-w-xl px-4 pt-6">
-      <header className="mb-5">
+    <main className="mx-auto w-full max-w-lg px-4 pt-7">
+      <header className="mb-4">
         {/*
          * The wordmark is deep navy, which all but disappears on the dark
          * background. Rather than recolour someone else's artwork, the lockup

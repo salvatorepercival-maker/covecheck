@@ -3,6 +3,7 @@ import { CROMWELLS } from '../beach/cromwells'
 import {
   assessHour,
   buildContext,
+  hasProvisionalTideCalibration,
   hasUnresolvedTideCalibration,
   hasUnresolvedWindCalibration,
   percentileOf,
@@ -63,10 +64,28 @@ describe('recentRainInches', () => {
 })
 
 describe('calibration gap detection', () => {
-  it('reports the real profile as wind-calibrated and tide-uncalibrated', () => {
-    // Wind was anchored to an in-water observation; the tide band has not been.
+  it('reports the real profile as wind-calibrated and tide-provisional', () => {
+    // Both were anchored to the same single in-water observation. Tide's band is
+    // provisional: it gates verdicts, but is not treated as calibrated.
     expect(hasUnresolvedWindCalibration(CROMWELLS)).toBe(false)
-    expect(hasUnresolvedTideCalibration(CROMWELLS)).toBe(true)
+    expect(hasUnresolvedTideCalibration(CROMWELLS)).toBe(false)
+    expect(hasProvisionalTideCalibration(CROMWELLS)).toBe(true)
+  })
+
+  it('does not treat a provisional gap as unresolved, or vice versa', () => {
+    // The distinction is load-bearing: unresolved means "do not gate at all",
+    // provisional means "gate, but keep saying the basis is thin".
+    expect(hasProvisionalTideCalibration(CROMWELLS_FULLY_CALIBRATED)).toBe(false)
+    const unset = {
+      ...CROMWELLS,
+      calibration: CROMWELLS.calibration.map((gap) =>
+        gap.affectedThresholds.some((t) => t.includes('Tide'))
+          ? { ...gap, status: 'unresolved' as const }
+          : gap,
+      ),
+    }
+    expect(hasUnresolvedTideCalibration(unset)).toBe(true)
+    expect(hasProvisionalTideCalibration(unset)).toBe(false)
   })
 
   it('is false for both once every gap is resolved', () => {
@@ -251,13 +270,41 @@ describe('assessHour confidence', () => {
     expect(result.confidence).toBe('medium')
   })
 
-  it('is medium while the tide band is unset, without capping the verdict', () => {
-    // The real profile: wind is calibrated, tide is not. Tide is a caveat rather
-    // than a cap, so the verdict survives but confidence does not.
-    const hours = buildSeries([{ hour: 8 }])
+  it('is medium while the tide band is provisional, without capping the verdict', () => {
+    // The band gates the verdict, so a favourable tide contributes — but a single
+    // observation is not grounds for high confidence.
+    const hours = buildSeries([{ hour: 8, tideHeightFt: 1.0 }])
     const result = assessHour(hours, 0, buildContext(CROMWELLS, hours, null))
     expect(result.verdict).toBe('great')
     expect(result.confidence).toBe('medium')
-    expect(result.reasons.map((r) => r.code)).toContain('TIDE_NOT_CALIBRATED')
+    const codes = result.reasons.map((r) => r.code)
+    expect(codes).toContain('FAVORABLE_TIDE')
+    expect(codes).toContain('TIDE_BAND_PROVISIONAL')
+  })
+
+  it('gates on the provisional band at both ends', () => {
+    const context = (hours: ReturnType<typeof buildSeries>) => buildContext(CROMWELLS, hours, null)
+
+    // Above the 1.5 ft upper edge: less shallow standing area, stronger current.
+    const high = buildSeries([{ hour: 8, tideHeightFt: 1.9 }])
+    const highResult = assessHour(high, 0, context(high))
+    expect(highResult.verdict).toBe('caution')
+    expect(highResult.reasons.map((r) => r.code)).toContain('HIGH_TIDE_LESS_SHALLOW')
+
+    // Below the 0 ft lower edge: reef and rock exposed.
+    const low = buildSeries([{ hour: 8, tideHeightFt: -0.3 }])
+    const lowResult = assessHour(low, 0, context(low))
+    expect(lowResult.verdict).toBe('caution')
+    expect(lowResult.reasons.map((r) => r.code)).toContain('LOW_TIDE_OVER_REEF')
+  })
+
+  it('keeps the provisional caveat visible even on an all-positive day', () => {
+    // mergeReasons sorts caveats ahead of positives, so the thin basis reaches the
+    // verdict bullets rather than being buried under the good news.
+    const hours = buildSeries([{ hour: 8, tideHeightFt: 1.0 }])
+    const result = assessHour(hours, 0, buildContext(CROMWELLS, hours, null))
+    const provisional = result.reasons.find((r) => r.code === 'TIDE_BAND_PROVISIONAL')
+    expect(provisional?.severity).toBe('caveat')
+    expect(provisional?.detail).toMatch(/band 0-1\.5 ft from 1 observation/)
   })
 })

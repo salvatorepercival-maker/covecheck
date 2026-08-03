@@ -251,7 +251,14 @@ export type CalibrationGap = {
   referenceObservation: string
   /** Which thresholds are not yet safe to apply to raw provider values. */
   affectedThresholds: readonly string[]
-  status: 'unresolved' | 'resolved'
+  /**
+   * `unresolved` — the engine must not gate on the affected thresholds at all.
+   * `provisional` — a directional value is set from thin evidence. The engine DOES
+   *   gate on it, but the UI must keep saying so and confidence stays capped, so a
+   *   one-observation estimate is never mistaken for a calibrated threshold.
+   * `resolved` — validated by enough observation to stand on its own.
+   */
+  status: 'unresolved' | 'provisional' | 'resolved'
   note: string
 }
 

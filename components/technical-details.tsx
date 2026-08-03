@@ -66,10 +66,14 @@ export function TechnicalDetails({
   failures: { provider: string; error: string }[]
 }) {
   const now = new Date(nowIso)
-  const openGaps = profile.calibration.filter((gap) => gap.status === 'unresolved')
+  // Provisional gaps are listed too: a band that gates verdicts on one
+  // observation is a live limitation, not a solved one.
+  const openGaps = profile.calibration.filter(
+    (gap) => gap.status === 'unresolved' || gap.status === 'provisional',
+  )
 
   return (
-    <details className="group rounded-xl border border-border bg-surface">
+    <details className="group rounded-xl border border-border/60 bg-surface/60">
       <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium">
         <span className="flex items-center justify-between">
           Forecast detail
@@ -185,6 +189,13 @@ export function TechnicalDetails({
               {openGaps.map((gap) => (
                 <li key={gap.id} className="rounded-lg bg-surface-sunk px-3 py-2 text-xs leading-relaxed">
                   <span className="font-medium">{gap.id}</span>
+                  <span
+                    className={`ml-2 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                      gap.status === 'provisional' ? 'bg-caution-bg text-caution' : 'bg-unknown-bg text-unknown'
+                    }`}
+                  >
+                    {gap.status === 'provisional' ? 'provisional' : 'not set'}
+                  </span>
                   <span className="mt-1 block text-muted">{gap.note}</span>
                 </li>
               ))}

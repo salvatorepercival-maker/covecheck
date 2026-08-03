@@ -94,8 +94,16 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * A very soft vertical wash rather than a flat fill. Keeps the single narrow
+ * column from looking like a phone screenshot pasted onto dead space, without
+ * framing it in a device-like border.
+ */
 body {
-  background: var(--background);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--sea) 4%, var(--background)) 0%, var(--background) 32%),
+    var(--background);
+  background-attachment: fixed;
   color: var(--foreground);
 }
 

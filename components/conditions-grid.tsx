@@ -24,7 +24,7 @@ type ConditionCardProps = {
 
 function ConditionCard({ label, value, qualifier, footnote, extra }: ConditionCardProps) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-4">
+    <div className="rounded-xl border border-border/60 bg-surface/60 p-3.5">
       <dt className="text-xs font-medium uppercase tracking-wide text-muted">{label}</dt>
       <dd className="mt-2">
         <p className="text-lg font-semibold leading-tight">{qualifier}</p>

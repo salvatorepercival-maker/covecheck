@@ -106,15 +106,19 @@ export const CROMWELLS: BeachProfile = {
     },
 
     /**
-     * PLACEHOLDER — NOT USED while calibration gap `tide-favorable-band` is
-     * unresolved. The engine does not gate on tide until real numbers arrive.
+     * PROVISIONAL — set from exactly ONE in-water observation, and gating the
+     * verdict on that basis. See calibration gap `tide-favorable-band`.
      *
-     * Pointed LOW-to-mid rather than high, on one in-water observation: a good
-     * session at 2026-08-02 ~09:00, shortly after the 07:51 low of 0.0 ft, on a
-     * rising tide. One data point is not a band, so these numbers do not drive
-     * any verdict — but the placeholder should at least not point the wrong way.
+     * Low-to-mid, not high: the single good session was 2026-08-02 ~09:00,
+     * shortly after the 07:51 low of 0.0 ft, on a rising tide. The upper edge of
+     * 1.5 ft sits below Honolulu's typical daily high (~1.7-2.0 ft), which is the
+     * whole point — at this reef-entry cove a high tide means stronger current and
+     * less shallow standing area for children.
+     *
+     * One observation is a direction, not a curve. Everywhere this surfaces the UI
+     * must say "provisional", and confidence must not reach "high" on its strength.
      */
-    favorableTideFt: { minFt: 0.0, maxFt: 1.0 },
+    favorableTideFt: { minFt: 0.0, maxFt: 1.5 },
 
     recentRainInchesBlocking: 0.25,
     minWindowHours: 2,
@@ -137,11 +141,11 @@ export const CROMWELLS: BeachProfile = {
       providerObservation:
         'NOAA Honolulu 1612340 predicts roughly 0.1-2.0 ft MLLW at this beach through the week; 2026-08-02 spanned 0.16-1.74 ft.',
       referenceObservation:
-        'Not yet established. The favourable band depends on this cove\'s reef elevation and entry, which no forecast source describes.',
+        'ONE in-water observation, 2026-08-02 ~09:00 HST: good session shortly after the 07:51 low of 0.0 ft, tide rising. Nothing yet tests the upper edge.',
       affectedThresholds: ['thresholds.favorableTideFt'],
-      status: 'unresolved',
+      status: 'provisional',
       note:
-        'Tide is a BAND here, not "more water is better". Too low exposes reef and rock; too high can mean stronger current and less shallow standing area for children — so the high end is a negative, not a positive. The earlier implementation scored tide monotonically and labelled near-high tide "plenty of water", which was backwards for a family entry point. Height is measured in feet above MLLW rather than as a fraction of the day\'s range, because reef coverage is absolute: the rock sits at a fixed elevation. ONE in-water observation so far (2026-08-02 ~09:00, just after the 07:51 low of 0.0 ft, rising — a good session) points the band LOW-to-mid, not high. That is one point, not a curve, so the engine still does not gate on tide at all. Two things remain open: where the band edges actually sit, and whether STAGE belongs in the model — the observation was low-AND-rising, and rising may matter independently of height.',
+        'A PROVISIONAL band of 0-1.5 ft above MLLW is now set and IS gating verdicts, from exactly ONE in-water observation (2026-08-02 ~09:00, just after the 07:51 low of 0.0 ft, rising — a good session). One point gives a direction, not a curve, so this is a starting estimate to be tightened or corrected as more sessions come in — NOT a calibrated threshold, and this note should be updated rather than deleted. Tide is a BAND here, not "more water is better": too low exposes reef and rock, too high means stronger current and less shallow standing area for children, so the high end is a negative. An earlier implementation scored tide monotonically and labelled near-high tide "plenty of water", which was backwards for a family entry point. Height is in feet above MLLW rather than a fraction of the day\'s range, because reef coverage is absolute — the rock sits at a fixed elevation. STILL OPEN: where the edges actually sit (especially the upper one, which no observation has tested), and whether STAGE belongs in the model at all — the good session was low AND rising, and rising may matter independently of height. Most useful next observations: a session at or near high tide, and one at a dead low.',
     },
     {
       id: 'exposed-swell-vs-srf-face',
@@ -161,5 +165,5 @@ export const CROMWELLS: BeachProfile = {
     'Trade winds typically strengthen through the morning, so early windows are usually the calmest.',
   ],
 
-  configVersion: '2026-08-02.2',
+  configVersion: '2026-08-02.3',
 }

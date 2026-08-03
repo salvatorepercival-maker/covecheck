@@ -80,6 +80,11 @@ export type EngineContext = {
    * than none, because at a reef cove both ends of the tide are unfavourable.
    */
   tideUncalibrated: boolean
+  /**
+   * True when the tide band is set but provisional. Tide DOES gate the verdict,
+   * and the caveat plus the confidence cap keep the thin basis visible.
+   */
+  tideProvisional: boolean
   /** Sorted non-null wind speeds across the period, for percentile lookup. */
   windDistribution: readonly number[]
 }
@@ -99,6 +104,15 @@ export const hasUnresolvedWindCalibration = (profile: BeachProfile) =>
 export const hasUnresolvedTideCalibration = (profile: BeachProfile) =>
   hasUnresolvedCalibration(profile, 'tide')
 
+/** Is the tide band set, but from evidence too thin to call calibrated? */
+export function hasProvisionalTideCalibration(profile: BeachProfile): boolean {
+  return profile.calibration.some(
+    (gap) =>
+      gap.status === 'provisional' &&
+      gap.affectedThresholds.some((threshold) => threshold.toLowerCase().includes('tide')),
+  )
+}
+
 export function buildContext(
   profile: BeachProfile,
   hours: readonly HourlyBeachConditions[],
@@ -114,6 +128,7 @@ export function buildContext(
     srfSouthFacingMaxFt,
     windUncalibrated: hasUnresolvedWindCalibration(profile),
     tideUncalibrated: hasUnresolvedTideCalibration(profile),
+    tideProvisional: hasProvisionalTideCalibration(profile),
     windDistribution,
   }
 }
@@ -200,6 +215,7 @@ function resolveConfidence(
   reasons: readonly Reason[],
   metrics: HourMetrics,
   windUncalibrated: boolean,
+  tideProvisional: boolean,
 ): Confidence {
   if (verdict === 'insufficient_data') return 'low'
 
@@ -215,6 +231,10 @@ function resolveConfidence(
   // The verdict stands, but a primary factor is not yet trustworthy in absolute
   // terms, so CoveCheck should not present it as settled.
   if (windUncalibrated) return 'medium'
+
+  // A provisional band is gating the verdict on a single observation. That is
+  // enough to act on, not enough to be confident about.
+  if (tideProvisional) return 'medium'
 
   // A secondary value is missing, or something flagged itself as a caveat.
   if (metrics.windGustMph === null || has(reasons, 'caveat')) return 'medium'
@@ -354,6 +374,16 @@ export function assessHour(
     reasons.push(reason('FAVORABLE_TIDE', `${hour.tideHeightFt.toFixed(2)} ft above MLLW`))
   }
 
+  // Shown whenever the band gated anything, so the thin basis travels with the verdict.
+  if (hour.tideHeightFt !== null && !context.tideUncalibrated && context.tideProvisional) {
+    reasons.push(
+      reason(
+        'TIDE_BAND_PROVISIONAL',
+        `band ${thresholds.favorableTideFt.minFt}-${thresholds.favorableTideFt.maxFt} ft from 1 observation`,
+      ),
+    )
+  }
+
   // --- Runoff. ---
   const recentRainIn = recentRainInches(hours, index)
   if (recentRainIn !== null && recentRainIn > thresholds.recentRainInchesBlocking) {
@@ -381,7 +411,13 @@ export function assessHour(
     timestamp: hour.timestamp,
     timestampUtc: hour.timestampUtc,
     verdict,
-    confidence: resolveConfidence(verdict, reasons, metrics, context.windUncalibrated),
+    confidence: resolveConfidence(
+      verdict,
+      reasons,
+      metrics,
+      context.windUncalibrated,
+      context.tideProvisional,
+    ),
     reasons,
     metrics,
     configVersion: context.profile.configVersion,

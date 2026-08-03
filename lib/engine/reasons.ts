@@ -39,6 +39,7 @@ export type ReasonCode =
   | 'HAZARD_STATE_UNKNOWN'
   | 'WIND_NOT_CALIBRATED'
   | 'TIDE_NOT_CALIBRATED'
+  | 'TIDE_BAND_PROVISIONAL'
   // Windowing
   | 'INSUFFICIENT_WINDOW'
 
@@ -179,6 +180,18 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
   TIDE_NOT_CALIBRATED: {
     severity: 'caveat',
     text: 'The favourable tide range for this beach is not yet set, so tide is not counted in this verdict',
+  },
+
+  /**
+   * `caveat`: the band now gates the verdict, so this does not change the outcome
+   * — but it must always be shown, so a one-observation estimate is never mistaken
+   * for a calibrated threshold. Caveats sort ahead of positives in `mergeReasons`,
+   * which is what keeps this visible in the verdict bullets on an otherwise
+   * all-positive day.
+   */
+  TIDE_BAND_PROVISIONAL: {
+    severity: 'caveat',
+    text: 'The favourable tide range here is provisional — a starting estimate from a single session, not a settled calibration',
   },
 
   INSUFFICIENT_WINDOW: {

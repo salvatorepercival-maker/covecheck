@@ -7,6 +7,7 @@ import { formatDayLabel, formatDayShort, formatWindowRange } from '@/lib/format'
 import { honoluluDateOf } from '@/lib/time'
 import type { BeachProfile, HourlyBeachConditions } from '@/lib/types'
 import { ConditionsGrid } from './conditions-grid'
+import { NowStrip } from './now-strip'
 import { NearbySurfCard } from './nearby-surf-card'
 import { TideCard } from './tide-card'
 import { HourlyTimeline, toTimelineDays } from './hourly-timeline'
@@ -62,15 +63,25 @@ export function ReportView({
   const leadReasons = explanation.slice(0, 3)
 
   return (
-    <div className="space-y-5">
-      {/* ---------- Verdict ---------- */}
+    <div className="space-y-4">
+      {/* ---------- Right now: measured facts, before any reasoning ---------- */}
+      {headline ? (
+        <NowStrip assessment={headline} conditions={conditionsByTimestamp[headline.timestamp]} />
+      ) : null}
+
+      {/*
+        ---------- Verdict: the centrepiece ----------
+        Carries more weight than everything below it on three channels at once —
+        elevation (shadow), a heavier border, and more generous padding — so the
+        hierarchy is legible before a word is read.
+      */}
       <section
         aria-labelledby="verdict-heading"
-        className={`rounded-2xl border p-5 ${style.bg} ${style.border}`}
+        className={`rounded-2xl border-2 p-6 shadow-lg shadow-black/[0.06] dark:shadow-black/25 ${style.bg} ${style.border}`}
       >
-        <div className={`flex items-center gap-2 ${style.text}`}>
-          <VerdictIcon verdict={verdict} className="h-6 w-6" />
-          <h2 id="verdict-heading" className="text-2xl font-semibold tracking-tight">
+        <div className={`flex items-center gap-2.5 ${style.text}`}>
+          <VerdictIcon verdict={verdict} className="h-7 w-7" />
+          <h2 id="verdict-heading" className="text-[1.65rem] font-semibold leading-none tracking-tight">
             {VERDICT_LABEL[verdict]}
           </h2>
         </div>
@@ -118,7 +129,7 @@ export function ReportView({
                 role="tab"
                 aria-selected={selected}
                 onClick={() => setSelectedDate(entry.date)}
-                className={`flex min-w-[4rem] flex-1 flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-center transition-colors ${
+                className={`flex min-w-[3.5rem] flex-1 flex-col items-center gap-1.5 rounded-xl border px-1.5 py-2.5 text-center transition-colors ${
                   selected
                     ? 'border-sea bg-surface ring-1 ring-sea'
                     : 'border-border bg-surface hover:bg-surface-sunk'
@@ -170,6 +181,12 @@ export function ReportView({
             latitude={profile.latitude}
             longitude={profile.longitude}
             date={day.date}
+            tideBand={profile.thresholds.favorableTideFt}
+            bandStatus={
+              profile.calibration.find((gap) =>
+                gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
+              )?.status ?? 'resolved'
+            }
           />
         ) : null}
 
@@ -188,7 +205,10 @@ export function ReportView({
       <NearbySurfCard report={report.nearbySurf} date={day.date} />
 
       {/* ---------- Primary action ---------- */}
-      <section aria-labelledby="alerts-heading" className="rounded-xl border border-border bg-surface p-4">
+      <section
+        aria-labelledby="alerts-heading"
+        className="rounded-xl border border-border/60 bg-surface/60 p-3.5"
+      >
         <h3 id="alerts-heading" className="text-sm font-semibold">
           Alert me on great days
         </h3>
@@ -225,7 +245,7 @@ export function ReportView({
       ) : null}
 
       {/* ---------- Reminder and freshness ---------- */}
-      <section className="rounded-xl border border-border bg-surface-sunk p-4">
+      <section className="rounded-xl border border-border/60 bg-surface-sunk/70 p-3.5">
         <h3 className="text-sm font-semibold">Check the water yourself</h3>
         <p className="mt-1 text-sm leading-relaxed text-muted">{SHORELINE_REMINDER}</p>
         <p className="mt-3 text-xs text-muted">

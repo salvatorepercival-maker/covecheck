@@ -27,16 +27,17 @@ const codesAt = (hours: readonly { reasons: { code: ReasonCode }[] }[], index: n
   hours[index].reasons.map((r) => r.code)
 
 describe('scenario 1 — excellent calm morning', () => {
-  it('is great on the real profile: an unset tide band does not cap the verdict', () => {
+  it('is great on the real profile, with the provisional tide band flagged', () => {
     const result = evaluate(EXCELLENT_CALM_MORNING)
 
-    // Tide is one factor among several and the swell/wind picture is fully
-    // assessable without it, so its gap is a caveat rather than a cap. Contrast
-    // with stale marine data, which does force insufficient_data.
+    // The fixture's 1.2 ft sits inside the provisional 0-1.5 ft band, so tide
+    // contributes rather than being skipped — but the thin basis is stated and
+    // confidence is held at medium.
     expect(result.hours.every((h) => h.verdict === 'great')).toBe(true)
-    expect(codesAt(result.hours, 0)).toContain('TIDE_NOT_CALIBRATED')
-    expect(codesAt(result.hours, 0)).toContain('LOW_WAVE_ENERGY')
-    // But it does cost confidence.
+    const codes = codesAt(result.hours, 0)
+    expect(codes).toContain('TIDE_BAND_PROVISIONAL')
+    expect(codes).toContain('FAVORABLE_TIDE')
+    expect(codes).toContain('LOW_WAVE_ENERGY')
     expect(result.hours[0].confidence).toBe('medium')
   })
 

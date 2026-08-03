@@ -125,6 +125,8 @@ export function TideCard({
   latitude,
   longitude,
   date,
+  tideBand,
+  bandStatus,
 }: {
   assessment: HourAssessment
   conditions: HourlyBeachConditions | undefined
@@ -135,6 +137,9 @@ export function TideCard({
   longitude: number
   /** Honolulu-local date the sun times are for. */
   date: string
+  /** The favourable band and how well-founded it is. */
+  tideBand: { minFt: number; maxFt: number } | null
+  bandStatus: 'unresolved' | 'provisional' | 'resolved'
 }) {
   const nowLocal = utcToHonoluluLocal(new Date(nowIso))
   const curve = buildCurve(conditionsByTimestamp, nowLocal)
@@ -184,13 +189,26 @@ export function TideCard({
   return (
     <section
       aria-labelledby="tide-heading"
-      className="rounded-xl border border-border bg-surface p-4"
+      className="rounded-xl border border-border/60 bg-surface/60 p-3.5"
     >
       <h3 id="tide-heading" className="text-xs font-medium uppercase tracking-wide text-muted">
         Tide
       </h3>
 
       <p className="mt-2 text-lg font-semibold leading-tight">{qualifier}</p>
+
+      {/*
+        The provisional marker is not a footnote. The band gates verdicts on a
+        single observation, so it sits directly under the headline in the caution
+        colour — visible without reading, and never collapsed into the assessment
+        text where it could pass for a settled threshold.
+      */}
+      {bandStatus === 'provisional' && tideBand ? (
+        <p className="mt-1 text-xs font-medium text-caution">
+          Provisional band {tideBand.minFt}–{tideBand.maxFt} ft · based on 1 observation
+        </p>
+      ) : null}
+
       <p className="mt-0.5 text-sm text-muted">
         {formatTideStage(conditions?.tideStage ?? 'unknown')}
         {assessment.metrics.tideHeightFt !== null
