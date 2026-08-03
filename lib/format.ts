@@ -1,4 +1,4 @@
-import { honoluluDateOf, honoluluHourOf } from './time'
+import { honoluluDateOf, honoluluHourOf, toHonoluluLocal } from './time'
 
 /**
  * Display formatting.
@@ -22,6 +22,22 @@ export function formatHour(hour: number): string {
   const suffix = normalized < 12 ? 'AM' : 'PM'
   const twelve = normalized % 12 === 0 ? 12 : normalized % 12
   return `${twelve} ${suffix}`
+}
+
+/**
+ * "7:51 AM" — a precise clock time, for tide extremes.
+ *
+ * Distinct from `formatHour`, which deliberately drops minutes because forecast
+ * hours are whole. Tide turning points are predicted to the minute and rounding
+ * them to the hour would misplace a high by up to half an hour.
+ */
+export function formatClockTime(localTimestamp: string): string {
+  const canonical = toHonoluluLocal(localTimestamp)
+  const hour = Number.parseInt(canonical.slice(11, 13), 10)
+  const minutes = canonical.slice(14, 16)
+  const suffix = hour < 12 ? 'AM' : 'PM'
+  const twelve = hour % 12 === 0 ? 12 : hour % 12
+  return `${twelve}:${minutes} ${suffix}`
 }
 
 /**

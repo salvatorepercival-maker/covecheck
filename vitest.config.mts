@@ -6,6 +6,6 @@ export default defineConfig({
   test: {
     // Phase 1 is pure logic and parsing — no DOM needed yet.
     environment: 'node',
-    include: ['lib/**/*.test.ts'],
+    include: ['lib/**/*.test.ts', 'components/**/*.test.ts'],
   },
 })

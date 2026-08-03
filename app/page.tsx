@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { Suspense } from 'react'
+import { Freshness } from '@/components/freshness'
 import { ReportView } from '@/components/report-view'
 import { CROMWELLS } from '@/lib/beach/cromwells'
 import { getBeachReport } from '@/lib/forecast'
@@ -12,6 +13,25 @@ import { getBeachReport } from '@/lib/forecast'
  * behind a Suspense boundary — that way the page paints immediately instead of
  * blocking on six provider calls.
  */
+
+/**
+ * Freshness lives in the header, which is otherwise static.
+ *
+ * Given its own Suspense boundary so the branding and beach name still prerender
+ * into the shell — only this stamp waits on the providers. `getBeachReport` is
+ * request-memoized, so this shares one result with the report body below rather
+ * than fetching again.
+ */
+async function HeaderFreshness() {
+  const report = await getBeachReport(CROMWELLS)
+  return (
+    <Freshness
+      updatedAtUtc={report.updatedAtUtc}
+      nowIso={report.evaluation.evaluatedAtUtc}
+      className="whitespace-nowrap"
+    />
+  )
+}
 
 async function Report() {
   const report = await getBeachReport(CROMWELLS)
@@ -65,7 +85,14 @@ export default function Page() {
             className="h-9 w-auto"
           />
         </span>
-        <h1 className="mt-3 text-xl font-semibold tracking-tight">{CROMWELLS.name}</h1>
+        {/* Beach name and freshness share a baseline row; the stamp is right-aligned
+            and never wraps, so the name keeps the visual weight. */}
+        <div className="mt-3 flex items-baseline justify-between gap-3">
+          <h1 className="text-xl font-semibold tracking-tight">{CROMWELLS.name}</h1>
+          <Suspense fallback={null}>
+            <HeaderFreshness />
+          </Suspense>
+        </div>
         <p className="mt-0.5 text-sm text-muted">Black Point, Honolulu · Know when the water is right</p>
       </header>
 

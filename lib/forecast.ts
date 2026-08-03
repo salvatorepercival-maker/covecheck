@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { cacheLife, cacheTag } from 'next/cache'
 import { connection } from 'next/server'
 import { evaluateForecast, type ForecastEvaluation } from './engine'
@@ -97,6 +98,14 @@ export type BeachReport = {
   evaluation: ForecastEvaluation
   /** The normalized inputs behind the verdicts, keyed by local timestamp. */
   conditionsByTimestamp: Record<string, HourlyBeachConditions>
+  /**
+   * Tide highs and lows grouped by Honolulu-local date.
+   *
+   * Already fetched for the tide-stage calculation (`interval=hilo`) — this just
+   * surfaces the same events for display. Hawaiʻi tides are mixed semi-diurnal,
+   * so a date can hold up to four events and the count varies day to day.
+   */
+  tideExtremesByDate: Record<string, TideExtreme[]>
   /** Newest provider fetch time across the bundle, for "updated at". */
   updatedAtUtc: string
   /**
@@ -113,13 +122,40 @@ export type BeachReport = {
   failures: { provider: string; error: string }[]
 }
 
+/** Group extremes by the local calendar day they fall on, each sorted by time. */
+function groupExtremesByDate(extremes: readonly TideExtreme[]): Record<string, TideExtreme[]> {
+  const byDate: Record<string, TideExtreme[]> = {}
+  for (const extreme of extremes) {
+    let date: string
+    try {
+      date = honoluluDateOf(extreme.timestamp)
+    } catch {
+      continue
+    }
+    ;(byDate[date] ??= []).push(extreme)
+  }
+  for (const list of Object.values(byDate)) {
+    list.sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+  }
+  return byDate
+}
+
 const asProviderSlice = <T,>(slice: Slice<T>): ProviderSlice<T> =>
   slice.status === 'ok'
     ? { status: 'ok', data: slice.data, fetchedAtUtc: slice.fetchedAtUtc }
     : { status: 'failed', fetchedAtUtc: slice.fetchedAtUtc }
 
-/** Assemble the full report for a beach at the current moment. */
-export async function getBeachReport(profile: BeachProfile): Promise<BeachReport> {
+/**
+ * Assemble the full report for a beach at the current moment.
+ *
+ * Wrapped in React's `cache` so several components in one render share a single
+ * result. The header's freshness indicator and the report body both need it, and
+ * without this they would each re-run normalization and the engine — and, worse,
+ * could disagree about what "now" is by a few milliseconds.
+ */
+export const getBeachReport = cache(async function getBeachReport(
+  profile: BeachProfile,
+): Promise<BeachReport> {
   // Defer to request time before reading the clock, so the timestamps below are
   // this request's and not a cached entry's.
   await connection()
@@ -162,6 +198,9 @@ export async function getBeachReport(profile: BeachProfile): Promise<BeachReport
   return {
     evaluation,
     conditionsByTimestamp: Object.fromEntries(hours.map((hour) => [hour.timestamp, hour])),
+    tideExtremesByDate: groupExtremesByDate(
+      bundle.tideExtremes.status === 'ok' ? bundle.tideExtremes.data.extremes : [],
+    ),
     updatedAtUtc: fetchTimes[fetchTimes.length - 1] ?? nowUtc.toISOString(),
     surfZoneIssuedUtc: bundle.surfZoneForecast?.issuedUtc ?? null,
     warnings: [...normalizeWarnings, ...evaluation.warnings, ...bundle.srfWarnings],
@@ -172,4 +211,4 @@ export async function getBeachReport(profile: BeachProfile): Promise<BeachReport
         error: slice.status === 'failed' ? slice.error : '',
       })),
   }
-}
+})

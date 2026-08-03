@@ -1,7 +1,8 @@
 'use client'
 
 import type { HourAssessment } from '@/lib/engine'
-import { formatCompass, formatFeet, formatMph, formatTideStage } from '@/lib/format'
+import { formatClockTime, formatCompass, formatFeet, formatMph, formatTideStage } from '@/lib/format'
+import type { TideExtreme } from '@/lib/providers/tides'
 import type { HourlyBeachConditions } from '@/lib/types'
 
 /**
@@ -18,9 +19,11 @@ type ConditionCardProps = {
   qualifier: string
   /** Rendered smaller, for provenance or a secondary figure. */
   footnote?: string
+  /** Lowest tier in the card's hierarchy, below the footnote. */
+  extra?: React.ReactNode
 }
 
-function ConditionCard({ label, value, qualifier, footnote }: ConditionCardProps) {
+function ConditionCard({ label, value, qualifier, footnote, extra }: ConditionCardProps) {
   return (
     <div className="rounded-xl border border-border bg-surface p-4">
       <dt className="text-xs font-medium uppercase tracking-wide text-muted">{label}</dt>
@@ -28,8 +31,71 @@ function ConditionCard({ label, value, qualifier, footnote }: ConditionCardProps
         <p className="text-lg font-semibold leading-tight">{qualifier}</p>
         <p className="mt-0.5 text-sm text-muted">{value}</p>
         {footnote ? <p className="mt-1.5 text-xs text-muted/80">{footnote}</p> : null}
+        {extra}
       </dd>
     </div>
+  )
+}
+
+/**
+ * Which of the day's tide turning points to show.
+ *
+ * Hawaiʻi tides are mixed semi-diurnal, so a day carries up to four events with
+ * unequal heights. `window` shows the two nearest the recommended window, which
+ * are the ones bearing on the advice being given; `day` shows every event.
+ */
+export type TideExtremesMode = 'window' | 'day'
+
+/** Midpoint of a local `YYYY-MM-DDTHH:mm` range, in minutes past local midnight. */
+const minutesOfDay = (localTimestamp: string) =>
+  Number.parseInt(localTimestamp.slice(11, 13), 10) * 60 +
+  Number.parseInt(localTimestamp.slice(14, 16), 10)
+
+export function selectTideExtremes(
+  extremes: readonly TideExtreme[],
+  mode: TideExtremesMode,
+  /** Local timestamps of the recommended window, when there is one. */
+  window: { start: string; end: string } | null,
+): TideExtreme[] {
+  const usable = extremes.filter((extreme) => extreme.heightFt !== null)
+  if (mode === 'day' || usable.length <= 2) return usable
+
+  // Anchor on the recommended window when present, else the middle of the day.
+  const anchor = window
+    ? (minutesOfDay(window.start) + minutesOfDay(window.end) + 60) / 2
+    : 12 * 60
+
+  return [...usable]
+    .sort(
+      (a, b) =>
+        Math.abs(minutesOfDay(a.timestamp.replace(' ', 'T')) - anchor) -
+        Math.abs(minutesOfDay(b.timestamp.replace(' ', 'T')) - anchor),
+    )
+    .slice(0, 2)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+}
+
+/**
+ * Today's highs and lows, one per line beneath the tide stage.
+ *
+ * Stacked rather than joined with separators: at half the grid width a single
+ * run-on line wraps unpredictably mid-value, which reads worse than short rows.
+ * Kept at the card's smallest, lightest type so it stays clearly secondary to the
+ * stage above it and never competes with the verdict.
+ */
+function TideExtremesLine({ extremes }: { extremes: readonly TideExtreme[] }) {
+  if (extremes.length === 0) return null
+
+  return (
+    <ul className="mt-1.5 space-y-0.5 text-xs leading-snug text-muted/80">
+      {extremes.map((extreme) => (
+        <li key={extreme.timestamp}>
+          <span className="font-medium">{extreme.kind === 'high' ? 'High' : 'Low'}</span>{' '}
+          {formatClockTime(extreme.timestamp)}
+          {extreme.heightFt !== null ? ` · ${extreme.heightFt.toFixed(1)} ft` : ''}
+        </li>
+      ))}
+    </ul>
   )
 }
 
@@ -76,9 +142,16 @@ function tideQualifier(favorability: number | null, heightFt: number | null): st
 export function ConditionsGrid({
   assessment,
   conditions,
+  tideExtremes = [],
+  tideExtremesMode = 'window',
+  recommendedWindow = null,
 }: {
   assessment: HourAssessment
   conditions: HourlyBeachConditions | undefined
+  /** The selected day's highs and lows, already sorted by time. */
+  tideExtremes?: readonly TideExtreme[]
+  tideExtremesMode?: TideExtremesMode
+  recommendedWindow?: { start: string; end: string } | null
 }) {
   const { metrics } = assessment
   const codes = assessment.reasons.map((entry) => entry.code)
@@ -132,6 +205,11 @@ export function ConditionsGrid({
           metrics.tideHeightFt !== null
             ? `${metrics.tideHeightFt.toFixed(1)} ft above MLLW`
             : undefined
+        }
+        extra={
+          <TideExtremesLine
+            extremes={selectTideExtremes(tideExtremes, tideExtremesMode, recommendedWindow)}
+          />
         }
       />
 

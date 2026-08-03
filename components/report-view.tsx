@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import type { BeachReport } from '@/lib/forecast'
 import { DEFAULT_USABLE_HOURS, SHORELINE_REMINDER, VERDICT_LABEL, type HourAssessment } from '@/lib/engine'
-import { formatDayLabel, formatDayShort, formatUpdatedAgo, formatWindowRange } from '@/lib/format'
+import { formatDayLabel, formatDayShort, formatWindowRange } from '@/lib/format'
 import { honoluluDateOf } from '@/lib/time'
 import type { BeachProfile, HourlyBeachConditions } from '@/lib/types'
 import { ConditionsGrid } from './conditions-grid'
@@ -54,7 +54,6 @@ export function ReportView({
   const verdict = isToday && evaluation.current ? evaluation.current.verdict : day.verdict
   const style = VERDICT_STYLE[verdict]
   const window = day.recommendedWindow
-  const now = new Date(nowIso)
 
   // Lead with the problems, then the supporting positives.
   const explanation = (window ?? day.bestWindow)?.reasons ?? headline?.reasons ?? []
@@ -155,6 +154,10 @@ export function ReportView({
           <ConditionsGrid
             assessment={headline}
             conditions={conditionsByTimestamp[headline.timestamp]}
+            tideExtremes={report.tideExtremesByDate[day.date] ?? []}
+            recommendedWindow={
+              window ? { start: window.startTimestamp, end: window.endTimestamp } : null
+            }
           />
         ) : null}
 
@@ -215,9 +218,7 @@ export function ReportView({
         </p>
       </section>
 
-      <p className="pb-8 text-center text-xs text-muted">
-        Forecast updated {formatUpdatedAgo(report.updatedAtUtc, now)}
-      </p>
+      <div className="pb-8" />
     </div>
   )
 }

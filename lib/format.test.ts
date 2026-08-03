@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formatClockTime,
   formatCompass,
   formatDayLabel,
   formatDayShort,
@@ -24,6 +25,22 @@ describe('formatHour', () => {
   it('wraps hours past midnight', () => {
     expect(formatHour(24)).toBe('12 AM')
     expect(formatHour(25)).toBe('1 AM')
+  })
+})
+
+describe('formatClockTime', () => {
+  it('renders precise tide times, keeping the minutes', () => {
+    // Tide turns are predicted to the minute; rounding to the hour would misplace
+    // a high by up to half an hour.
+    expect(formatClockTime('2026-08-02 07:51')).toBe('7:51 AM')
+    expect(formatClockTime('2026-08-02T15:28')).toBe('3:28 PM')
+    expect(formatClockTime('2026-08-02 00:48')).toBe('12:48 AM')
+    expect(formatClockTime('2026-08-02 12:01')).toBe('12:01 PM')
+    expect(formatClockTime('2026-08-02 18:21')).toBe('6:21 PM')
+  })
+
+  it('accepts both provider timestamp formats', () => {
+    expect(formatClockTime('2026-08-02 06:45')).toBe(formatClockTime('2026-08-02T06:45'))
   })
 })
 
