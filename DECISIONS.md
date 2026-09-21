@@ -4,6 +4,17 @@ Newest first. Each entry records what was decided, why, and what would reverse i
 `HANDOFF.md` is the product source of truth; this file records where implementation
 deviates from it and why.
 
+**On the numbering.** Entry numbers are permanent identifiers, not positions —
+code comments, `AGENTS-CHARTER.md`, and other entries all cite them
+(`grep -rn 'DECISIONS.*#[0-9]'`). Never renumber an entry; append the next number,
+and use a suffix such as `#5b` for an entry that belongs beside an existing one.
+
+**#14 is missing.** It was never written. `lib/providers/open-meteo.ts:95` cites
+it for why the secondary and tertiary swell partitions are requested — the fix
+landed in `da04034`, the decision entry did not. The number is left unused rather
+than reassigned, so that citation is not silently pointed at the wrong decision.
+Verified 2026-09-21: no `## 14.` has existed on any branch in this file's history.
+
 ---
 
 ## 15. The surf forecast cross-checks the model; it does not outvote it
@@ -67,7 +78,12 @@ investigate, not to hand the verdict to whichever source sounds more official.
 
 ## 13. Tide is a band, not a scale — and the band is still open
 
-**Decided:** 2026-08-02 · **Status:** band **unresolved**; logic and labelling fixed
+**Decided:** 2026-08-02 · **Status:** band **provisional and now gating**
+(0.0–1.5 ft MLLW, `n=1`); logic and labelling fixed; edges still open
+
+> **Status corrected 2026-09-21** (`builder`, documentation only). This entry was
+> written while the band was unset. A provisional band has since been set and it
+> *does* gate verdicts — corrected inline below.
 
 The original model was monotonic: more water over the reef scored better, and the
 UI labelled a near-high tide "Plenty of water". **That is backwards at this
@@ -90,14 +106,25 @@ inside the band, tapering outside — replaces "more is better" in window rankin
 
 One in-water observation (2026-08-02 ~09:00, just after the 07:51 low of 0.0 ft,
 rising — a good session) points the band **low-to-mid**. That is one point, not a
-curve, so **the engine does not gate on tide at all** and the UI says the range is
-not yet set rather than implying a judgement. `TIDE_NOT_CALIBRATED` is a `caveat`,
-not a `negative`: unlike wind, the swell picture is fully assessable without tide,
-so it costs confidence rather than capping the verdict.
+curve, so at the time of this decision the engine did not gate on tide at all and
+the UI said the range was not yet set rather than implying a judgement.
+`TIDE_NOT_CALIBRATED` is a `caveat`, not a `negative`: unlike wind, the swell
+picture is fully assessable without tide, so it costs confidence rather than
+capping the verdict.
 
-Still open: where the band edges sit, and whether **stage** belongs in the model
-at all — the good session was low *and rising*, and rising may matter
-independently of height.
+**Superseded on the gating question** (corrected 2026-09-21). A provisional band
+of `0.0–1.5 ft` MLLW is now set on the profile and **does** gate: both ends are
+`negative` (`LOW_TIDE_OVER_REEF`, `HIGH_TIDE_LESS_SHALLOW` — `lib/engine/reasons.ts:131`
+and `:140`), so tide can cap a verdict. `TIDE_NOT_CALIBRATED` now fires only while
+the gap is `unresolved`; the gap is `provisional`, so instead every gated hour
+carries `TIDE_BAND_PROVISIONAL`, a `caveat` that keeps the one-observation basis
+attached to the verdict rather than leaving it in the repository. The UI marks the
+band provisional too (`components/tide-card.tsx:206-208`).
+
+Still open, and the reason the band is provisional rather than calibrated: where
+the band edges sit — **no observation has tested the upper edge at all** — and
+whether **stage** belongs in the model, since the good session was low *and
+rising*, and rising may matter independently of height.
 
 ---
 
@@ -232,11 +259,26 @@ what the UI should lead with.
 
 ## 7. Uncalibrated wind caps every verdict at "use caution"
 
-**Decided:** 2026-08-02 · **Status:** active while calibration gap #2 is open
+**Decided:** 2026-08-02 · **Status:** **inert** — the gap it depends on (#2) is
+resolved, so the cap no longer fires · mechanism retained and tested
+
+> **Status corrected 2026-09-21** (`builder`, documentation only — no code
+> changed). The reasoning below stands as written; three factual claims in it had
+> gone stale and are fixed inline. Note what resolved the gap: a **single**
+> in-water observation (`lib/beach/cromwells.ts:108`, `n=1`), which is the basis
+> this entry itself argued was too thin to calibrate from. That tension is real
+> and is left visible rather than edited away.
 
 `WIND_NOT_CALIBRATED` has severity `negative`, not `caveat`, so no hour can be
-rated `great` while the wind calibration gap is unresolved. **The product
-currently has no green days, by design.**
+rated `great` while the wind calibration gap is unresolved. When this was
+decided, that meant **the product had no green days, by design.**
+
+**That consequence no longer holds.** Gap #2 was resolved in `78cdc8a`, so
+`WIND_NOT_CALIBRATED` no longer fires for Cromwell's and green hours are
+reachable — that commit took the live week from 0/91 to 91/91 great hours. The
+severity itself is unchanged (`lib/engine/reasons.ts:188`, asserted at
+`lib/engine/reasons.test.ts:126`): the mechanism is intact and still applies to
+any beach whose wind gap is open.
 
 Wind is a primary determinant of calm water. HANDOFF.md is explicit that
 uncertain data must not produce an enthusiastic green recommendation, and an
@@ -255,8 +297,9 @@ bias: **ranking** windows, and reporting `CALM_WIND` as a positive. It is never
 used to downgrade.
 
 Resolving gap #2 flips every affected hour to absolute-threshold gating.
-`CROMWELLS_WIND_CALIBRATED` in `lib/engine/fixtures.ts` exercises that path so the
-behavior is tested and the unlock is demonstrable.
+`CROMWELLS_FULLY_CALIBRATED` in `lib/engine/fixtures.ts` exercises that path so the
+behavior is tested and the unlock is demonstrable. Gap #2 has since been resolved,
+and that is exactly what happened.
 
 ---
 
@@ -339,7 +382,12 @@ a fallback rather than the primary signal.
 
 ## 2. Provider grid cells are pinned explicitly, and the wind thresholds are not yet trustworthy
 
-**Decided:** 2026-08-02 · **Status:** wind calibration **unresolved**
+**Decided:** 2026-08-02 · **Status:** cell pinning **active**; wind calibration
+**resolved** in `78cdc8a` — provisionally, on `n=1`
+
+> **Status corrected 2026-09-21** (`builder`, documentation only). The gap
+> described below was resolved, and not by either of the two routes this entry
+> anticipated — see the resolution note at the end.
 
 Open-Meteo silently relocates a requested coordinate to its nearest grid cell.
 Passing Cromwell's own `21.2570, -157.7970`:
@@ -361,26 +409,44 @@ Note the two endpoints resolve the *same* request to *different* cells
 (`21.208/-157.792` marine, `21.195/-157.752` weather) — the grids differ in
 resolution, so each is recorded separately.
 
-**Unresolved:** the pinned sea cell reported 23–24 mph sustained and 30–31 mph
+**The gap, as originally recorded:** the pinned sea cell reported 23–24 mph sustained and 30–31 mph
 gusts for the morning of 2026-08-02, while NWS gave shoreline wind as northeast
 15–20 mph. Open water has no land friction so the sea cell reads high; the inland
 cell read higher still (35 mph gusts). Neither matches the shoreline.
 
 The spec's `≤ 8 mph` / `≤ 12 mph` gust thresholds are **shoreline-referenced**, so
 they cannot be compared against raw cell values — doing so would block every hour
-of every day on `STRONG_GUSTS`. This is recorded as calibration gap
-`wind-offshore-vs-shoreline` on the beach profile with `status: 'unresolved'`.
+of every day on `STRONG_GUSTS`. This was recorded as a calibration gap on the
+beach profile, originally named `wind-offshore-vs-shoreline`.
 
 **The engine must consult that gap before gating on wind.** Resolving it needs
 either shoreline observation across several mornings, or adopting the NWS point
 forecast as the wind source. Deliberately *not* chosen: a fitted offset, which
 would be unvalidated guesswork that drifts with wind direction.
 
+**How it was actually resolved** (added 2026-09-21; the change itself landed in
+`78cdc8a`). Neither route above was taken. The gap is now
+`wind-gridded-models-cannot-resolve-this-cove` with `status: 'resolved'`, and the
+shelter was put in the *threshold* rather than the data: offshore ceilings are
+anchored above the observed reading (`great: 25`, `caution: 32` sustained) so the
+raw figure stays honest. See #12 for why two gridded models agreeing settled
+nothing here.
+
+The basis is **one** in-water observation, not "several mornings" — so this is
+resolved in status and provisional in strength, and the profile note says so. A
+genuinely rough ENE morning is still the observation that would test it.
+
 ---
 
 ## 3. Tide position is a fraction of the local day's range, not absolute feet
 
-**Decided:** 2026-08-02 · **Status:** active
+**Decided:** 2026-08-02 · **Status:** **superseded by #13** on the unit question;
+the `hilo`-derived stage and null-handling rules below are still active
+
+> **Status corrected 2026-09-21** (`builder`, documentation only). #13 reversed
+> this entry's headline conclusion: tide is now measured in **feet above MLLW**,
+> not as a fraction of the day's range. The threshold named below no longer
+> exists — see the inline note.
 
 Honolulu's tidal range is small: 2026-08-02 spanned 0.16 to 1.74 ft MLLW, a total
 swing of 1.58 ft. The spec's "prefer adequate water over the shallow reef,
@@ -388,6 +454,16 @@ commonly a mid-to-higher or rising tide" cannot be an absolute foot threshold at
 that range, so `tideRangeFraction` expresses position within the local calendar
 day's own swing (0 = day's low, 1 = day's high), and the threshold is
 `minTideRangeFraction`.
+
+**Dead identifier, corrected 2026-09-21:** `minTideRangeFraction` no longer
+exists anywhere in the codebase. #13 replaced it with `favorableTideFt`, a band
+in feet above MLLW, because reef coverage is absolute — the rock sits at a fixed
+elevation. `tideRangeFraction` itself *is* still computed (`lib/tide.ts`,
+`lib/types.ts`) and still used for reporting tide position, so this entry's
+reasoning about the small Honolulu range remains the right reason not to read
+"relatively high tide" off absolute feet. What it got wrong was concluding that
+absolute feet are therefore the wrong unit for "is there enough water over the
+reef" — see #13.
 
 Tide *stage* is derived from the high/low turning points (`interval=hilo`), not by
 differencing hourly samples — near a turn, hourly differences are small enough
