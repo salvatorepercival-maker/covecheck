@@ -22,6 +22,180 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-21 · builder · AUTONOMOUS · APPLIED
+
+Picked up the **"Not closed — carried forward"** item from the 2026-09-20 session
+close below. Branch `docs/decisions-staleness-fix`, two commits, documentation
+only — **no code changed**, and no file under `lib/` was touched.
+
+**Verified before editing.** Every carried-forward claim was re-checked against
+the working tree rather than taken from the log entry:
+
+| Claim | Check | Result |
+| --- | --- | --- |
+| #7 status depends on a resolved gap | `lib/beach/cromwells.ts` gap `status` | **confirmed** — `'resolved'` |
+| #7 "no green days, by design" | `git log -1 78cdc8a` | **confirmed false** — that commit records 91/91 great hours |
+| #7 names `CROMWELLS_WIND_CALIBRATED` | `grep -rn` across the repo | **confirmed absent** — only `CROMWELLS_FULLY_CALIBRATED` exists |
+| #2 status "wind calibration unresolved" | same profile gap | **confirmed** resolved |
+| #2 names gap `wind-offshore-vs-shoreline` | profile `calibration[0].id` | **confirmed renamed** to `wind-gridded-models-cannot-resolve-this-cove` |
+
+**Applied — `745c85b`.** Corrected the status lines and dead references in #7 and
+#2. The reasoning in both entries is untouched; each carries a dated, attributed
+note saying what was corrected, so the original claim and its correction are both
+readable. Recorded inside #7, as asked, that the cap was retired on a single
+in-water observation (`lib/beach/cromwells.ts:108`, `n=1`) — the basis #7 itself
+argued was too thin. That tension is left standing, not resolved.
+
+**Two more stale entries found in the same sweep, beyond the carried-forward
+list.** I checked every remaining `Status:` line and every identifier cited across
+all fifteen entries, on the reasoning that fixing three siblings and leaving
+others stale is half a job. Both are the same class of defect and the same
+AUTONOMOUS tier (§2, "`DECISIONS.md` status lines, stale identifier references"),
+so I corrected them and am flagging that they were not on the assigned list:
+
+- **#13** — status read `band **unresolved**`, and the body asserted **"the engine
+  does not gate on tide at all"** with the UI saying the range is not yet set.
+  Both false now. `favorableTideFt` is set to `0.0–1.5` ft MLLW, the gap is
+  `status: 'provisional'`, and tide **does** gate: `LOW_TIDE_OVER_REEF` and
+  `HIGH_TIDE_LESS_SHALLOW` are both `negative` (`lib/engine/reasons.ts:131`,
+  `:140`). `TIDE_NOT_CALIBRATED` now fires only while a tide gap is `unresolved`;
+  gated hours instead carry `TIDE_BAND_PROVISIONAL` (`caveat`).
+- **#3** — status read `active`, but #13 explicitly reverses its headline
+  conclusion, and the threshold it names, `minTideRangeFraction`, **does not exist
+  anywhere in the codebase**. `tideRangeFraction` itself does still exist, so the
+  entry is now marked superseded on the unit question only, with its reasoning
+  about Honolulu's small range left intact because that part is still right.
+
+**The numbering — judgement call, and it split in two.**
+
+*Not fixed, deliberately: the #14 gap.* Closing it requires renumbering #15, and
+entry numbers are cited from `lib/beach/cromwells.ts`, `lib/engine/assess.ts`,
+`lib/engine/index.ts`, `lib/engine/reasons.ts`, `lib/engine/reasons.test.ts`,
+`lib/tide.ts`, `lib/types.ts`, `lib/providers/open-meteo.ts`, `next.config.ts`,
+`AGENTS-CHARTER.md` (twice) and eleven times within `DECISIONS.md` itself. A
+renumber silently repoints live citations at the wrong decision, which is worse
+than a gap. Left alone and flagged in the file header, per the instruction.
+
+*Fixed, because it needed no renumbering: the ordering — `d1f037f`.* The file
+declares "Newest first" but ran `15, 13, 12 … 6, 5b, 1, 2, 3, 4, 5`. Entries 1–5
+share one `Decided` date, so the number is the only tie-break available, and
+descending matches the rest of the file. Moved the tail to `5, 4, 3, 2, 1` after
+`5b`. **This is a permutation of entry blocks, not a renumbering** — verified by
+SHA-256-hashing each block before and after and comparing the multisets (equal),
+and by re-resolving every `#N` reference in the file afterwards. Nothing renamed,
+no body altered, so no cross-reference moved.
+
+**State after:** `npm test` 266 passing (15 files), `npm run typecheck` clean —
+same as the pre-edit baseline, as expected for a markdown-only change. Not run:
+`npm run spike` / `npm run diagnose`, which hit live provider APIs and were not
+needed here.
+
+**Not done, and it needs Sal:** `DECISIONS.md` #14 was never written, and code
+already cites it. Separate PROPOSE-ONLY entry directly below.
+
+---
+
+## 2026-09-21 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** `DECISIONS.md` does not skip #14 by accident, and the gap is not
+cosmetic — **the entry was never written, and working code cites it.**
+
+`lib/providers/open-meteo.ts:95`:
+
+```ts
+// A south swell hiding under a dominant trade windswell lives here, not in the
+// primary partition. Omitting these under-reported exposed energy — see DECISIONS #14.
+'secondary_swell_wave_height',
+```
+
+Verified: `git log --all -S"## 14." -- DECISIONS.md` returns **nothing** — no
+`## 14.` heading has existed on any branch in this file's history. The commit that
+added the citation, `da04034` ("fix: count secondary and tertiary swell trains in
+the exposure filter"), **did not touch `DECISIONS.md`** (`git show --stat`). So the
+fix landed, the citation landed, the decision entry did not.
+
+This matters more than a numbering nit. Per that commit's own measurement, 39 of
+168 fixture hours had south-window swell present *only* in the secondary or
+tertiary partition and reported 0.0 ft of exposed energy — **under-reporting
+energy errs toward `great`**, which is the wrong direction for a product that
+tells families whether to put children in the water. That is precisely the class
+of decision `DECISIONS.md` exists to record, and it is currently recorded only in
+a commit message.
+
+**Proposed:** add the missing entry. Full text, to insert between #15 and #13:
+
+```markdown
+## 14. Every swell partition is checked against the exposure window, not just the primary
+
+**Decided:** 2026-08-02 · **Status:** active
+
+The direction filter from #1 was correct and was being fed too little. Only the
+primary swell partition and the wind wave were requested from Open-Meteo, so a
+small south swell sitting *beneath* a dominant easterly windswell — the ordinary
+Oahu trade-season arrangement — was invisible to a beach that is open only to the
+south.
+
+Measured on the 7-day fixture: **39 of 168 hours** had swell inside the 135–225°
+window present *only* in the secondary or tertiary partition, and every one of
+those reported `exposedSwellHeightFt` of 0.0 ft. Cross-checked against a Surfline
+screenshot listing three trains where CoveCheck showed one: at 2026-08-02 20:00
+Surfline had 1.7 ft from S 188° while Open-Meteo's secondary train read 1.84 ft
+from 185° — the same swell — and CoveCheck reported 0.0 ft.
+
+**The error direction is the reason this is recorded as a decision and not a
+bugfix.** Under-reporting exposed energy errs toward `great`, which is the wrong
+way to be wrong for a family safety product. HANDOFF.md had asked for "secondary
+swell variables when available"; they were omitted.
+
+The filter itself needed no change — it already admits each partition on its own
+direction and combines survivors in quadrature (#1). The fix is requesting the
+variables and passing all four trains in. Schema fields are **optional** rather
+than required, so an upstream removal degrades instead of blanking every verdict,
+and normalization emits a warning when they are absent — so that degradation
+cannot silently reinstate the bug.
+
+Verdicts were unchanged for that week, since exposed height stays under the 3 ft
+threshold either way. The reported figure is now correct and would trip caution on
+a genuine south swell.
+
+**Would reverse this:** nothing short of a nearshore model that reports a single
+authoritative surf-face height at the cove (see #1's reversal condition), which
+would make partition bookkeeping moot.
+```
+
+**Rationale.** It closes the only dangling citation in the codebase, and it
+restores a safety-relevant decision to the file that is supposed to hold it. The
+number is already reserved by the code comment, so this creates no renumbering
+and no ambiguity.
+
+**Why PROPOSE-ONLY rather than applied.** §2 puts "documentation corrections" in
+AUTONOMOUS, and I applied that tier to the status-line fixes above without asking.
+This is different in kind: authoring a *new* entry in a §5 source-of-truth
+document is composition, not correction, and the subject matter is engine
+behaviour. §2 says to act at the higher tier when genuinely unsure and say so in
+the log — so this is unapplied, and I am saying so.
+
+**What would argue against it, stated plainly:**
+
+- **Every word above is reconstructed from `da04034`'s commit message**, not from
+  Sal's reasoning at the time. The measurements, the Surfline cross-check and the
+  error-direction argument are quoted from that commit, but the framing and the
+  "would reverse this" line are mine. If #14 was left out on purpose, this is
+  putting words in Sal's mouth and should be rejected outright.
+- **Why it was omitted is not established.** I found no evidence either way — no
+  draft, no TODO, no reverted commit. I did not resolve it with a guess.
+- The cheaper alternative is to repoint the comment at #1, which already covers
+  per-partition admission. I did not do that: #1 does not record the *variable
+  selection* bug, the 39/168 measurement, or the error-direction argument, so
+  repointing would make the citation resolve while losing what it cited.
+
+**Either decision closes this cleanly.** Approve and #14 exists; reject and the
+comment at `lib/providers/open-meteo.ts:95` should be repointed or dropped so the
+repo stops citing an entry that will never be written. **Leaving it as-is is the
+one outcome that keeps the dangling reference alive.**
+
+---
+
 ## 2026-09-20 · main · AUTONOMOUS · SESSION CLOSE
 
 Closing state for the 2026-09-20 session. Everything below this entry is
