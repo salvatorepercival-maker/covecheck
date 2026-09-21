@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# OpenClaw agent workspace scaffolding — regenerated per agent, not project files.
+# AGENTS.md and AGENTS-CHARTER.md are deliberately NOT ignored: they are the
+# operating rules for this repo and belong in version control.
+SOUL.md
+USER.md
+IDENTITY.md
