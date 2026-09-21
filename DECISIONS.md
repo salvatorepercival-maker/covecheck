@@ -9,12 +9,6 @@ code comments, `AGENTS-CHARTER.md`, and other entries all cite them
 (`grep -rn 'DECISIONS.*#[0-9]'`). Never renumber an entry; append the next number,
 and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
-**#14 is missing.** It was never written. `lib/providers/open-meteo.ts:95` cites
-it for why the secondary and tertiary swell partitions are requested — the fix
-landed in `da04034`, the decision entry did not. The number is left unused rather
-than reassigned, so that citation is not silently pointed at the wrong decision.
-Verified 2026-09-21: no `## 14.` has existed on any branch in this file's history.
-
 ---
 
 ## 15. The surf forecast cross-checks the model; it does not outvote it
@@ -73,6 +67,45 @@ disagreeing with the beach-specific number was mistaken for grounds to override
 it. Both times the error was letting a broader, less local signal outrank a
 narrower, more local one. A disagreement between sources is a reason to flag and
 investigate, not to hand the verdict to whichever source sounds more official.
+
+---
+
+## 14. Every swell partition is checked against the exposure window, not just the primary
+
+**Decided:** 2026-08-02 · **Status:** active
+
+The direction filter from #1 was correct and was being fed too little. Only the
+primary swell partition and the wind wave were requested from Open-Meteo, so a
+small south swell sitting *beneath* a dominant easterly windswell — the ordinary
+Oahu trade-season arrangement — was invisible to a beach that is open only to the
+south.
+
+Measured on the 7-day fixture: **39 of 168 hours** had swell inside the 135–225°
+window present *only* in the secondary or tertiary partition, and every one of
+those reported `exposedSwellHeightFt` of 0.0 ft. Cross-checked against a Surfline
+screenshot listing three trains where CoveCheck showed one: at 2026-08-02 20:00
+Surfline had 1.7 ft from S 188° while Open-Meteo's secondary train read 1.84 ft
+from 185° — the same swell — and CoveCheck reported 0.0 ft.
+
+**The error direction is the reason this is recorded as a decision and not a
+bugfix.** Under-reporting exposed energy errs toward `great`, which is the wrong
+way to be wrong for a family safety product. HANDOFF.md had asked for "secondary
+swell variables when available"; they were omitted.
+
+The filter itself needed no change — it already admits each partition on its own
+direction and combines survivors in quadrature (#1). The fix is requesting the
+variables and passing all four trains in. Schema fields are **optional** rather
+than required, so an upstream removal degrades instead of blanking every verdict,
+and normalization emits a warning when they are absent — so that degradation
+cannot silently reinstate the bug.
+
+Verdicts were unchanged for that week, since exposed height stays under the 3 ft
+threshold either way. The reported figure is now correct and would trip caution on
+a genuine south swell.
+
+**Would reverse this:** nothing short of a nearshore model that reports a single
+authoritative surf-face height at the cove (see #1's reversal condition), which
+would make partition bookkeeping moot.
 
 ---
 

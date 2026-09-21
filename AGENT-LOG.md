@@ -95,7 +95,24 @@ already cites it. Separate PROPOSE-ONLY entry directly below.
 
 ---
 
-## 2026-09-21 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+## 2026-09-21 · builder · PROPOSE-ONLY · APPROVED, APPLIED
+
+> **Approved by Sal, 2026-09-21. Applied by `main` the same day.**
+>
+> The drafted entry below was inserted into `DECISIONS.md` verbatim, between #15
+> and #13, and the obsolete "#14 is missing" note was removed from that file's
+> header. The dangling citation at `lib/providers/open-meteo.ts:95` now resolves.
+>
+> Applied by `main` rather than `builder` only because the text was already
+> drafted and the remaining work was mechanical insertion; the entry was
+> extracted from the fenced block below programmatically rather than retyped, so
+> the approved wording and the committed wording are identical.
+>
+> Sal was shown the draft and the three arguments against it before deciding.
+> The first of those — that the text is reconstructed from `da04034`'s commit
+> message rather than from Sal's reasoning at the time — stands as a caveat on
+> the entry, not an objection resolved by approval. #14 is now the only entry in
+> `DECISIONS.md` not written contemporaneously with its decision.
 
 **Found:** `DECISIONS.md` does not skip #14 by accident, and the gap is not
 cosmetic — **the entry was never written, and working code cites it.**
