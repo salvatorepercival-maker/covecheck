@@ -5,12 +5,11 @@
 # Why this exists rather than `vercel --prod`, or a git push:
 #
 # Vercel blocks any deployment whose git commit author is not a member with
-# contributing access to the project. This repo's commits are authored as
-# salvatore.percival@manifest.net while the Vercel account is
-# salvatore.percival@checkfront.com, so every git-triggered deploy — and any CLI
-# deploy that carries commit metadata — is rejected before the build starts, with
-# `readyState: BLOCKED`. The CLI surfaces that only as `fetch failed`; the real
-# message is visible via the REST API.
+# contributing access to the project. This repo's commits are authored under a
+# different address than the one on the Vercel account, so every git-triggered
+# deploy — and any CLI deploy that carries commit metadata — is rejected before
+# the build starts, with `readyState: BLOCKED`. The CLI surfaces that only as
+# `fetch failed`; the real message is visible via the REST API.
 #
 # This script deploys as the authenticated project owner with no git metadata
 # attached. Authorisation was never the problem — the token holder owns the
