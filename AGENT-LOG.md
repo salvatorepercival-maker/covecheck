@@ -22,6 +22,60 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-20 · main · AUTONOMOUS · SESSION CLOSE
+
+Closing state for the 2026-09-20 session. Everything below this entry is
+resolved; one item found during the session is **not**, and is carried forward
+at the end.
+
+**Closed — enforcement and repo hygiene**
+
+| Item | Outcome |
+| --- | --- |
+| Per-agent tool-policy denial | **Declined** — tested, does not block native tools |
+| Per-agent git credential scoping | **Not possible** — commit needs no credentials; keychain is shared |
+| Branch protection on `main` | **Applied**, verified by live-fire push refusal |
+| Required approvals `1` → `0` | **Applied**, re-verified by live fire |
+| Repository visibility | **Public**, after a clean full-history secret scan |
+| Work email in `scripts/deploy.sh` | **Removed** — PR #1, merged `3f3b970` |
+| Charter, log, `AGENTS.md` pointer | **Committed** — PR #2, merged `bedff12` |
+| `SOUL.md` / `USER.md` / `IDENTITY.md` | **Gitignored** (`.gitignore:46-48`) |
+| GitHub email visibility | **Private** — was `public`, verified before and after |
+| Repo-scoped commit email | **Set** to the account noreply alias |
+| Block CLI pushes exposing email | **Enabled by Sal in the GitHub UI** |
+
+That last row is **recorded on Sal's report, not verified** — GitHub exposes no
+REST endpoint for it, so no agent can confirm it. Every other row was checked
+against disk, `git log`, or the live remote.
+
+**Not closed — carried forward**
+
+`DECISIONS.md` is still stale, and it is the finding that opened this session.
+Confirmed still present on `main`:
+
+- `:235` — #7 reads `**Status:** active while calibration gap #2 is open`. The
+  gap is resolved; the entry is inert.
+- `:239` — #7 asserts the product "currently has no green days, by design".
+  False since `78cdc8a`.
+- `:258` — #7 points at `CROMWELLS_WIND_CALIBRATED` in `lib/engine/fixtures.ts`.
+  That symbol does not exist; it is now `CROMWELLS_FULLY_CALIBRATED`.
+- `:342` — #2 reads `**Status:** wind calibration **unresolved**`. Resolved.
+- `:372` — #2 names the gap `wind-offshore-vs-shoreline`. Renamed to
+  `wind-gridded-models-cannot-resolve-this-cove`.
+
+Also: the log skips #14, and ordering breaks after #5b (running 15, 13, 12 … 5b,
+then 1, 2, 3, 4, 5) — which matters because entries cross-reference each other
+by number constantly.
+
+This is **AUTONOMOUS** work under §2 — documentation correction, explicitly
+including `DECISIONS.md` status lines — so any agent may fix it without asking.
+It was left undone because the session moved to enforcement instead. Whoever
+picks it up: correct the status lines and dead references, do not rewrite the
+reasoning, and note that #7's cap was retired on a single in-water observation
+(`lib/beach/cromwells.ts:108`), which #7 itself argued against.
+
+---
+
 ## 2026-09-20 · main · AUTONOMOUS · APPLIED
 
 **Done:** added a "Git: commits, pushes, and attribution" subsection to
