@@ -41,9 +41,9 @@ the charter before acting would find.
 *Decision-ready escalations* states the trigger test verbatim from
 `record-decision.sh` — two or more defensible fixes that differ in **what a user
 would actually see**, not in how different the diffs look — requires the options
-be recorded before the log entry is written, and requires the log entry be taken
-from the script's stdout so the prose and the rendered card cannot drift. It
-closes by restating that this is still ESCALATE: drafting options is not
+be recorded before the log entry is written, and requires the options block be
+pasted from the script's stdout so the prose and the rendered card cannot drift.
+It closes by restating that this is still ESCALATE: drafting options is not
 attempting a fix.
 
 *What a recorded choice binds, and what it does not* is the part worth having
@@ -51,9 +51,47 @@ written down. A decision record approves nothing — `_merge_gate` never reads i
 and substitutes for neither `verdict: safe` nor `approvedBySal`. What it does is
 brief: it queues `main` to brief `builder` to draft only the chosen option, which
 then re-enters the gate from the top as an ordinary PROPOSE-ONLY change with its
-own review and its own approval. And the card binds to `decisionSha`, the same
-rule the verdict and approval follow — except that nothing re-checks it, so a
-stale card blocks nothing and is provenance rather than a control.
+own review and its own approval. And a choice is deliberately *not* bound to the
+head commit — the inverse of the rule the verdict and the approval follow, and
+the section says why.
+
+**Three corrections from `reviewer`, which returned `flagged` on the first
+draft at `e0fc605`.** Recording them rather than quietly replacing the text,
+since two of the three were claims this entry had presented as checked.
+
+1. **The draft told agents to take the whole log entry from the script's
+   stdout, which contradicts §3.** `markdown_card` (`deploy_api.py`) heads its
+   block `· AWAITING DECISION`, a marker §3 does not admit, and the block
+   carries none of §3's **Found:** / **Proposed:** / **Rationale:** structure.
+   An agent following the rule literally would have produced an entry violating
+   §3; one adapting it would be doing the retyping the rule forbids. The
+   precedent this PR cited disproves the rule as drafted: PR #12's entry is
+   hand-written and headed **ESCALATED**, with only the options block pasted in.
+   Now scoped to the options block, with the heading explicitly discarded.
+
+2. **"First applied on PR #12, 2026-09-22; see `AGENT-LOG.md`" pointed at
+   nothing.** PR #12 is open, so its entry exists only on its own branch — the
+   file the charter named does not contain the record it promised. Exactly the
+   citation rot `reviewer` logged on PR #10, which this PR's own body claimed to
+   have avoided. The file pointer is gone; the PR reference stays, since that
+   does not rot.
+
+3. **The `decisionSha` sentence canonised a rationale the implementation
+   records rejecting.** The draft said the card binds to the head commit "the
+   same rule the verdict and the approval follow." `decide()` says the opposite
+   in terms — *"DELIBERATELY NOT SHA-BOUND"* — and that binding it "punish[ed]
+   the wrong trigger — and it did, three times, before this was relaxed on
+   2026-09-22." `record-decision.sh`'s header still carries the older wording,
+   and the draft copied the loser of that argument into the constitution. The
+   two implementation files genuinely disagree; the charter now follows
+   `decide()`, distinguishes the card's `decisionSha` stamp from the binding of
+   the choice, and says why an authorising record binds where a non-authorising
+   one need not.
+
+Verified independently before rewriting, not taken on the reviewer's report:
+the `AWAITING DECISION` heading at `deploy_api.markdown_card`, the
+`DELIBERATELY NOT SHA-BOUND` comment and its three-failures note in
+`deploy_api.decide()`, and that `main`'s `AGENT-LOG.md` holds no PR #12 entry.
 
 **Rationale:** the behaviour is already live and already being cited, so the
 choice was between documenting it now and letting more escalations run under an

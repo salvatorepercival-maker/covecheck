@@ -147,9 +147,17 @@ Judge by what reaches the screen, not by how different the diffs look.
 Record the options with `record-decision.sh <project> <pr> <card.json>` before
 writing the log entry. Each option carries what changes, what a user would see
 differently, and its tradeoff; exactly one carries `recommended` and the reason
-for it. The script prints the block for `AGENT-LOG.md` on stdout — take the log
-entry from that output rather than typing it alongside, so the prose humans read
-and the record the town panel renders cannot drift apart.
+for it. The script prints an options block for `AGENT-LOG.md` on stdout — paste
+that block into your entry rather than retyping the options, so the prose humans
+read and the card the town panel renders cannot drift apart.
+
+**Take the block, not the heading.** What the script prints opens with
+`## <date> · <agent> · <tier> · AWAITING DECISION`, and §3 admits only
+**AWAITING APPROVAL** or **ESCALATED** in that slot. Discard that line, and note
+the generated block carries none of §3's **Found:** / **Proposed:** /
+**Rationale:** structure either. The entry around the options is written by hand,
+to §3's format and §3's vocabulary; an ESCALATE entry still carries **ESCALATED**
+and still goes at the top. Only the options themselves come from the script.
 
 **This is still ESCALATE, and you still stop.** Drafting options is not
 attempting a fix: do not apply one, do not draft one as a diff, and do not open
@@ -172,13 +180,23 @@ So choosing is a required step in the pipeline, not a summary of one. Until an
 option is recorded, nobody has been briefed and no fix diff exists to review.
 An escalation with options on it does not advance until Sal picks.
 
-**The card names the commit it was drafted against** (`decisionSha`) — the same
-rule the verdict and the approval follow, for the same reason: a card that
-outlived its diff describes code nobody looked at. Unlike those two, nothing
-re-checks it and a stale card blocks nothing. It is provenance to read before
-trusting the options, not a control.
+**A choice is deliberately not bound to the head commit, and that is the
+opposite of the rule the verdict and the approval follow.** Those two judge a
+diff, so when the diff moves they must be re-taken. A decision card is a
+different animal: it describes a real-world bug and offers ways to fix it, and
+the pull request is only where that conversation lives. Editing a PR's prose
+changes neither the bug nor the options, so invalidating the choice over it
+punishes the wrong trigger — which it did, three times, before `decide()` was
+relaxed on 2026-09-22. What a choice *is* validated against is the set of
+options on the card itself, which is the thing that would actually make it
+wrong. The card does stamp a `decisionSha` when it is written; that is
+provenance for when the options were drafted, not a binding on the choice.
 
-First applied on PR #12, 2026-09-22; see `AGENT-LOG.md`.
+Do not read that as looseness elsewhere. It is exactly because the choice
+authorises nothing that it can survive the branch moving — the verdict and the
+approval, which do authorise, keep their strict binding.
+
+First applied on PR #12, 2026-09-22.
 
 ### Git: commits, pushes, and attribution
 
