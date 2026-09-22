@@ -91,10 +91,19 @@ approval can only ever authorise the diff it was shown.
 recorded `approvedBySal` for that exact commit. Nobody else, and no agent on an
 unapproved change — including its own. This is what the "never merge your own"
 line further down is protecting: not the keystroke, but the possibility of an
-agent supplying its own approval. A recorded `approvedBySal` means the approval
-came from Sal, so pressing the button is executing his decision rather than
-substituting for it. Absent that record, "never merge your own" applies in full
-and literally.
+agent supplying its own approval. Absent that record, "never merge your own"
+applies in full and literally.
+
+**`approvedBySal` is provenance and a norm, not an enforced control.** Like the
+tier boundaries above and the commit-identity stamp below, it records who decided
+what; it does not prevent anything. `approve-change.sh` is an ordinary file owned
+by the same user every agent runs as, so an agent that chose to could write its
+own approval — nothing in the platform stops it, exactly as nothing stops an
+agent editing `lib/engine/`. It holds because agents follow it. Treat that as a
+reason for more care, not less.
+
+What would actually constitute unforgeable proof of Sal's approval is a real
+design question, and deliberately not answered here.
 
 Landing one on Sal's direct say-so alone, with no recorded verdict, was a stopgap
 while the gate did not exist. **It is not the route any more.** The single
@@ -144,9 +153,10 @@ merge it. Never merge your own.
 The one qualification, from "Who may press it" above: an agent may land a change
 it authored **only** through the Shipyard button, and only where the review log
 records both a reviewer `verdict: safe` and Sal's `approvedBySal` for that exact
-commit. That is not an exception to the rule — the rule exists to stop an agent
-approving its own work, and a recorded approval from Sal is proof it did not.
-With no such record, this line applies literally: never merge your own.
+commit. The rule exists to stop an agent approving its own work, and a recorded
+approval is evidence it did not — evidence, not proof, since as "provenance and a
+norm" above says, an agent could write that record itself. With no such record,
+this line applies literally: never merge your own.
 
 **Still norms — nothing enforces these.** Editing any file in the working tree,
 including `lib/engine/` and `lib/beach/`. Committing locally. Pushing branches

@@ -63,10 +63,28 @@ Three wording fixes came with it, to avoid leaving the charter contradicting
 itself: the tier heading read "never apply" (now "never apply unilaterally");
 "do not open it as a PR" now reads "until he approves it: … do not open it as a
 PR", since after approval a PR is exactly the route; and §2 now says explicitly
-**who may press the button**, which is what makes "never merge your own"
-(`AGENTS-CHARTER.md`, Git section) enforceable rather than merely stated — an
-agent may land its own change only where Sal's approval is recorded against that
-exact commit, and the Git section now carries the matching cross-reference.
+**who may press the button** — an agent may land its own change only where Sal's
+approval is recorded against that exact commit, and the Git section carries the
+matching cross-reference.
+
+**`approvedBySal` claims only what it can back, second correction from
+`reviewer`.** The draft above called a recorded approval "proof" an agent did not
+approve its own work, and said naming who may press the button made "never merge
+your own" *enforceable*. Both overstated. `approve-change.sh` is an ordinary file
+owned by the same user every agent runs as; an agent that chose to could write
+its own approval. §2 now says plainly that `approvedBySal` is **provenance and a
+norm, not an enforced control** — the same language the charter already uses for
+the tier boundaries and the commit-identity stamp — and the Git section now says
+a recorded approval is *evidence*, not proof. Sal's call, deliberately deferred:
+what would actually constitute unforgeable proof of his approval is its own
+design question and is not being answered late in a session to close out this PR.
+
+**Citations no longer rot.** This entry previously cited the charter by line
+number (`AGENTS-CHARTER.md:44`, `:51-52`, `:91`). `reviewer` pointed out that
+every one of them was correct against `main` and wrong the moment this PR's own
+charter edits landed — including a `:91` the PR itself newly wrote. They are now
+section-plus-quoted-phrase references, which survive the file moving. Each quoted
+phrase was checked to resolve against the amended charter.
 
 **Recorded as known and unresolved:** the charter still assigns no tier to
 editing itself. `reviewer` raised it on PR #7 and again here, where it is more
@@ -79,8 +97,9 @@ stays open for Sal.
 **One thing this entry has to admit about itself.** PR #9 — the entry directly
 below, which documents `main` merging its own pull request — was also merged by
 `main`, on Sal's explicit instruction in the same message that made this
-decision. So the norm at `AGENTS-CHARTER.md:91` was crossed a second time, with
-authorisation, by the very change recording the first crossing. It was
+decision. So the norm in `AGENTS-CHARTER.md` §2, Git section — "Never merge your
+own." — was crossed a second time, with authorisation, by the very change
+recording the first crossing. It was
 documentation rather than a PROPOSE-ONLY path, so the new rule above does not
 reach it, and the "unless I explicitly say otherwise" exception covers it. Noted
 here because a log that recorded one self-merge while silently containing
@@ -107,16 +126,16 @@ A real production deploy of `e0fd293` followed at `18:06:25Z`, also on Sal's
 direct instruction, recorded in `~/agent-worlds/deploy-log/covecheck.jsonl`.
 
 **Why this is an exception.** `scripts/deploy.sh` is named verbatim in the
-PROPOSE-ONLY list (§2, `AGENTS-CHARTER.md:51-52`: "Deploy configuration,
+PROPOSE-ONLY list (`AGENTS-CHARTER.md` §2: "Deploy configuration,
 `scripts/deploy.sh`, Vercel settings, environment variables, or anything else
 that reaches production infrastructure"). That tier says to write the fix as a
-proposal and "do not apply it to the working tree, do not commit it, do not open
-it as a PR" (`AGENTS-CHARTER.md:44`). Three separate norms were crossed:
+proposal and — as it read at the time — "do not apply it to the working tree, do
+not commit it, do not open it as a PR". Three separate norms were crossed:
 
 1. The change was applied rather than proposed.
-2. It was opened as a pull request, which PROPOSE-ONLY excludes outright.
-3. `main` merged its own pull request, against "Never merge your own"
-   (`AGENTS-CHARTER.md:91`).
+2. It was opened as a pull request, which PROPOSE-ONLY excluded outright.
+3. `main` merged its own pull request, against the Git section's "Never merge
+   your own."
 
 Each was done on Sal's explicit, contemporaneous instruction — he asked for the
 PR, then for the merge, then for the deploy. That is authorisation, and it is
