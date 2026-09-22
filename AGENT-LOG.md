@@ -22,6 +22,100 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-21 · main · AUTONOMOUS · APPLIED
+
+**Done: documented the `reviewer` agent, which existed in config but nowhere
+else.** `reviewer` (workspace `~/covecheck`) and `ripper-reviewer` were
+configured and present in `agents.entries.main.subagents.allowAgents`, and
+`reviewer` had already produced a real review of PR #6 — but the role appeared in
+no charter and no log. A fresh session would have found a running agent it could
+not account for.
+
+`AGENTS-CHARTER.md` §2 now carries a **The reviewer** subsection: read-only, does
+not merge or fix what it finds, must produce TIER / VERDICT / SENTENCE /
+UNCERTAINTIES, must verify rather than restate the author's claims, and is
+subject to the §4 blind-briefing rule. §5 now names the full roster.
+
+The one prior mention of "reviewer" in the charter was coincidental — the phrase
+"a second reviewer" in the approvals paragraph, unrelated to the agent.
+
+---
+
+## 2026-09-21 · main · AUTONOMOUS · APPLIED
+
+**Done: added the missing inline caveat to `DECISIONS.md` #14.**
+
+Raised by `reviewer` when it reviewed PR #6, and correct. The
+"reconstructed from a commit message, not contemporaneous" caveat lived only in
+this log; #14 itself read `**Decided:** 2026-08-02 · **Status:** active` with no
+indication the text was written seven weeks later.
+
+That was inconsistent with the precedent `builder` set in the same sweep — its
+corrected entries carry six inline dated notes inside `DECISIONS.md`. #14 now
+carries an HTML comment recording when it was written, what it was reconstructed
+from, which parts are quoted versus authored, and that why it was originally
+omitted was never established.
+
+Verified before writing: zero mentions of the caveat in the entry beforehand,
+six inline dated notes elsewhere in the file.
+
+---
+
+## 2026-09-21 · reviewer · KNOWN DEBT · NOT FIXED
+
+**Approval leaves no artifact. A reviewer cannot confirm the one fact this
+whole tier depends on.**
+
+Found by `reviewer` against PR #6 and verified independently:
+
+```
+author:   salvatorepercival-maker
+mergedBy: salvatorepercival-maker
+reviews:  0
+created → merged: 3m44s
+```
+
+Sal *did* approve that draft — explicitly, in conversation, after being shown it
+and its three counterarguments. But that evidence lives in a chat transcript, not
+in the repository. From the repo alone a self-merge and a Sal-approved merge are
+**indistinguishable**: one account opens and merges, approvals are set to zero,
+and every agent shares Sal's credentials.
+
+So the PR body's "Not self-merged" and this log's "Sal was shown the draft" are
+assertions with nothing behind them. PROPOSE-ONLY depends entirely on Sal's
+approval being real, and that is the one thing no reviewer can check.
+
+**Not fixed, deliberately — it is not obvious what the fix is.** Branch
+protection does not close it, because the gap is shared credentials rather than
+a missing gate. Options, none costless: a distinct GitHub identity for agents so
+the merger differs from the author; requiring an approving review from a
+second account; or recording approvals somewhere durable at the moment they are
+given. Raised so it is a decision rather than an omission.
+
+---
+
+## 2026-09-21 · main · KNOWN DEBT · NOT FIXED
+
+**The town dashboard's intake and activity code is duplicated.**
+
+`~/agent-worlds/world.html` and `~/agent-worlds/covecheck-town/covecheck-town.html`
+are independent implementations of the same town — separate City Hall panels,
+separate `status.json` polling, and now separate copies of the request-intake box
+and the "what it's doing" block. Neither embeds the other.
+
+The duplication was accepted knowingly to unblock, after a change was made to
+one page and not the other. It is the same failure mode as the three drifting
+`CLAUDE.md` copies in the Ripper repo, which cost an hour to untangle and had
+already gone stale in the two non-canonical copies.
+
+Two edits have now had to be made twice. The third will be the one that is
+forgotten.
+
+**Not fixed** — consolidating means deciding which page survives, which is Sal's
+call. Logged so the cost is visible before it is paid again.
+
+---
+
 ## 2026-09-21 · builder · AUTONOMOUS · APPLIED
 
 Picked up the **"Not closed — carried forward"** item from the 2026-09-20 session

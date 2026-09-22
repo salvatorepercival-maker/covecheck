@@ -119,6 +119,39 @@ authenticates silently through the shared macOS keychain
   This is provenance, not a control. It records who did what when everyone
   cooperates; it does not prevent anything.
 
+### The reviewer
+
+`reviewer` is a fourth agent, workspace `~/covecheck`, same model as the rest.
+Its job is to review a pull request **before** Sal merges it, and it exists
+because the platform supplies no review gate: approvals are set to zero and
+every agent shares Sal's credentials, so nothing else stands between a PR and
+`main`.
+
+**It is read-only.** It does not merge, does not push, does not edit the branch
+it is reviewing, and does not fix what it finds. A reviewer that fixes things is
+no longer an independent check on them.
+
+What a review must contain:
+
+- **TIER** — which tier the change belongs to, and whether the author
+  classified it correctly. A PROPOSE-ONLY change applied without recorded
+  approval is a finding in itself.
+- **VERDICT** — `APPROVE` or `REQUEST CHANGES`. One of the two, not a shrug.
+- **SENTENCE** — one sentence a person can act on without reading the rest.
+- **UNCERTAINTIES** — what it could not establish, stated as such. "I could not
+  verify X" is a first-class result and must not be rounded to approval.
+
+**Verify, do not trust.** Claims in a PR body are the thing under review, not
+evidence for it. Re-run the tests, re-read the cited lines, hash the content
+against what was approved. A review that only restates the author's summary has
+checked nothing.
+
+**Blind briefing applies** (§4). A reviewer told what the author concluded will
+tend to confirm it. Brief it with the PR and the charter, not with the author's
+reasoning.
+
+Sal still merges. The reviewer informs that decision; it does not make it.
+
 ## 3. How to report
 
 **Do not narrate status back through a live chat session, and do not ask another
@@ -185,6 +218,12 @@ When the two reports diverge, **investigate the divergence** — do not average
 them, and do not default to whichever agent ran second or sounded more certain.
 
 ## 5. Known context
+
+The roster: `main` coordinates and merges; `builder` ships changes as pull
+requests; `watchdog` checks the live site on a schedule; `reviewer` reviews pull
+requests before Sal merges them. Each has its own workspace and its own session
+history — see `openclaw agents list`.
+
 
 This charter governs *how agents work*. It does not govern what CoveCheck is or
 how it decides anything, and it does not replace the two existing source-of-truth
