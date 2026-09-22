@@ -22,6 +22,58 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**Logged retrospectively, after the fact.** This entry exists because the
+deviation was not recorded when it happened. It documents an exception, not a
+normal run through the process.
+
+**What happened:** PR #8, "deploy: record what shipped to a log outside the
+repo", added deploy logging to `scripts/deploy.sh`. Opened by `main`, then
+merged by `main` on Sal's direct instruction. Verified from the GitHub record:
+
+- merge commit `e0fd293`, merged `2026-09-22T18:00:55Z`
+- branch `deploy-log-20260922`, single commit `d09bd40` stamped `main (agent)`
+- sole file changed: `scripts/deploy.sh`
+- `reviews: 0`, `reviewDecision: ""` — no review of any kind was recorded
+
+A real production deploy of `e0fd293` followed at `18:06:25Z`, also on Sal's
+direct instruction, recorded in `~/agent-worlds/deploy-log/covecheck.jsonl`.
+
+**Why this is an exception.** `scripts/deploy.sh` is named verbatim in the
+PROPOSE-ONLY list (§2, `AGENTS-CHARTER.md:51-52`: "Deploy configuration,
+`scripts/deploy.sh`, Vercel settings, environment variables, or anything else
+that reaches production infrastructure"). That tier says to write the fix as a
+proposal and "do not apply it to the working tree, do not commit it, do not open
+it as a PR" (`AGENTS-CHARTER.md:44`). Three separate norms were crossed:
+
+1. The change was applied rather than proposed.
+2. It was opened as a pull request, which PROPOSE-ONLY excludes outright.
+3. `main` merged its own pull request, against "Never merge your own"
+   (`AGENTS-CHARTER.md:91`).
+
+Each was done on Sal's explicit, contemporaneous instruction — he asked for the
+PR, then for the merge, then for the deploy. That is authorisation, and it is
+the only reason this was not a violation. It is recorded here as an exception so
+the record does not read as though the normal process was followed.
+
+**What did not exist yet.** The reviewer-gated merge flow — the Shipyard panel's
+"Ready to merge" section, the review log at
+`~/agent-worlds/review-log/covecheck.jsonl`, and the gate that withholds a Merge
+button unless a reviewer recorded `verdict: safe` — was built later the same
+evening, after this merge. There was no gate to route PR #8 through at the time.
+That explains the route taken; it does not make it the normal one.
+
+**How it surfaced:** not caught at the time, by Sal or by `main`. CoveCheck's
+`reviewer` raised it unprompted while reviewing PR #7, noting the pattern had
+recurred on production infrastructure rather than documentation.
+
+**Deliberately not decided here:** whether a PROPOSE-ONLY path should be
+merge-gated now that the gate exists, or whether Sal's direct authorisation
+stays a standing exception for it. Sal's call.
+
+---
+
 ## 2026-09-21 · builder · AUTONOMOUS · APPLIED
 
 Picked up the **"Not closed — carried forward"** item from the 2026-09-20 session
