@@ -132,6 +132,40 @@ they read differently to a parent deciding about the water. That is Sal's call.
 this pull request. No further message will be sent for this finding while this
 pull request stays open.
 
+### Decision-ready options
+
+Added per the decision-ready standing rule: an ESCALATE finding in a
+PROPOSE-ONLY area with more than one defensible fix arrives with the options
+already drafted, so deciding does not mean re-investigating. **None is
+applied.** Choosing one is a required step in the pipeline, not a summary:
+until a choice is recorded, nobody is briefed and no fix diff exists to review.
+Recording a choice briefs `main`, which briefs `builder`; the resulting fix is
+an ordinary PROPOSE-ONLY change and still needs a reviewer verdict and Sal's
+`approvedBySal` before the merge gate will show a button.
+
+**Options** — drafted with the finding, per the decision-ready rule. None is applied; Sal picks, then `builder` drafts only that one.
+
+**A — Pill follows the block it sits in** ★ **recommended**
+
+- Changes: The pill uses the current hour's verdict on today and the day verdict on other days.
+- You would see: At 12:33 PM the pill reads "Use caution" instead of "Great window"; future days behave exactly as they do now.
+- Tradeoff: The "is any part of today good?" signal leaves this block, though it remains in the hero's "Best window today: 6-9 AM".
+- Why recommended: That exact expression is already computed and correct two lines above the bug at report-view.tsx:62, and :169 is the only place in the file still reading day.verdict raw, so this deletes an inconsistency rather than adding a rule, and it errs cautious.
+
+**B — Keep the day verdict, say so in the label**
+
+- Changes: The heading stops saying "conditions now" when a day-scoped pill is present and names the pill's scope instead.
+- You would see: The same green "Great window" pill, but the words beside it no longer claim to describe this moment.
+- Tradeoff: Keeps the day-at-a-glance signal, but the block then carries two scopes and the word "now" disappears from the one element that genuinely is now.
+
+**C — Show both, each labelled**
+
+- Changes: The block carries two small pills: "now: use caution" and "best today: great".
+- You would see: Both truths at once, with no inference required.
+- Tradeoff: Hardest to misread, but adds UI to the densest part of the page, and two verdict colours side by side can themselves read as ambiguous at a glance.
+
+Recorded to `/Users/salvatorepercival/agent-worlds/decision-log/covecheck.jsonl`, bound to `0cbfe15`.
+
 ---
 
 ## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
