@@ -145,19 +145,23 @@ page, same verdict, same copy — it is an ordinary fix and this does not apply.
 Judge by what reaches the screen, not by how different the diffs look.
 
 Record the options with `record-decision.sh <project> <pr> <card.json>` before
-writing the log entry. Each option carries what changes, what a user would see
-differently, and its tradeoff; exactly one carries `recommended` and the reason
-for it. The script prints an options block for `AGENT-LOG.md` on stdout — paste
-that block into your entry rather than retyping the options, so the prose humans
-read and the card the town panel renders cannot drift apart.
+writing the log entry. The script takes **two to four** options; each carries
+what changes, what a user would see differently, and its tradeoff, and exactly
+one carries `recommended` and the reason for it.
 
-**Take the block, not the heading.** What the script prints opens with
-`## <date> · <agent> · <tier> · AWAITING DECISION`, and §3 admits only
-**AWAITING APPROVAL** or **ESCALATED** in that slot. Discard that line, and note
-the generated block carries none of §3's **Found:** / **Proposed:** /
-**Rationale:** structure either. The entry around the options is written by hand,
-to §3's format and §3's vocabulary; an ESCALATE entry still carries **ESCALATED**
-and still goes at the top. Only the options themselves come from the script.
+**Paste the options, write the rest by hand.** The script prints a whole log
+block on stdout, and only part of it belongs in your entry. Keep the
+`**Options**` section — the option list itself — and the closing
+`Recorded to …, bound to …` line. Discard the four elements above it: the
+generated `## … · AWAITING DECISION` heading, the title, the problem paragraph
+and the `**Impact:**` line. Your hand-written entry already carries that
+material in §3's structure, and §3 governs the heading — an ESCALATE entry
+carries **ESCALATED** and goes at the top.
+
+Pasting the options rather than retyping them is what keeps the entry and the
+card the town panel renders in step. It does not guarantee they agree. They are
+separate copies and have already diverged once, over a line number in PR #12's
+card; where they disagree, the stored record is what the panel shows.
 
 **This is still ESCALATE, and you still stop.** Drafting options is not
 attempting a fix: do not apply one, do not draft one as a diff, and do not open
@@ -196,7 +200,9 @@ Do not read that as looseness elsewhere. It is exactly because the choice
 authorises nothing that it can survive the branch moving — the verdict and the
 approval, which do authorise, keep their strict binding.
 
-First applied on PR #12, 2026-09-22.
+First applied on PR #12, 2026-09-22. Its log entry lives on that pull request's
+own branch until the pull request lands, so look for it there rather than in
+`AGENT-LOG.md` on `main`.
 
 ### Git: commits, pushes, and attribution
 
