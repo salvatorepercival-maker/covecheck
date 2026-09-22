@@ -166,7 +166,13 @@ export function ReportView({
               </span>
             ) : null}
           </h3>
-          <VerdictPill verdict={day.verdict} label={VERDICT_LABEL[day.verdict]} />
+          {/*
+            Same `verdict` the hero uses, so the pill matches the scope the heading
+            above claims: the current hour on today, the day's own verdict otherwise.
+            `day.verdict` is a best-of-day rollup, so reading it here could only ever
+            put a more permissive word next to "conditions now".
+          */}
+          <VerdictPill verdict={verdict} label={VERDICT_LABEL[verdict]} />
         </div>
 
         {headline ? (
