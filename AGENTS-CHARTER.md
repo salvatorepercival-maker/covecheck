@@ -20,6 +20,17 @@ one-line documentation fix inside `lib/engine/` is PROPOSE-ONLY, because the
 directory decides, not the diff size. When genuinely unsure, act at the higher
 tier and say in the log that you did.
 
+> **Known gap, unresolved: this file assigns no tier to editing itself.**
+> Amending the charter is not "documentation correction" in the AUTONOMOUS
+> sense — it rewrites the rules binding every agent, including the rules about
+> what may be changed without asking — but no tier names it either. Raised by
+> `reviewer` on PR #7 and again on PR #10, where it became load-bearing because
+> that PR changes how changes land. **Deliberately not resolved here**, because
+> picking a tier for it is a decision about the constitution rather than a
+> correction to it. Until it is settled, treat a charter amendment as at least
+> PROPOSE-ONLY and say in the log that you did — per the "genuinely unsure" rule
+> directly above.
+
 ### AUTONOMOUS — act without asking
 
 - Diagnostics and read-only analysis of any part of the repo.
@@ -54,11 +65,36 @@ not open it as a PR.
 
 **How an approved one lands — decided by Sal, 2026-09-22.** His approval starts
 the route, it does not end it. From there the change goes through the same gate
-as anything else: open the pull request, have a reviewer review it and record the
-verdict to `~/agent-worlds/review-log/covecheck.jsonl`, then let the town
-Shipyard's **Merge** button land it. That button is withheld unless the recorded
-verdict is exactly `safe`, so an unreviewed PROPOSE-ONLY change cannot be merged
-from there at all. Merge and deploy stay separate decisions.
+as anything else: open the pull request, have a reviewer review it, then let the
+town Shipyard's **Merge** button land it. Merge and deploy stay separate
+decisions.
+
+**The gate requires two independent things, and both are recorded in
+`~/agent-worlds/review-log/covecheck.jsonl`:**
+
+| condition | who records it | how |
+| --- | --- | --- |
+| `verdict: safe` | a reviewer, judging the diff | `record-review.sh` |
+| `approvedBySal` | Sal, approving the change itself | `approve-change.sh` |
+
+Neither substitutes for the other. A reviewer can be satisfied a change is
+correctly implemented while Sal has never agreed it should happen at all; Sal
+can want a change that turns out to be implemented wrongly. The button appears
+only where both hold, so a PROPOSE-ONLY change can be neither merged unreviewed
+nor merged unapproved.
+
+The approval names the exact head commit it was given for. If the branch moves
+afterwards the gate stops honouring it and the change needs approving again — an
+approval can only ever authorise the diff it was shown.
+
+**Who may press it.** Sal, or an agent acting on a change that carries Sal's
+recorded `approvedBySal` for that exact commit. Nobody else, and no agent on an
+unapproved change — including its own. This is what the "never merge your own"
+line further down is protecting: not the keystroke, but the possibility of an
+agent supplying its own approval. A recorded `approvedBySal` means the approval
+came from Sal, so pressing the button is executing his decision rather than
+substituting for it. Absent that record, "never merge your own" applies in full
+and literally.
 
 Landing one on Sal's direct say-so alone, with no recorded verdict, was a stopgap
 while the gate did not exist. **It is not the route any more.** The single
@@ -104,6 +140,13 @@ reviewer. That does not weaken the boundary that matters here: you still cannot
 write to `main`. What it means is that the review step is Sal's to perform, not
 something the platform performs for them — open the pull request and let Sal
 merge it. Never merge your own.
+
+The one qualification, from "Who may press it" above: an agent may land a change
+it authored **only** through the Shipyard button, and only where the review log
+records both a reviewer `verdict: safe` and Sal's `approvedBySal` for that exact
+commit. That is not an exception to the rule — the rule exists to stop an agent
+approving its own work, and a recorded approval from Sal is proof it did not.
+With no such record, this line applies literally: never merge your own.
 
 **Still norms — nothing enforces these.** Editing any file in the working tree,
 including `lib/engine/` and `lib/beach/`. Committing locally. Pushing branches

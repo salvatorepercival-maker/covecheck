@@ -35,16 +35,46 @@ This is the call, in his words:
 > in the moment.
 
 **Applied to the charter** (§2, PROPOSE-ONLY): an approved proposal now lands
-through the same gate as anything else — pull request, reviewer verdict recorded
-to `~/agent-worlds/review-log/covecheck.jsonl`, then the Shipyard Merge button,
-which is withheld unless the verdict is exactly `safe`. Direct authorisation
-alone is no longer the route. The one exception is Sal saying otherwise in the
-moment, and it covers only the change in front of him.
+through the same gate as anything else — pull request, reviewer verdict, then
+the Shipyard Merge button. Direct authorisation alone is no longer the route.
+The one exception is Sal saying otherwise in the moment, and it covers only the
+change in front of him.
 
-Two wording fixes came with it, to avoid leaving the charter contradicting
-itself: the tier heading read "never apply" (now "never apply unilaterally"),
-and "do not open it as a PR" now reads "until he approves it: … do not open it
-as a PR", since after approval a PR is exactly the route.
+**The gate requires two independent records**, both in
+`~/agent-worlds/review-log/covecheck.jsonl`: a reviewer's `verdict: safe`
+(`record-review.sh`) and Sal's `approvedBySal` (`approve-change.sh`). Neither
+substitutes for the other — the reviewer judges the diff, Sal approves the
+change itself. The approval is bound to the exact head commit, so it does not
+survive the branch moving.
+
+**That two-condition shape is a correction, and `reviewer` is why.** The first
+draft of this PR said only "withheld unless the verdict is `safe`", while the
+implemented gate also blocked any PR whose recorded tier was PROPOSE-ONLY —
+`deploy_api.py:72`, `BLOCKING_TIERS`. Those two together were a deadlock: the
+charter made the gate the mandatory route for approved PROPOSE-ONLY changes,
+and the gate could never show a button for one, so with direct say-so also
+declared "not the route any more" those changes had no working route at all.
+`reviewer` caught it on the first review of this PR and flagged rather than
+merged. `BLOCKING_TIERS` is gone; `approvedBySal` replaces it and is strictly
+stronger, since it requires a positive record that Sal decided rather than
+inferring from a tier that he had not.
+
+Three wording fixes came with it, to avoid leaving the charter contradicting
+itself: the tier heading read "never apply" (now "never apply unilaterally");
+"do not open it as a PR" now reads "until he approves it: … do not open it as a
+PR", since after approval a PR is exactly the route; and §2 now says explicitly
+**who may press the button**, which is what makes "never merge your own"
+(`AGENTS-CHARTER.md`, Git section) enforceable rather than merely stated — an
+agent may land its own change only where Sal's approval is recorded against that
+exact commit, and the Git section now carries the matching cross-reference.
+
+**Recorded as known and unresolved:** the charter still assigns no tier to
+editing itself. `reviewer` raised it on PR #7 and again here, where it is more
+load-bearing because this PR changes how changes land. §2 now carries it as an
+explicit open gap with an interim rule (treat an amendment as at least
+PROPOSE-ONLY and say so in the log), rather than leaving it silently absent.
+Settling it is a decision about the constitution, not a correction to it, so it
+stays open for Sal.
 
 **One thing this entry has to admit about itself.** PR #9 — the entry directly
 below, which documents `main` merging its own pull request — was also merged by
