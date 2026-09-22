@@ -22,6 +22,178 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**PR #13 and PR #14 were merged on Sal's direct authorisation, with no reviewer
+`verdict: safe` on either.** Recording it because §2 makes the recorded verdict
+the normal route and this was not it. Same exception shape as PR #8, and the
+same limit: it covers these two changes and does not carry to the next one.
+
+**What the review log actually holds.** Both PRs were reviewed twice. Every one
+of the four verdicts was **`flagged`** — none was ever `safe`:
+
+| PR | head reviewed | verdict |
+| --- | --- | --- |
+| #13 | `474f716` | `flagged` — comment and log asserted a false safety property |
+| #13 | `0c71a01` | `flagged` — code and prose correct; PR *description* still carried the disproven claim |
+| #14 | `e0fc605` | `flagged` — three findings, all upheld |
+| #14 | `b5b6f81` | `flagged` — §3 claim false, block rule incoherent, "cannot drift" overstated |
+
+The final round of fixes closed the remaining findings on both, and Sal accepted
+them without a further review pass. **So no reviewer has cleared the state that
+was merged.** `approvedBySal` was recorded for both, on his explicit instruction
+in the moment; the gate's other condition was never met, and the merges did not
+go through the Shipyard button.
+
+**What stood in for the clearance, stated plainly so nobody later mistakes it
+for a review.** `main` independently confirmed the substantive findings against
+source rather than relaying them: the `AWAITING DECISION` heading in
+`markdown_card`, the `DELIBERATELY NOT SHA-BOUND` comment and its three-failures
+note in `decide()`, the absence of any PR #12 entry in `main`'s log, and — for
+the §3 finding — that `main`'s `AGENT-LOG.md` uses six heading markers beyond the
+template's two, which is what disproved `main`'s own earlier wording. That is
+verification by the author of one of these changes. It is not independence, and
+§4 exists precisely because those are different things.
+
+**Known to remain open at merge, none of it fixed here:**
+
+- `lib/engine/index.ts:32` — the `DaySummary.verdict` doc comment ("best verdict
+  achieved anywhere in the usable hours of this day") is false in the permissive
+  direction, and is the likely origin of the error PR #13 corrects. Wants its
+  own PROPOSE-ONLY proposal.
+- `lib/engine/index.ts:152-157` — returns the last series hour when `now` is
+  past the series end rather than null, and `report-view.tsx:44` derives "today"
+  from it. Reproduced by execution; **not** escalated, because nobody has
+  established it fires in production.
+- Nobody has rendered the page. PR #13's effect is inferred from the
+  substitution at every step, by `builder` and by both reviewers.
+- The `:62` / `:63` divergence between PR #12's pasted options block and the
+  stored card records. The markdown was corrected; the card records in
+  `~/agent-worlds/decision-log/covecheck.jsonl` still read `:62`, so the town
+  panel still renders the old number. Left alone deliberately — that log is
+  append-only and already carries a dispatched decision.
+
+## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** the decision-ready rule for ESCALATE findings is live and in use, but
+the charter never states it. `record-decision.sh` exists and carries the trigger
+test in its header comment; `deploy_api.py` renders the card, queues the brief
+and states in `_decisions` that the record is informational; `world.html` renders
+the options and says choosing is "a REQUIRED pipeline step, not a summary". PR
+#12's log entry already cites "the decision-ready standing rule" as though the
+charter defined it. `AGENTS-CHARTER.md` does not mention it anywhere.
+
+So the rule binding every agent lived only in the tooling that implements it.
+Three copies of the reasoning, no authoritative one, and nothing an agent reading
+the charter before acting would find.
+
+**Proposed:** two subsections at the end of §2 ESCALATE.
+
+*Decision-ready escalations* states the trigger test verbatim from
+`record-decision.sh` — two or more defensible fixes that differ in **what a user
+would actually see**, not in how different the diffs look — requires the options
+be recorded before the log entry is written, and requires the options block be
+pasted from the script's stdout so the prose and the rendered card cannot drift.
+It closes by restating that this is still ESCALATE: drafting options is not
+attempting a fix.
+
+*What a recorded choice binds, and what it does not* is the part worth having
+written down. A decision record approves nothing — `_merge_gate` never reads it —
+and substitutes for neither `verdict: safe` nor `approvedBySal`. What it does is
+brief: it queues `main` to brief `builder` to draft only the chosen option, which
+then re-enters the gate from the top as an ordinary PROPOSE-ONLY change with its
+own review and its own approval. And a choice is deliberately *not* bound to the
+head commit — the inverse of the rule the verdict and the approval follow, and
+the section says why.
+
+**Three corrections from `reviewer`, which returned `flagged` on the first
+draft at `e0fc605`.** Recording them rather than quietly replacing the text,
+since two of the three were claims this entry had presented as checked.
+
+1. **The draft told agents to take the whole log entry from the script's
+   stdout, which contradicts §3.** `markdown_card` (`deploy_api.py`) heads its
+   block `· AWAITING DECISION`, a marker §3 does not admit, and the block
+   carries none of §3's **Found:** / **Proposed:** / **Rationale:** structure.
+   An agent following the rule literally would have produced an entry violating
+   §3; one adapting it would be doing the retyping the rule forbids. The
+   precedent this PR cited disproves the rule as drafted: PR #12's entry is
+   hand-written and headed **ESCALATED**, with only the options block pasted in.
+   Now scoped to the options block, with the heading explicitly discarded.
+
+2. **"First applied on PR #12, 2026-09-22; see `AGENT-LOG.md`" pointed at
+   nothing.** PR #12 is open, so its entry exists only on its own branch — the
+   file the charter named does not contain the record it promised. Exactly the
+   citation rot `reviewer` logged on PR #10, which this PR's own body claimed to
+   have avoided. The file pointer is gone; the PR reference stays, since that
+   does not rot.
+
+3. **The `decisionSha` sentence canonised a rationale the implementation
+   records rejecting.** The draft said the card binds to the head commit "the
+   same rule the verdict and the approval follow." `decide()` says the opposite
+   in terms — *"DELIBERATELY NOT SHA-BOUND"* — and that binding it "punish[ed]
+   the wrong trigger — and it did, three times, before this was relaxed on
+   2026-09-22." `record-decision.sh`'s header still carries the older wording,
+   and the draft copied the loser of that argument into the constitution. The
+   two implementation files genuinely disagree; the charter now follows
+   `decide()`, distinguishes the card's `decisionSha` stamp from the binding of
+   the choice, and says why an authorising record binds where a non-authorising
+   one need not.
+
+Verified independently before rewriting, not taken on the reviewer's report:
+the `AWAITING DECISION` heading at `deploy_api.markdown_card`, the
+`DELIBERATELY NOT SHA-BOUND` comment and its three-failures note in
+`deploy_api.decide()`, and that `main`'s `AGENT-LOG.md` holds no PR #12 entry.
+
+**A second round, because correction 1 above overcorrected.** The review of
+`b5b6f81` returned `flagged` again. Correction 3 — the substantive one — was
+confirmed right, and correction 2 was complete. Correction 1 was not, and it had
+introduced a *new* false claim in the course of fixing a real one:
+
+- **"§3 admits only AWAITING APPROVAL or ESCALATED in that slot" was false.**
+  §3 requires **AWAITING APPROVAL** on PROPOSE-ONLY entries and **ESCALATED** on
+  ESCALATE entries; it does not restrict the slot to those two. `main`'s own log
+  uses six others — `APPLIED`, `DECLINED`, `DECIDED BY SAL`, `SESSION CLOSE`,
+  `APPROVED, APPLIED`, `APPLIED BY EXCEPTION`. Confirmed by counting the
+  headings on `main`, not by re-reading §3. The passage no longer makes the
+  claim; it now says only what §3 does say about ESCALATE headings.
+- **"Discard that line" described one element; `markdown_card` emits four**
+  above the options — heading, title, problem paragraph, `**Impact:**` — plus a
+  closing `Recorded to …` line. PR #12 dropped exactly those four and kept the
+  options and the footer, so the precedent disproved the rule twice over. Now
+  stated as what it is: keep the options block and the footer, hand-write the
+  rest.
+- **"cannot drift apart" overstated what pasting achieves**, and had already
+  failed: PR #12's pasted block reads `report-view.tsx:63` while the stored card
+  records read `:62`. Now says pasting keeps them in step but does not guarantee
+  agreement, names the divergence, and says the stored record is what the panel
+  renders.
+
+Also corrected without being flagged: the charter said the script takes "two or
+more" options; `record-decision.sh` enforces two to four.
+
+**Rationale:** the behaviour is already live and already being cited, so the
+choice was between documenting it now and letting more escalations run under an
+undocumented rule. Sal's call, 2026-09-22: write it now, do not wait for the
+fix PR that PR #12's decision briefed.
+
+What argues against it: the charter's own known gap — it still assigns no tier to
+editing itself — is not resolved by this entry either, and this amendment adds
+process text to a file that has grown twice this week. Against that, every
+sentence here is describing something an agent can already trip over unaware, and
+the binding distinction is exactly the kind of thing that gets assumed wrongly in
+the permissive direction: that Sal picking an option means the fix is cleared.
+
+**Tier.** Treated as PROPOSE-ONLY per the known-gap note at the top of §2, and
+saying so here is what that note requires. Sal authorised writing this and
+opening the pull request; per §2 that starts the route rather than ending it, so
+this still needs a reviewer `verdict: safe` and Sal's `approvedBySal` recorded
+against this branch's head commit before the Shipyard button will appear.
+**AWAITING APPROVAL** stays until he removes it.
+
+**Not verified:** whether this wording survives PR #7, which is open, also edits
+`AGENTS-CHARTER.md`, and is already `CONFLICTING` against `main` from PR #10's
+rewrite. Its hunks land in a different region than this one, but it will need
+rebasing on its own account regardless.
 ## 2026-09-22 · builder · PROPOSE-ONLY · AWAITING APPROVAL
 
 **Implements option A of the decision card on PR #12** — "Pill follows the block

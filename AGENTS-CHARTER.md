@@ -132,6 +132,78 @@ Do not continue the task. Do not attempt a fix first. Log it, mark it, and stop.
 An ESCALATE finding outranks whatever you were asked to do. Finishing the
 original task first is not acceptable.
 
+#### Decision-ready escalations
+
+Stopping at "here is the problem" is not enough when the finding lands in a
+PROPOSE-ONLY area and has more than one defensible fix. Left there, Sal has to
+redo the investigation before he can choose. The agent that found it drafts the
+options; Sal only picks.
+
+**The trigger test: two or more defensible fixes that differ in what a user
+would actually see.** If the candidates differ only internally — same rendered
+page, same verdict, same copy — it is an ordinary fix and this does not apply.
+Judge by what reaches the screen, not by how different the diffs look.
+
+Record the options with `record-decision.sh <project> <pr> <card.json>` before
+writing the log entry. The script takes **two to four** options; each carries
+what changes, what a user would see differently, and its tradeoff, and exactly
+one carries `recommended` and the reason for it.
+
+**Paste the options, write the rest by hand.** The script prints a whole log
+block on stdout, and only part of it belongs in your entry. Keep the
+`**Options**` section — the option list itself — and the closing
+`Recorded to …, bound to …` line. Discard the four elements above it: the
+generated `## … · AWAITING DECISION` heading, the title, the problem paragraph
+and the `**Impact:**` line. Your hand-written entry already carries that
+material in §3's structure, and §3 governs the heading — an ESCALATE entry
+carries **ESCALATED** and goes at the top.
+
+Pasting the options rather than retyping them is what keeps the entry and the
+card the town panel renders in step. It does not guarantee they agree. They are
+separate copies and have already diverged once, over a line number in PR #12's
+card; where they disagree, the stored record is what the panel shows.
+
+**This is still ESCALATE, and you still stop.** Drafting options is not
+attempting a fix: do not apply one, do not draft one as a diff, and do not open
+a pull request for one.
+
+#### What a recorded choice binds, and what it does not
+
+**A decision record approves nothing.** It is informational — `_merge_gate` in
+`deploy_api.py` never reads it, by design and in comment. It cannot merge, clear
+or authorise anything, and it substitutes for neither half of the gate: a
+reviewer's `verdict: safe` and Sal's `approvedBySal` are both still required and
+both still recorded separately in `~/agent-worlds/review-log/covecheck.jsonl`.
+
+**What a choice does do is brief.** Recording it queues a brief to `main`, which
+briefs `builder` to draft only the chosen option, on its own branch, as a pull
+request. That fix then enters the gate from the top as an ordinary PROPOSE-ONLY
+change — its own review, its own approval, against its own commit.
+
+So choosing is a required step in the pipeline, not a summary of one. Until an
+option is recorded, nobody has been briefed and no fix diff exists to review.
+An escalation with options on it does not advance until Sal picks.
+
+**A choice is deliberately not bound to the head commit, and that is the
+opposite of the rule the verdict and the approval follow.** Those two judge a
+diff, so when the diff moves they must be re-taken. A decision card is a
+different animal: it describes a real-world bug and offers ways to fix it, and
+the pull request is only where that conversation lives. Editing a PR's prose
+changes neither the bug nor the options, so invalidating the choice over it
+punishes the wrong trigger — which it did, three times, before `decide()` was
+relaxed on 2026-09-22. What a choice *is* validated against is the set of
+options on the card itself, which is the thing that would actually make it
+wrong. The card does stamp a `decisionSha` when it is written; that is
+provenance for when the options were drafted, not a binding on the choice.
+
+Do not read that as looseness elsewhere. It is exactly because the choice
+authorises nothing that it can survive the branch moving — the verdict and the
+approval, which do authorise, keep their strict binding.
+
+First applied on PR #12, 2026-09-22. Its log entry lives on that pull request's
+own branch until the pull request lands, so look for it there rather than in
+`AGENT-LOG.md` on `main`.
+
 ### Git: commits, pushes, and attribution
 
 **`main` is really protected. Everything short of it is not.** Know which side
