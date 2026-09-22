@@ -22,6 +22,118 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · watchdog · ESCALATE · ESCALATED
+
+**The live site is labelling a best-of-day verdict "conditions now", and it can
+only ever err permissive.** Observed 2026-09-22 12:00 HST on
+`https://www.covecheck.com/` (HTTP 200, 583891 bytes, 5.2 s).
+
+**Found:** at the same instant, the page rendered two contradictory verdicts for
+the same claimed scope, about 200 px apart.
+
+The hero verdict was correct:
+
+> Possible — use caution · Best window today: 6 – 9 AM · Confidence: medium
+
+The hourly timeline agreed with it: `Today 12 PM: use caution`.
+
+But the selected-day heading immediately below read (verbatim, from the fetched
+HTML):
+
+```html
+<h3 id="conditions-heading" class="text-base font-semibold">Today<span
+class="ml-2 text-sm font-normal text-muted">conditions now</span></h3><span
+class="... text-great">...Great window</span>
+```
+
+So a pill reading **"Great window"** sat inside a heading that says
+**"conditions now"**, at an hour the engine itself had assessed as `caution`.
+
+**Cause, traced in code:** `components/report-view.tsx:169` feeds the pill
+`day.verdict`:
+
+```tsx
+<VerdictPill verdict={day.verdict} label={VERDICT_LABEL[day.verdict]} />
+```
+
+while the heading it sits in (`report-view.tsx:161-167`) prints "conditions now"
+precisely when `isToday && evaluation.current`, and the `ConditionsGrid`
+directly beneath it (`report-view.tsx:172-177`) is fed `headline`, which on
+today *is* `evaluation.current`. The pill is the only element in that block
+carrying a day scope.
+
+The two values are defined to differ in one direction only:
+
+- `lib/engine/index.ts:32` — `DaySummary.verdict` is *"Best verdict achieved
+  anywhere in the usable hours of this day"*, computed at `:140` as
+  `bestWindow?.verdict ?? bestVerdictOf(dayHours)`, and `bestVerdictOf`
+  (`:89-97`) returns `great` if **any** hour is great.
+- `lib/engine/index.ts:52` — `evaluation.current` is *"Assessment for the hour
+  containing `nowUtc`"*, selected at `:152-157`.
+
+Because the day value is a best-of rollup, it is greater than or equal to the
+current hour by construction. **The mismatch can never read more cautious than
+the truth; it can only read more permissive.** The hero at
+`report-view.tsx:63` switches to `evaluation.current` correctly, which is why
+the page contradicts itself rather than being uniformly wrong.
+
+This is not a rare edge. The beach's documented pattern is morning-favourable
+(`lib/beach/cromwells.ts` entryNotes: *"Trade winds typically strengthen through
+the morning, so early windows are usually the calmest"*), and today's own
+timeline shows `great` at 6–11 AM, `use caution` 12–4 PM, `great` 5–6 PM. Any
+visitor loading the page during that midday caution block sees "conditions now:
+Great window".
+
+**Verified:**
+
+- Live fetch, HTTP 200, both Suspense boundaries resolved — `$RC("B:0","S:0")`
+  and `$RC("B:1","S:1")` both present, so the verdict is genuinely revealed and
+  not sitting in a hidden fallback. Freshness read "Updated just now".
+- The verbatim HTML above, and the hero/timeline strings, from that same fetch.
+- The code paths and definitions cited, by reading the files.
+- `npm test` — 266 passed, 15 files. No test covers the scope of this pill.
+- `npm run diagnose` — all four providers returned live data (NWS south-facing
+  bands 3-5 ft today/Wednesday; exposed swell min 0.0 / max 5.8 / mean 2.86 ft;
+  tide reason codes present; `great hours: 32 / 91`, `great days: 4 / 7`). NWS
+  alerts fetched successfully and returned an **empty** list — healthy, not a
+  failure: `components/conditions-grid.tsx:102` gates the "No official
+  advisories in effect" copy on `sourceFreshness.alerts?.status === 'ok'`, and
+  that copy rendered.
+
+**Inferred, not verified:** that this has been live since `de95309` — the pill
+and heading have been adjacent since that commit, but I did not check out and
+render earlier revisions to establish when the strings first disagreed.
+
+**Independently confirmed.** Per charter §4, a second agent was briefed blind —
+asked only to tabulate, for every verdict indicator on the page, what scope its
+label claims versus what data the code feeds it, with no part of this finding in
+its prompt. It independently landed on `report-view.tsx:169` as the single
+mismatch and on the best-of-day definition as the reason. It also surfaced two
+smaller scope blends that this investigation had passed over, both lower
+severity and **not** part of this escalation:
+
+- `report-view.tsx:68` — the hero's label is the current hour's verdict, but its
+  bullets come from `(window ?? day.bestWindow).reasons`, so a `caution`
+  headline is currently explained partly by a positive belonging to the 6–9 AM
+  window.
+- `components/now-strip.tsx:97` — `aria-label="Conditions right now"` is fed
+  `headline`, which on a *future* selected day is that day's first window hour.
+  The second agent marked this inferred, not observed, and it is correct on
+  today.
+
+**Not proposed, and no fix attempted.** Charter §2: ESCALATE is stop and flag,
+and `components/` safety copy is PROPOSE-ONLY besides. The shape of the fix is
+not obvious enough for an agent to pick unilaterally — showing
+`evaluation.current.verdict` in that pill, dropping the pill, or changing the
+heading are three different product answers about what that block is for, and
+they read differently to a parent deciding about the water. That is Sal's call.
+
+**Alerted.** One `[COVECHECK] [ESCALATE]` Telegram message was sent pointing at
+this pull request. No further message will be sent for this finding while this
+pull request stays open.
+
+---
+
 ## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
 
 **Closes the question the entry below left open.** That entry ended "whether a
