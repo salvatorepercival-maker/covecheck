@@ -169,8 +169,28 @@ export function ReportView({
           {/*
             Same `verdict` the hero uses, so the pill matches the scope the heading
             above claims: the current hour on today, the day's own verdict otherwise.
-            `day.verdict` is a best-of-day rollup, so reading it here could only ever
-            put a more permissive word next to "conditions now".
+
+            This is not a one-way move toward caution. `day.verdict` is the best
+            *window's* verdict, not the best *hour's* (`lib/engine/index.ts:140`),
+            and two things break the ordering — both reproduced by executing the
+            real `groupWindows`/`bestWindowForDate`, not inferred:
+
+              - A run of `great` hours shorter than `minWindowHours` is downgraded
+                to `caution` (`lib/engine/windows.ts:109`, `:127`). Cromwells sets
+                `minWindowHours: 2` (`lib/beach/cromwells.ts:135`), so an isolated
+                `great` hour gives `day: caution` while `current` is `great`.
+              - Only hours 6-18 are eligible for windows
+                (`lib/engine/windows.ts:19`, `:71-73`, `:152-154`), but `current`
+                is picked with no such filter (`lib/engine/index.ts:152-157`). A
+                favourable 19:00 hour gives `day: caution` with `current: great`.
+
+            In both, this pill now reads more permissive than it did. It is still
+            the right scope for the heading it sits under, and the hero at `:89-91`
+            has rendered this same `verdict` all along — so where that happens the
+            page's largest element already said it, and this removes a
+            contradiction rather than introducing the reading. Whether the net
+            safety effect is negative is not established: that needs frequency
+            data on how often each shape occurs, which nobody has measured.
           */}
           <VerdictPill verdict={verdict} label={VERDICT_LABEL[verdict]} />
         </div>
