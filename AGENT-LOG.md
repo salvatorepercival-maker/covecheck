@@ -22,6 +22,45 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · PROPOSE-ONLY · MERGED THROUGH THE GATE, WITH ONE EXCEPTION
+
+**First change to land through the full merge gate.** PR #10 — the amendment
+that created the gate — went through it: reviewer `verdict: safe`, Sal's
+`approvedBySal`, both bound to head `d19205e`, then the Shipyard **Merge**
+button. Merge commit `3e645ec`, `--merge`, so `d19205e` keeps `main (agent)`
+authorship underneath. Three review rounds preceded it; the first two returned
+`flagged` and `uncertain`, and neither was merged.
+
+**The exception, stated plainly: `main` recorded Sal's approval, not Sal.**
+`approve-change.sh covecheck 10` was run by `main` on Sal's explicit instruction,
+in a message that named the norm it crosses and authorised the crossing anyway —
+the same shape as PR #8 and PR #9 earlier the same evening. The `approvedBySal`
+record for `d19205e` is therefore Sal's decision, but not Sal's keystroke.
+
+Why that matters more here than for #8 or #9: this is the record the gate
+consults, on the very change that defines the gate. The §2 text merged in this PR
+says an agent could write its own approval because nothing prevents it — and that
+is exactly what happened on the first use, by agreement rather than by evasion.
+Recorded so the first passage through the gate is not mistaken for a clean one.
+
+The approval was also given for a commit Sal had not personally inspected: his
+instruction predated `d19205e`. That is the precise gap commit-binding exists to
+expose, and it is noted here rather than smoothed over.
+
+**Why this entry is a follow-up rather than part of #10.** Both gate conditions
+were bound to `d19205e`. Committing this entry to that branch would have moved
+the head and invalidated the verdict *and* the approval, forcing a third review
+and a second approval in order to record a note about the first. Same
+retrospective shape as PR #9 backfilling PR #8.
+
+**Still open, deliberately:** what would constitute unforgeable proof of Sal's
+approval. Deferred as its own design question rather than answered late in a
+session to close out this PR. Until it is answered, `approvedBySal` is provenance
+and a norm — and tonight is the demonstration of why that distinction is not
+pedantic.
+
+---
+
 ## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
 
 **Closes the question the entry below left open.** That entry ended "whether a
