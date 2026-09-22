@@ -22,6 +22,42 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
+
+**Closes the question the entry below left open.** That entry ended "whether a
+PROPOSE-ONLY path should be merge-gated now that the gate exists … Sal's call."
+This is the call, in his words:
+
+> PROPOSE-ONLY paths should go through the merge gate now that it exists. My
+> direct authorization was a stopgap because the gate didn't exist yet; now that
+> it does, use it. This should be the last time a PROPOSE-ONLY change lands
+> without going through review + merge-gate, unless I explicitly say otherwise
+> in the moment.
+
+**Applied to the charter** (§2, PROPOSE-ONLY): an approved proposal now lands
+through the same gate as anything else — pull request, reviewer verdict recorded
+to `~/agent-worlds/review-log/covecheck.jsonl`, then the Shipyard Merge button,
+which is withheld unless the verdict is exactly `safe`. Direct authorisation
+alone is no longer the route. The one exception is Sal saying otherwise in the
+moment, and it covers only the change in front of him.
+
+Two wording fixes came with it, to avoid leaving the charter contradicting
+itself: the tier heading read "never apply" (now "never apply unilaterally"),
+and "do not open it as a PR" now reads "until he approves it: … do not open it
+as a PR", since after approval a PR is exactly the route.
+
+**One thing this entry has to admit about itself.** PR #9 — the entry directly
+below, which documents `main` merging its own pull request — was also merged by
+`main`, on Sal's explicit instruction in the same message that made this
+decision. So the norm at `AGENTS-CHARTER.md:91` was crossed a second time, with
+authorisation, by the very change recording the first crossing. It was
+documentation rather than a PROPOSE-ONLY path, so the new rule above does not
+reach it, and the "unless I explicitly say otherwise" exception covers it. Noted
+here because a log that recorded one self-merge while silently containing
+another would be worth less than no log.
+
+---
+
 ## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
 
 **Logged retrospectively, after the fact.** This entry exists because the

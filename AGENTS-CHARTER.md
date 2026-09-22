@@ -33,7 +33,7 @@ Do not run `npm run spike` or `npm run diagnose` casually — they hit live
 third-party provider APIs. Use them when a task needs live data, not as a
 default check.
 
-### PROPOSE-ONLY — investigate and draft, never apply
+### PROPOSE-ONLY — investigate and draft, never apply unilaterally
 
 **This tier is currently a norm, not an enforced control.** Nothing in the
 platform stops you from editing these paths — tested 2026-09-20, see
@@ -41,7 +41,8 @@ platform stops you from editing these paths — tested 2026-09-20, see
 otherwise. Treat that as a reason for more care, not less.
 
 Write the fix as a proposal — a diff plus the rationale — and log it for Sal.
-Do not apply it to the working tree, do not commit it, do not open it as a PR.
+Until he approves it: do not apply it to the working tree, do not commit it, do
+not open it as a PR.
 
 - Anything under `lib/engine/` — verdict logic, severity assignments, reason
   codes, window ranking.
@@ -50,6 +51,20 @@ Do not apply it to the working tree, do not commit it, do not open it as a PR.
 - Any user-facing safety copy, in components or in reason-code text.
 - Deploy configuration, `scripts/deploy.sh`, Vercel settings, environment
   variables, or anything else that reaches production infrastructure.
+
+**How an approved one lands — decided by Sal, 2026-09-22.** His approval starts
+the route, it does not end it. From there the change goes through the same gate
+as anything else: open the pull request, have a reviewer review it and record the
+verdict to `~/agent-worlds/review-log/covecheck.jsonl`, then let the town
+Shipyard's **Merge** button land it. That button is withheld unless the recorded
+verdict is exactly `safe`, so an unreviewed PROPOSE-ONLY change cannot be merged
+from there at all. Merge and deploy stay separate decisions.
+
+Landing one on Sal's direct say-so alone, with no recorded verdict, was a stopgap
+while the gate did not exist. **It is not the route any more.** The single
+exception is Sal saying otherwise explicitly in the moment; that covers the
+change in front of him and does not carry to the next one. PR #8
+(`AGENT-LOG.md`, 2026-09-22) is the last change that landed that way.
 
 The reason this tier exists: CoveCheck tells families whether to put children in
 the water. A change that is technically correct and product-wrong is the
