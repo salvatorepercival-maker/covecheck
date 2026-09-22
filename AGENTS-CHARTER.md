@@ -20,6 +20,17 @@ one-line documentation fix inside `lib/engine/` is PROPOSE-ONLY, because the
 directory decides, not the diff size. When genuinely unsure, act at the higher
 tier and say in the log that you did.
 
+> **Known gap, unresolved: this file assigns no tier to editing itself.**
+> Amending the charter is not "documentation correction" in the AUTONOMOUS
+> sense — it rewrites the rules binding every agent, including the rules about
+> what may be changed without asking — but no tier names it either. Raised by
+> `reviewer` on PR #7 and again on PR #10, where it became load-bearing because
+> that PR changes how changes land. **Deliberately not resolved here**, because
+> picking a tier for it is a decision about the constitution rather than a
+> correction to it. Until it is settled, treat a charter amendment as at least
+> PROPOSE-ONLY and say in the log that you did — per the "genuinely unsure" rule
+> directly above.
+
 ### AUTONOMOUS — act without asking
 
 - Diagnostics and read-only analysis of any part of the repo.
@@ -33,7 +44,7 @@ Do not run `npm run spike` or `npm run diagnose` casually — they hit live
 third-party provider APIs. Use them when a task needs live data, not as a
 default check.
 
-### PROPOSE-ONLY — investigate and draft, never apply
+### PROPOSE-ONLY — investigate and draft, never apply unilaterally
 
 **This tier is currently a norm, not an enforced control.** Nothing in the
 platform stops you from editing these paths — tested 2026-09-20, see
@@ -41,7 +52,8 @@ platform stops you from editing these paths — tested 2026-09-20, see
 otherwise. Treat that as a reason for more care, not less.
 
 Write the fix as a proposal — a diff plus the rationale — and log it for Sal.
-Do not apply it to the working tree, do not commit it, do not open it as a PR.
+Until he approves it: do not apply it to the working tree, do not commit it, do
+not open it as a PR.
 
 - Anything under `lib/engine/` — verdict logic, severity assignments, reason
   codes, window ranking.
@@ -50,6 +62,54 @@ Do not apply it to the working tree, do not commit it, do not open it as a PR.
 - Any user-facing safety copy, in components or in reason-code text.
 - Deploy configuration, `scripts/deploy.sh`, Vercel settings, environment
   variables, or anything else that reaches production infrastructure.
+
+**How an approved one lands — decided by Sal, 2026-09-22.** His approval starts
+the route, it does not end it. From there the change goes through the same gate
+as anything else: open the pull request, have a reviewer review it, then let the
+town Shipyard's **Merge** button land it. Merge and deploy stay separate
+decisions.
+
+**The gate requires two independent things, and both are recorded in
+`~/agent-worlds/review-log/covecheck.jsonl`:**
+
+| condition | who records it | how |
+| --- | --- | --- |
+| `verdict: safe` | a reviewer, judging the diff | `record-review.sh` |
+| `approvedBySal` | Sal, approving the change itself | `approve-change.sh` |
+
+Neither substitutes for the other. A reviewer can be satisfied a change is
+correctly implemented while Sal has never agreed it should happen at all; Sal
+can want a change that turns out to be implemented wrongly. The button appears
+only where both hold, so a PROPOSE-ONLY change can be neither merged unreviewed
+nor merged unapproved.
+
+The approval names the exact head commit it was given for. If the branch moves
+afterwards the gate stops honouring it and the change needs approving again — an
+approval can only ever authorise the diff it was shown.
+
+**Who may press it.** Sal, or an agent acting on a change that carries Sal's
+recorded `approvedBySal` for that exact commit. Nobody else, and no agent on an
+unapproved change — including its own. This is what the "never merge your own"
+line further down is protecting: not the keystroke, but the possibility of an
+agent supplying its own approval. Absent that record, "never merge your own"
+applies in full and literally.
+
+**`approvedBySal` is provenance and a norm, not an enforced control.** Like the
+tier boundaries above and the commit-identity stamp below, it records who decided
+what; it does not prevent anything. `approve-change.sh` is an ordinary file owned
+by the same user every agent runs as, so an agent that chose to could write its
+own approval — nothing in the platform stops it, exactly as nothing stops an
+agent editing `lib/engine/`. It holds because agents follow it. Treat that as a
+reason for more care, not less.
+
+What would actually constitute unforgeable proof of Sal's approval is a real
+design question, and deliberately not answered here.
+
+Landing one on Sal's direct say-so alone, with no recorded verdict, was a stopgap
+while the gate did not exist. **It is not the route any more.** The single
+exception is Sal saying otherwise explicitly in the moment; that covers the
+change in front of him and does not carry to the next one. PR #8
+(`AGENT-LOG.md`, 2026-09-22) is the last change that landed that way.
 
 The reason this tier exists: CoveCheck tells families whether to put children in
 the water. A change that is technically correct and product-wrong is the
@@ -89,6 +149,14 @@ reviewer. That does not weaken the boundary that matters here: you still cannot
 write to `main`. What it means is that the review step is Sal's to perform, not
 something the platform performs for them — open the pull request and let Sal
 merge it. Never merge your own.
+
+The one qualification, from "Who may press it" above: an agent may land a change
+it authored **only** through the Shipyard button, and only where the review log
+records both a reviewer `verdict: safe` and Sal's `approvedBySal` for that exact
+commit. The rule exists to stop an agent approving its own work, and a recorded
+approval is evidence it did not — evidence, not proof, since as "provenance and a
+norm" above says, an agent could write that record itself. With no such record,
+this line applies literally: never merge your own.
 
 **Still norms — nothing enforces these.** Editing any file in the working tree,
 including `lib/engine/` and `lib/beach/`. Committing locally. Pushing branches
