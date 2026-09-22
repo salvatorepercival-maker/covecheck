@@ -150,7 +150,7 @@ an ordinary PROPOSE-ONLY change and still needs a reviewer verdict and Sal's
 - Changes: The pill uses the current hour's verdict on today and the day verdict on other days.
 - You would see: At 12:33 PM the pill reads "Use caution" instead of "Great window"; future days behave exactly as they do now.
 - Tradeoff: The "is any part of today good?" signal leaves this block, though it remains in the hero's "Best window today: 6-9 AM".
-- **Recommended because:** That exact expression is already computed and correct two lines above the bug at report-view.tsx:62, and :169 is the only place in the file still reading day.verdict raw, so this deletes an inconsistency rather than adding a rule, and it errs cautious.
+- **Recommended because:** That exact expression is already computed and correct two lines above the bug at report-view.tsx:63, and :169 is the only place in the file still reading day.verdict raw, so this deletes an inconsistency rather than adding a rule, and it errs cautious.
 
 **B — Keep the day verdict, say so in the label**
 
