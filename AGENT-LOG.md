@@ -22,6 +22,90 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Implements option A of the decision card on PR #12** — "Pill follows the block
+it sits in", chosen by Sal and recorded to
+`~/agent-worlds/decision-log/covecheck.jsonl` at `2026-09-22T23:10:48Z`. Options
+B and C were not drafted.
+
+`components/` safety copy is PROPOSE-ONLY (charter §2), so this is a proposal and
+not a landed change. Per §2 "How an approved one lands", Sal's choice starts the
+route rather than ending it: this is open as a pull request against `main` and
+still needs a reviewer `verdict: safe` **and** Sal's `approvedBySal` for this
+exact head commit, both in `~/agent-worlds/review-log/covecheck.jsonl`, before
+the Shipyard's Merge button applies. Not merged by me, and not mine to merge.
+
+**Found:** `components/report-view.tsx:169` fed `<VerdictPill>` the raw
+`day.verdict` while the heading it sits inside (`:161-167`) prints "conditions
+now" whenever `isToday && evaluation.current`. `DaySummary.verdict` is the best
+verdict anywhere in the day's usable hours, so it is greater than or equal to the
+current hour by construction — the mismatch could only ever read more permissive
+than the truth. Full observation, including the live HTML, is in the `watchdog`
+ESCALATE entry on PR #12.
+
+**Proposed:**
+
+```diff
+--- a/components/report-view.tsx
++++ b/components/report-view.tsx
+@@ -166,7 +166,13 @@ export function ReportView({
+               </span>
+             ) : null}
+           </h3>
+-          <VerdictPill verdict={day.verdict} label={VERDICT_LABEL[day.verdict]} />
++          {/*
++            Same `verdict` the hero uses, so the pill matches the scope the heading
++            above claims: the current hour on today, the day's own verdict otherwise.
++            `day.verdict` is a best-of-day rollup, so reading it here could only ever
++            put a more permissive word next to "conditions now".
++          */}
++          <VerdictPill verdict={verdict} label={VERDICT_LABEL[verdict]} />
+         </div>
+```
+
+One behavioural change, one file. Nothing under `lib/engine/` or `lib/beach/`.
+
+**Rationale:** `report-view.tsx:63` already computes
+`isToday && evaluation.current ? evaluation.current.verdict : day.verdict`, and
+its condition is character-for-character the condition the heading at `:161`
+branches on, so the pill and the words beside it now agree by construction rather
+than by coincidence. The hero at `:89-91` has been using that same `verdict` all
+along. This removes the last raw read, so it deletes an inconsistency instead of
+introducing a rule, and where it changes anything it changes it cautious-ward.
+
+What argues against it: the "is any part of today good?" signal leaves this block.
+It is not lost — the hero still carries "Best window today: 6–9 AM" and the day
+selector still shows each day's best-of verdict — but a reader who had learned to
+read this pill as the day's outlook will now read a narrower thing. That is the
+tradeoff the decision card names, and Sal accepted it.
+
+**Verified:**
+
+- `npm test` — 266 passed, 15 files. Matches the baseline in the `watchdog` entry;
+  no test covers this pill's scope, so the suite passing is evidence of no
+  regression elsewhere, not evidence this pill is now right.
+- `npm run typecheck` (`tsc --noEmit`) — clean, no output.
+- `npm run lint` (`eslint`) — clean, no output.
+- The decision card's claim that `:169` is the only raw `day.verdict` left in the
+  file: confirmed at head `3e645ec` by grep. The one other hit in the repo is
+  `lib/spike.live.ts:184`, a per-day diagnostic table where the day scope is
+  correct and which is untouched here.
+- Sal's recorded choice, read from the decision log at the timestamp above.
+
+**Inferred, not verified:** that the rendered page now reads "Use caution" at a
+midday caution hour. The change was not rendered against live provider data —
+`npm run diagnose` and `npm run spike` hit third-party APIs and the charter says
+not to run them as a default check, and this reasoning does not need live data.
+The behaviour follows from the substitution, but I did not observe it.
+
+**One correction to the decision card:** it cites the already-correct expression
+as `report-view.tsx:62`; it is at `:63` at head `3e645ec`. Same line of code, off
+by one in the reference. Nothing else in the card was wrong — the line numbers,
+the definitions, and the "only place reading it raw" claim all held on re-check.
+
+---
+
 ## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
 
 **Closes the question the entry below left open.** That entry ended "whether a
