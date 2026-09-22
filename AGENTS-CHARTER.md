@@ -132,6 +132,54 @@ Do not continue the task. Do not attempt a fix first. Log it, mark it, and stop.
 An ESCALATE finding outranks whatever you were asked to do. Finishing the
 original task first is not acceptable.
 
+#### Decision-ready escalations
+
+Stopping at "here is the problem" is not enough when the finding lands in a
+PROPOSE-ONLY area and has more than one defensible fix. Left there, Sal has to
+redo the investigation before he can choose. The agent that found it drafts the
+options; Sal only picks.
+
+**The trigger test: two or more defensible fixes that differ in what a user
+would actually see.** If the candidates differ only internally — same rendered
+page, same verdict, same copy — it is an ordinary fix and this does not apply.
+Judge by what reaches the screen, not by how different the diffs look.
+
+Record the options with `record-decision.sh <project> <pr> <card.json>` before
+writing the log entry. Each option carries what changes, what a user would see
+differently, and its tradeoff; exactly one carries `recommended` and the reason
+for it. The script prints the block for `AGENT-LOG.md` on stdout — take the log
+entry from that output rather than typing it alongside, so the prose humans read
+and the record the town panel renders cannot drift apart.
+
+**This is still ESCALATE, and you still stop.** Drafting options is not
+attempting a fix: do not apply one, do not draft one as a diff, and do not open
+a pull request for one.
+
+#### What a recorded choice binds, and what it does not
+
+**A decision record approves nothing.** It is informational — `_merge_gate` in
+`deploy_api.py` never reads it, by design and in comment. It cannot merge, clear
+or authorise anything, and it substitutes for neither half of the gate: a
+reviewer's `verdict: safe` and Sal's `approvedBySal` are both still required and
+both still recorded separately in `~/agent-worlds/review-log/covecheck.jsonl`.
+
+**What a choice does do is brief.** Recording it queues a brief to `main`, which
+briefs `builder` to draft only the chosen option, on its own branch, as a pull
+request. That fix then enters the gate from the top as an ordinary PROPOSE-ONLY
+change — its own review, its own approval, against its own commit.
+
+So choosing is a required step in the pipeline, not a summary of one. Until an
+option is recorded, nobody has been briefed and no fix diff exists to review.
+An escalation with options on it does not advance until Sal picks.
+
+**The card names the commit it was drafted against** (`decisionSha`) — the same
+rule the verdict and the approval follow, for the same reason: a card that
+outlived its diff describes code nobody looked at. Unlike those two, nothing
+re-checks it and a stale card blocks nothing. It is provenance to read before
+trusting the options, not a control.
+
+First applied on PR #12, 2026-09-22; see `AGENT-LOG.md`.
+
 ### Git: commits, pushes, and attribution
 
 **`main` is really protected. Everything short of it is not.** Know which side

@@ -22,6 +22,65 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** the decision-ready rule for ESCALATE findings is live and in use, but
+the charter never states it. `record-decision.sh` exists and carries the trigger
+test in its header comment; `deploy_api.py` renders the card, queues the brief
+and states in `_decisions` that the record is informational; `world.html` renders
+the options and says choosing is "a REQUIRED pipeline step, not a summary". PR
+#12's log entry already cites "the decision-ready standing rule" as though the
+charter defined it. `AGENTS-CHARTER.md` does not mention it anywhere.
+
+So the rule binding every agent lived only in the tooling that implements it.
+Three copies of the reasoning, no authoritative one, and nothing an agent reading
+the charter before acting would find.
+
+**Proposed:** two subsections at the end of §2 ESCALATE.
+
+*Decision-ready escalations* states the trigger test verbatim from
+`record-decision.sh` — two or more defensible fixes that differ in **what a user
+would actually see**, not in how different the diffs look — requires the options
+be recorded before the log entry is written, and requires the log entry be taken
+from the script's stdout so the prose and the rendered card cannot drift. It
+closes by restating that this is still ESCALATE: drafting options is not
+attempting a fix.
+
+*What a recorded choice binds, and what it does not* is the part worth having
+written down. A decision record approves nothing — `_merge_gate` never reads it —
+and substitutes for neither `verdict: safe` nor `approvedBySal`. What it does is
+brief: it queues `main` to brief `builder` to draft only the chosen option, which
+then re-enters the gate from the top as an ordinary PROPOSE-ONLY change with its
+own review and its own approval. And the card binds to `decisionSha`, the same
+rule the verdict and approval follow — except that nothing re-checks it, so a
+stale card blocks nothing and is provenance rather than a control.
+
+**Rationale:** the behaviour is already live and already being cited, so the
+choice was between documenting it now and letting more escalations run under an
+undocumented rule. Sal's call, 2026-09-22: write it now, do not wait for the
+fix PR that PR #12's decision briefed.
+
+What argues against it: the charter's own known gap — it still assigns no tier to
+editing itself — is not resolved by this entry either, and this amendment adds
+process text to a file that has grown twice this week. Against that, every
+sentence here is describing something an agent can already trip over unaware, and
+the binding distinction is exactly the kind of thing that gets assumed wrongly in
+the permissive direction: that Sal picking an option means the fix is cleared.
+
+**Tier.** Treated as PROPOSE-ONLY per the known-gap note at the top of §2, and
+saying so here is what that note requires. Sal authorised writing this and
+opening the pull request; per §2 that starts the route rather than ending it, so
+this still needs a reviewer `verdict: safe` and Sal's `approvedBySal` recorded
+against this branch's head commit before the Shipyard button will appear.
+**AWAITING APPROVAL** stays until he removes it.
+
+**Not verified:** whether this wording survives PR #7, which is open, also edits
+`AGENTS-CHARTER.md`, and is already `CONFLICTING` against `main` from PR #10's
+rewrite. Its hunks land in a different region than this one, but it will need
+rebasing on its own account regardless.
+
+---
+
 ## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
 
 **Closes the question the entry below left open.** That entry ended "whether a
