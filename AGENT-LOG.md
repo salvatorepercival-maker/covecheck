@@ -145,12 +145,12 @@ an ordinary PROPOSE-ONLY change and still needs a reviewer verdict and Sal's
 
 **Options** — drafted with the finding, per the decision-ready rule. None is applied; Sal picks, then `builder` drafts only that one.
 
-**A — Pill follows the block it sits in** ★ **recommended**
+**A — Pill follows the block it sits in**  `[ RECOMMENDED ]`
 
 - Changes: The pill uses the current hour's verdict on today and the day verdict on other days.
 - You would see: At 12:33 PM the pill reads "Use caution" instead of "Great window"; future days behave exactly as they do now.
 - Tradeoff: The "is any part of today good?" signal leaves this block, though it remains in the hero's "Best window today: 6-9 AM".
-- Why recommended: That exact expression is already computed and correct two lines above the bug at report-view.tsx:62, and :169 is the only place in the file still reading day.verdict raw, so this deletes an inconsistency rather than adding a rule, and it errs cautious.
+- **Recommended because:** That exact expression is already computed and correct two lines above the bug at report-view.tsx:62, and :169 is the only place in the file still reading day.verdict raw, so this deletes an inconsistency rather than adding a rule, and it errs cautious.
 
 **B — Keep the day verdict, say so in the label**
 
@@ -164,7 +164,7 @@ an ordinary PROPOSE-ONLY change and still needs a reviewer verdict and Sal's
 - You would see: Both truths at once, with no inference required.
 - Tradeoff: Hardest to misread, but adds UI to the densest part of the page, and two verdict colours side by side can themselves read as ambiguous at a glance.
 
-Recorded to `/Users/salvatorepercival/agent-worlds/decision-log/covecheck.jsonl`, bound to `0cbfe15`.
+Recorded to `/Users/salvatorepercival/agent-worlds/decision-log/covecheck.jsonl`, bound to `68efbe1`.
 
 ---
 
