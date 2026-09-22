@@ -22,6 +22,49 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+
+## 2026-09-21 · main · KNOWN DEBT · NOT FIXED
+
+**Reviewer alerting does not exist. Neither reviewer has any path to reach Sal
+directly, and the design for one is deliberately not built yet.**
+
+Verified, not assumed:
+
+- `grep -i telegram` over both `AGENTS-CHARTER.md` files returns nothing. The
+  Telegram instruction lives only in the two watchdog *automation payloads*,
+  never in a charter.
+- Neither `reviewer` nor `ripper-reviewer` has a scheduled automation, so there
+  is no payload to carry the instruction even if it were written.
+- The only automation matching "reviewer" is `skill-collection-reviewer`, which
+  is unrelated to either project.
+
+So this is not a scheduling gap that can be closed by editing a job. A reviewer
+is invoked on demand and returns its verdict to whoever called it. Giving it a
+direct line to Sal is a design decision about *when a read-only agent should
+page a human*, and the watchdogs' answer -- one narrow rule, ESCALATE tier only
+-- does not transfer to an agent whose entire output is findings.
+
+**The intended design, recorded so it is not re-derived from scratch:**
+
+1. A PROPOSE-ONLY finding sends a one-sentence Telegram summary for approval.
+   The point is that Sal decides; the reviewer does not act on its own finding.
+2. Only genuine reviewer *uncertainty* escalates, in the same shape the
+   watchdogs use today.
+
+**Why it is not built:** wiring this into a charter without settling exactly
+when each path fires risks both failure modes at once -- flooding the same chat
+that now carries real ESCALATE alerts from two watchdogs, and staying silent on
+the cases that actually warrant a human. Sal's call, 2026-09-21: log it, do not
+build it tonight.
+
+**Related, fixed the same evening:** CoveCheck's watchdog alert read
+`[ESCALATE] CoveCheck watchdog: ...` while Ripper's read `[RIPPER] [ESCALATE]
+...`, so the two were distinguishable only by the convention that an unprefixed
+alert meant CoveCheck. Now symmetric: `[COVECHECK] [ESCALATE] ...`. The delivery
+path was tested end to end -- a clearly labelled test message reached the phone.
+
+---
+
 ## 2026-09-21 · main · AUTONOMOUS · APPLIED
 
 **Done: documented the `reviewer` agent, which existed in config but nowhere
