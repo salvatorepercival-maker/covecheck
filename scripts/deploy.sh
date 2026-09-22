@@ -36,6 +36,30 @@ if [[ -n "$(git status --porcelain)" ]]; then
   echo "note: you have uncommitted changes. Deploying HEAD ($(git rev-parse --short HEAD)); those changes will NOT ship."
 fi
 
+# --- deploy log ------------------------------------------------------------
+# Records what actually shipped, so the Shipyard queue can distinguish "merged"
+# from "deployed". Vercel cannot answer this: these deploys carry no git
+# metadata by design (see the header), so the deployment record holds no commit
+# SHA at all -- `meta` is absent entirely.
+#
+# Written OUTSIDE the repo deliberately. A log file inside the tree would make
+# the working tree dirty, and a dirty tree is exactly what the Ripper deploy
+# refuses -- logging here must never be able to block the next deploy.
+#
+# Known limitation: this records deploys made THROUGH this script. A deploy run
+# some other way (plain `vercel --prod`, another machine) leaves it stale. The
+# real fix is the live site reporting its own build SHA; that is app code, and
+# a separate decision.
+DEPLOY_LOG="${DEPLOY_LOG:-$HOME/agent-worlds/deploy-log/covecheck.jsonl}"
+log_deploy() {
+  mkdir -p "$(dirname "$DEPLOY_LOG")" 2>/dev/null || return 0
+  printf '{"ts":"%s","project":"covecheck","sha":"%s","shaShort":"%s","mode":"prod","status":"%s"}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    "$(cd "$REPO_ROOT" && git rev-parse HEAD)" \
+    "$(cd "$REPO_ROOT" && git rev-parse --short HEAD)" \
+    "$1" >> "$DEPLOY_LOG" 2>/dev/null || true
+}
+
 STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
@@ -50,7 +74,14 @@ rm -f "$STAGE"/.env "$STAGE"/.env.* 2>/dev/null || true
 
 echo "deploying $(git rev-parse --short HEAD) to production…"
 cd "$STAGE"
-vercel --prod --yes
+# `if` exempts this from set -e, so a failure is logged rather than swallowed.
+if vercel --prod --yes; then
+  log_deploy ok
+else
+  rc=$?
+  log_deploy failed
+  exit "$rc"
+fi
 
 echo
 echo "deployed commit $(cd "$REPO_ROOT" && git rev-parse --short HEAD) → https://www.covecheck.com"
