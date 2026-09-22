@@ -22,6 +22,173 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Implements option A of the decision card on PR #12** — "Pill follows the block
+it sits in", chosen by Sal and recorded to
+`~/agent-worlds/decision-log/covecheck.jsonl` at `2026-09-22T23:10:48Z`. Options
+B and C were not drafted.
+
+`components/` safety copy is PROPOSE-ONLY (charter §2), so this is a proposal and
+not a landed change. Per §2 "How an approved one lands", Sal's choice starts the
+route rather than ending it: this is open as a pull request against `main` and
+still needs a reviewer `verdict: safe` **and** Sal's `approvedBySal` for this
+exact head commit, both in `~/agent-worlds/review-log/covecheck.jsonl`, before
+the Shipyard's Merge button applies. Not merged by me, and not mine to merge.
+
+**Found:** `components/report-view.tsx:169` fed `<VerdictPill>` the raw
+`day.verdict` while the heading it sits inside (`:161-167`) prints "conditions
+now" whenever `isToday && evaluation.current`. The pill therefore labelled a
+different scope from the words beside it. In the case `watchdog` observed on
+PR #12 — `day: great`, `current: caution` — it read more permissive than the
+hour the heading names. Full observation, including the live HTML, is in the
+`watchdog` ESCALATE entry on PR #12.
+
+**This entry previously claimed more than that, and the extra claim was false.**
+See **Correction** at the end.
+
+**Proposed:**
+
+```diff
+--- a/components/report-view.tsx
++++ b/components/report-view.tsx
+@@ -166,7 +166,32 @@ export function ReportView({
+               </span>
+             ) : null}
+           </h3>
+-          <VerdictPill verdict={day.verdict} label={VERDICT_LABEL[day.verdict]} />
++          {/*
++            Same `verdict` the hero uses, so the pill matches the scope the heading
++            above claims: the current hour on today, the day's own verdict otherwise.
++
++            This is not a one-way move toward caution. `day.verdict` is the best
++            *window's* verdict, not the best *hour's* (`lib/engine/index.ts:140`),
++            and two things break the ordering — both reproduced by executing the
++            real `groupWindows`/`bestWindowForDate`, not inferred:
++
++              - A run of `great` hours shorter than `minWindowHours` is downgraded
++                to `caution` (`lib/engine/windows.ts:109`, `:127`). Cromwells sets
++                `minWindowHours: 2` (`lib/beach/cromwells.ts:135`), so an isolated
++                `great` hour gives `day: caution` while `current` is `great`.
++              - Only hours 6-18 are eligible for windows
++                (`lib/engine/windows.ts:19`, `:71-73`, `:152-154`), but `current`
++                is picked with no such filter (`lib/engine/index.ts:152-157`). A
++                favourable 19:00 hour gives `day: caution` with `current: great`.
++
++            In both, this pill now reads more permissive than it did. It is still
++            the right scope for the heading it sits under, and the hero at `:89-91`
++            has rendered this same `verdict` all along — so where that happens the
++            page's largest element already said it, and this removes a
++            contradiction rather than introducing the reading. Whether the net
++            safety effect is negative is not established: that needs frequency
++            data on how often each shape occurs, which nobody has measured.
++          */}
++          <VerdictPill verdict={verdict} label={VERDICT_LABEL[verdict]} />
+         </div>
+```
+
+One behavioural change, one file. Nothing under `lib/engine/` or `lib/beach/`.
+
+**Rationale:** `report-view.tsx:63` already computes
+`isToday && evaluation.current ? evaluation.current.verdict : day.verdict`, and
+its condition is character-for-character the condition the heading at `:161`
+branches on, so the pill and the words beside it now agree by construction rather
+than by coincidence. The hero at `:89-91` has been using that same `verdict` all
+along. This removes the last raw read, so it deletes an inconsistency instead of
+introducing a rule.
+
+**It does not only move cautious-ward.** For the observed bug it plainly does:
+`day: great` with `current: caution` becomes `caution`, which is both less
+permissive and in agreement with the heading. But `day.verdict` is the best
+*window's* verdict, not the best *hour's* (`lib/engine/index.ts:140`), and two
+mechanisms let the current hour outrank the day:
+
+1. **`INSUFFICIENT_WINDOW` downgrade** — `lib/engine/windows.ts:109` and `:127`.
+   A run of `great` hours shorter than `minWindowHours` becomes a `caution`
+   window. Cromwells sets `minWindowHours: 2` (`lib/beach/cromwells.ts:135`), so
+   one isolated `great` hour produces a `caution` day verdict while
+   `evaluation.current` for that hour is `great`.
+2. **Usable-hours exclusion** — `lib/engine/windows.ts:19`, `:71-73`, `:152-154`.
+   Only hours 6–18 are eligible for windows, but `evaluation.current`
+   (`lib/engine/index.ts:152-157`) is selected with no such filter. A favourable
+   hour at 19:00 gives `current: great` under `day: caution`.
+
+In both shapes this pill now reads *more* permissive than before.
+
+What weighs the other way, and should be weighed fairly: the hero at `:89-91`
+has rendered this same `verdict` expression all along, so in exactly those cases
+the largest element on the page already read that way. This PR does not
+introduce that reading; it removes a contradiction that in the other direction
+happened to hedge cautious.
+
+**Whether the net safety effect is negative is not established.** Deciding that
+needs frequency data — how often `day: great`/`current: caution` occurs versus
+the two shapes above — and nobody has measured it, here or on PR #12. Recorded
+as open rather than resolved with a guess.
+
+What argues against it: the "is any part of today good?" signal leaves this block.
+It is not lost — the hero still carries "Best window today: 6–9 AM" and the day
+selector still shows each day's best-of verdict — but a reader who had learned to
+read this pill as the day's outlook will now read a narrower thing. That is the
+tradeoff the decision card names, and Sal accepted it.
+
+**Verified:**
+
+- `npm test` — 266 passed, 15 files. Matches the baseline in the `watchdog` entry;
+  no test covers this pill's scope, so the suite passing is evidence of no
+  regression elsewhere, not evidence this pill is now right.
+- `npm run typecheck` (`tsc --noEmit`) — clean, no output.
+- `npm run lint` (`eslint`) — clean, no output.
+- **Both counterexamples in the Rationale, by execution.** Built synthetic
+  `HourAssessment[]` and ran the real `groupWindows` + `bestWindowForDate`,
+  reproducing `DaySummary.verdict` the way `lib/engine/index.ts:137-140` derives
+  it. A lone `great` hour at 10:00 between two `not_recommended` hours →
+  `day: caution`. `great` hours at 19:00–20:00 with `caution` at 10:00–11:00 →
+  `day: caution`, and the 19:00 hour is what `evaluation.current` would select.
+  A 2-hour `great` run inside 6–18 was run as a control and does give
+  `day: great`. The scratch test was not committed; it exists to have checked,
+  not as coverage. `CROMWELLS.thresholds.minWindowHours === 2` asserted directly.
+- The decision card's claim that `:169` is the only raw `day.verdict` left in the
+  file: confirmed at head `3e645ec` by grep. The one other hit in the repo is
+  `lib/spike.live.ts:184`, a per-day diagnostic table where the day scope is
+  correct and which is untouched here.
+- Sal's recorded choice, read from the decision log at the timestamp above.
+
+**Inferred, not verified:** that the rendered page now reads "Use caution" at a
+midday caution hour. The change was not rendered against live provider data —
+`npm run diagnose` and `npm run spike` hit third-party APIs and the charter says
+not to run them as a default check, and this reasoning does not need live data.
+The behaviour follows from the substitution, but I did not observe it.
+
+**One correction to the decision card:** it cites the already-correct expression
+as `report-view.tsx:62`; it is at `:63` at head `3e645ec`. Same line of code, off
+by one in the reference. Nothing else in the card was wrong — the line numbers,
+the definitions, and the "only place reading it raw" claim all held on re-check.
+
+**Correction — I filed a false claim as verified content.** The first version of
+this entry, at head `474f716`, said under **Found:** that `DaySummary.verdict`
+"is greater than or equal to the current hour by construction — the mismatch
+could only ever read more permissive than the truth", and under **Rationale:**
+that "where it changes anything it changes it cautious-ward". Both are false, and
+both sat in a section the charter §3 reserves for what was actually verified. I
+had not verified them; I reasoned from the name `DaySummary.verdict` and assumed
+a best-of-day rollup dominates any single hour, without reading how it is derived
+or testing it.
+
+**How it was caught:** `reviewer` returned `flagged` on this PR and demonstrated
+both counterexamples by executing `groupWindows`/`bestWindowForDate` against
+synthetic assessments rather than by reading the code. I re-derived both
+independently before rewriting — see the **Verified** bullet above — and they
+hold. The code change is unchanged from `474f716`; only the comment at
+`report-view.tsx:169` and this entry's prose were wrong, and only they changed.
+
+**What the error was:** substituting a plausible reading of an identifier for a
+check of the thing it names. The narrower claim that survives is in **Found** and
+**Rationale** above: the fix is correct and less permissive for the observed bug,
+and is not universally cautious-ward.
+
+---
+
 ## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
 
 **Closes the question the entry below left open.** That entry ended "whether a
