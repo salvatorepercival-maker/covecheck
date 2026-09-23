@@ -225,6 +225,54 @@ work began. If a recommendation looks wrong, say so instead of building it.
 Enabled for CoveCheck only, via `AUTO_SELECT_PROJECTS` in `deploy_api.py`.
 Ripper keeps the manual pick until this is proven here.
 
+#### Decision cards on the City Hall path
+
+**Sal's requests get the same treatment as watchdog findings, under the same
+bar.** Before this, a request with more than one defensible reading was resolved
+by `main` silently picking one and handing it to `builder`. Sal never saw that a
+choice had been made, let alone what the alternatives were.
+
+**The trigger — decided by Sal, 2026-09-22, and worded by him:**
+
+> A City Hall request gets a decision card when **two or more defensible
+> approaches would produce visibly different results for Sal** — different UI,
+> different copy, different behaviour he would notice. Judge by what he'd see,
+> not by how different the implementations are.
+
+If the request has one obvious reading, or the candidate approaches differ only
+internally, **proceed directly**. No card, no ceremony. The test is whether
+`main` would otherwise be picking silently between real alternatives on his
+behalf — that, and only that, is what a card is for. Inventing a second option
+to justify raising one is the same abuse as marking an option `recommended` to
+keep things moving.
+
+**When a card is warranted, the behaviour is identical to the watchdog path.**
+Options drafted, one recommended, auto-selected on the spot, `builder` briefed
+with only that one. All options stay on the card with the selected one marked
+and the rest marked not built, so Sal can see what was not chosen and why. His
+checkpoint remains `approvedBySal` before merge.
+
+**Known structural difference, and it is worse here — say so rather than let it
+be discovered.** On the watchdog path, one agent finds the problem and drafts
+the options, and a separate `reviewer` independently checks the fix before Sal
+approves. **On the City Hall path `main` does both: it assesses whether the
+request even warrants a card, and then drafts and recommends the options it
+will act on.** There is no separate finding agent, so there is one fewer
+independent check between the request and Sal's approval than the watchdog path
+has. `reviewer` still reviews the resulting pull request, and the merge gate is
+unchanged — but the *judgement that produced the work* has been made entirely
+by the agent doing it. That is a real reduction in independence, accepted
+knowingly, and §4's blind-briefing rule cannot repair it because there is no
+second agent to brief.
+
+**Identity and migration.** A request card is keyed by its request id
+(`req-<queueId>`), because the request exists before any pull request does.
+When `builder` opens one, `migrate-decision.sh` sets `prNumber` on **the same
+record** — it is not copied to a second row. One record, reachable by either
+identity; two rows could drift, and drift is what this avoids.
+
+Enabled for CoveCheck only, alongside auto-select. Ripper follows once proven.
+
 #### What a recorded choice binds, and what it does not
 
 **A decision record approves nothing.** It is informational — `_merge_gate` in

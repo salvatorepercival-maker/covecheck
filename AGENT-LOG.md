@@ -22,6 +22,79 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-23 · main · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** nothing — Sal asked for this. Logged because it changes §2 and
+because it extends auto-selection to a path where `main` has *less* independent
+checking than the watchdog path, which is worth stating rather than discovering.
+
+**Proposed:** decision cards on the City Hall path.
+
+A request Sal submits now goes through the same decision-ready process as a
+watchdog finding **when it has a genuine judgment call behind it** — two or more
+defensible approaches that would look different to him. Options drafted, one
+recommended, auto-selected, `builder` briefed with only that one, all options
+kept visible. Requests with one obvious reading proceed directly, unchanged.
+
+**What the investigation found, before any code.** The premise that the
+mechanism was wired for watchdogs was wrong: `author` and `tier` are free
+strings with no allowlist, and auto-select never asks who wrote a card. The real
+blocker was that cards were **PR-keyed end to end** — `record-decision.sh`
+rejected a non-numeric target, `decide()` called `_pr_now()` and returned 502
+without a PR, `_decisions()` keyed by `int(pr)`, and the panel attached cards
+only to rows built from open PRs, so a request card had nowhere to render.
+`reviewer` had already flagged the `<pr>` assumption on PR #16 as a non-blocking
+finding; this is what made it load-bearing.
+
+**Built:** a request identity (`req-<queueId>`) validated by `decision_key()`, a
+`decide()` path that skips `_pr_now` when there is no PR to read,
+`request_cards()` plus a City Hall render surface, and `migrate-decision.sh`.
+
+**One record, not two — Sal's decision.** Migration sets `prNumber` on the
+existing record; `_decisions()` then indexes that same object under both
+identities. The card is never copied, so the two identities cannot drift.
+Re-migrating to the same PR is a no-op; re-pointing at a different PR is
+refused, because that is likelier a mistake than an intention.
+
+**The structural difference, recorded because it is the real cost.** On the
+watchdog path a finding agent drafts the options and `reviewer` independently
+checks the fix. On this path `main` decides whether a card is warranted, drafts
+the options, recommends one, auto-selects it and briefs the builder. **One fewer
+independent check before Sal's approval**, and §4 cannot repair it — there is no
+second agent to brief blind. `reviewer` still reviews the resulting PR and the
+merge gate is untouched, but the judgement that produced the work was made
+entirely by the agent doing it. Sal accepted this knowingly and asked that it be
+stated plainly rather than buried.
+
+**Verified — 34 assertions, all passing, with the decision log and task queue
+redirected to temp files.** No brief reached `main`, no builder ran, and the
+real `decision-log/covecheck.jsonl` was byte-identical before and after.
+
+- A request card keys by request id, and `decide()` succeeds with **no pull
+  request at all** — the 502 that previously made this impossible is gone.
+- The brief names the request rather than inventing a PR number, carries only
+  the chosen option, says **"SAL HAS NOT SEEN THIS YET"**, still demands a
+  reviewer verdict and `approvedBySal`, and asks for the PR number back so the
+  card can be migrated.
+- The card reaches the City Hall payload with the auto-selection marked and the
+  unbuilt option preserved; `markdown_card` and `telegram_card` both render it
+  and neither invents a PR number.
+- **Migration:** after migrating, the card is reachable by request id *and* by
+  PR number and is the **same object** (identity-checked, not equality); it
+  leaves the City Hall list; re-migrating is a no-op; re-pointing is refused.
+- **The gate is unchanged:** a request card alone is refused, auto-select plus
+  `approvedBySal` with no verdict is refused, verdict plus approval passes.
+- The "should not get a card" case: a single-option card is refused outright.
+  Recorded honestly — that refusal is the backstop, not the path. A request with
+  no judgment call never reaches the script; `main` just proceeds.
+
+**Not verified:** no real City Hall request has yet produced a card end to end,
+and no card has been migrated onto a PR that a builder actually opened. Both
+were exercised against redirected state, not by dispatching real work. The first
+live request is the remaining proof.
+
+**Ripper is not enabled.** CoveCheck first, per Sal's instruction.
+
 ## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
 
 **Merged on Sal's direct authorisation, with no reviewer `verdict: safe`.**
