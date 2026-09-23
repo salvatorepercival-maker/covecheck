@@ -22,6 +22,126 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-23 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** nothing new. This implements **option B** of the decision card on
+PR #19, chosen by Sal. The finding is `watchdog`'s, on that pull request: wind
+between this beach's `great` ceiling and its `caution` ceiling emitted no reason
+of any kind, so `resolveVerdict` — which reads only reason severities — resolved
+the hour to `great` and the reason list said nothing at all about the wind.
+
+PROPOSE-ONLY because it is `lib/engine/`; §2 says the directory decides. Sal's
+choice of option starts the route and does not end it, so this is open as a pull
+request and is not applied, merged, or deployed. It needs a reviewer
+`verdict: safe` and `approvedBySal` against its head commit before the Shipyard
+shows a button.
+
+**Proposed:** a new `MARGINAL_WIND` reason code, severity `caveat`, emitted for
+either measure in its middle band and carrying the measured number.
+
+```diff
+--- a/lib/engine/reasons.ts
++++ b/lib/engine/reasons.ts
++  MARGINAL_WIND: {
++    severity: 'caveat',
++    text: 'Wind is above the range this beach reads as calm, though below the level CoveCheck treats as too gusty',
++  },
+
+--- a/lib/engine/assess.ts
++++ b/lib/engine/assess.ts
+     if (hour.windSpeedMph <= windLimits.great) {
+       reasons.push(reason('CALM_WIND', ...))
+     } else if (hour.windSpeedMph > windLimits.caution) {
+       reasons.push(reason('STRONG_GUSTS', `${...} mph sustained`))
++    } else {
++      marginal.push(`${hour.windSpeedMph.toFixed(0)} mph sustained`)
+     }
+
+     if (hour.windGustMph !== null && hour.windGustMph > gustLimits.caution) {
+       reasons.push(reason('STRONG_GUSTS', `gusts to ${...} mph`))
++    } else if (hour.windGustMph !== null && hour.windGustMph > gustLimits.great) {
++      marginal.push(`gusts to ${hour.windGustMph.toFixed(0)} mph`)
++    }
++
++    if (marginal.length > 0) {
++      reasons.push(reason('MARGINAL_WIND', marginal.join(', ')))
+     }
+```
+
+**State the thing this does not do.** The hour still says **`Great window`**.
+Option B fixes what is *said*, not what is *claimed*: a 30 mph offshore hour with
+39 mph gusts now carries `gusts to 39 mph` in its reasons and is marked medium
+confidence, and it is still green. If the ceilings in `lib/beach/cromwells.ts`
+are wrong — they rest on one in-water observation, n=1 — this change does not
+help, and the too-permissive verdict `watchdog` escalated is still on the page.
+Options A and C on the card would have moved the verdict; neither was chosen and
+neither is implemented here, not even partially.
+
+**Verified by execution.**
+
+- `npm test` — 275 passed, 15 files, 0 failed (266 before; 9 added).
+- `npm run typecheck` — exit 0, no output.
+- `npm run lint` — exit 0, no output.
+- **No hour's verdict changes.** Checked by running the *same* sweep harness in
+  two worktrees, one at `31922cf` and one at this branch, and diffing the JSON —
+  not by reading the code. 8,172 hour rows per side: every wind speed × gust ×
+  direction combination across both exposures and every band boundary, crossed
+  with every swell and tide band, on both the live Cromwell's profile and the
+  fully-calibrated test profile. **Verdict differences: 0.** Reason-list
+  differences: 3,936 — all of them the added `MARGINAL_WIND` line. Confidence
+  differences: 1,690, **all `high` → `medium`**, none in the other direction.
+- On the **live** Cromwell's profile, confidence does not change at all: the
+  provisional tide band already caps every assessable hour at `medium`. There,
+  the only user-visible change is the new reason line. The confidence cap is
+  load-bearing only for a profile whose tide band is settled.
+- Window and day verdicts are unchanged on all seven canonical scenarios plus a
+  purpose-built marginal-wind day.
+- A test in `assess.test.ts` re-resolves every hour of that sweep with all
+  `MARGINAL_WIND` reasons stripped and asserts the verdict is identical, so the
+  claim is guarded in the suite and not only in this log. It counts the hours
+  that actually fired, so it cannot pass vacuously.
+
+**Found while verifying, and not mentioned on the decision card — flagged.**
+Window *ranking* can change, though no window's verdict does. `weakestConfidence`
+makes a window medium if any hour in it is, and `scoreWindow` charges medium
+exactly `0.05`. Where two `great` windows on one day sat within 0.05 of each
+other, the recommended window moves off the marginal-wind block and onto the
+calmer one. I reproduced this deliberately (contrived near-tie, fully-calibrated
+profile) rather than inferring it. It did **not** occur on the live Cromwell's
+profile in any probe, for the reason above — scores there are bit-identical. The
+direction of the effect is conservative: it recommends *away* from the windy
+hours. It is still a user-visible consequence option B's text does not describe,
+and a reviewer should decide whether it is in scope rather than discover it.
+
+**Inferred, flagged as such.**
+
+- I did not reproduce the production measurement in PR #19 — no live fetch, and
+  §2 restricts `npm run spike` and `npm run diagnose`, neither of which I ran.
+  The 30.0 mph / 38.7 mph case is reproduced as a **unit test** against the same
+  ceilings, not against the live payload. That the 39 hours `watchdog` counted
+  will now each carry a wind line follows from the ceilings and the band logic; I
+  did not re-count them on production.
+- `components/conditions-grid.tsx:64-69` derives its wind qualifier from reason
+  codes and already falls through to `Moderate` for this band, so it needs no
+  change. I read that, and the test suite covers it; I did not render the page.
+- `watchdog`'s second, narrower finding — cross-shore hours taking the onshore
+  limits with no `ONSHORE_WIND` negative — is untouched here. `MARGINAL_WIND`
+  does now fire on that path when a cross-shore hour lands in the onshore
+  marginal band (swept above), which makes the branch less silent but does not
+  resolve it. It is a separate finding and needs its own decision.
+
+**Rationale:** `caveat` is the severity that does exactly what option B asked
+for and nothing more — `resolveVerdict` ignores caveats, `resolveConfidence`
+reads them as medium, and `mergeReasons` sorts them ahead of positives so the
+line survives into the verdict bullets on an otherwise all-green hour. The two
+measures collapse into one reason rather than two because the copy would
+otherwise repeat verbatim inside a single hour.
+
+What argues against it: a `caveat` under a `Great window` headline is a quieter
+signal than 39 mph gusts may warrant, and this change makes the wrong-ceiling
+case *harder* to spot, not easier — the page now looks like it has considered the
+wind. That is the tradeoff the card names, and it is Sal's to accept.
+
 ## 2026-09-23 · main · PROPOSE-ONLY · AWAITING APPROVAL
 
 **Found:** nothing — Sal asked for this. Logged because it changes §2 and

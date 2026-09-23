@@ -24,6 +24,7 @@ export type ReasonCode =
   | 'DIRECT_SOUTH_SWELL'
   | 'MARGINAL_SWELL'
   | 'SRF_DISAGREES_WITH_MODEL'
+  | 'MARGINAL_WIND'
   | 'STRONG_GUSTS'
   | 'ONSHORE_WIND'
   | 'LOW_TIDE_OVER_REEF'
@@ -119,6 +120,27 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
   SRF_DISAGREES_WITH_MODEL: {
     severity: 'caveat',
     text: 'The National Weather Service forecasts more surf for this shore than the swell reaching this cove suggests — worth a look at the water',
+  },
+  /**
+   * `caveat`, and that is the whole of what this code does.
+   *
+   * Wind between this beach's `great` ceiling and its `caution` ceiling used to
+   * emit no reason at all, so the hour resolved to `great` and the reason list
+   * carried no wind line — a parent read an offshore 30 mph hour with 39 mph
+   * gusts and was told nothing about the wind. This says the number out loud and
+   * caps confidence at `medium`; it deliberately does NOT move the verdict, so
+   * such an hour still reads `Great window`.
+   *
+   * That restraint is a choice, not a claim that the band is fine. Whether
+   * exceeding the `great` ceiling should cap the verdict is a live calibration
+   * question — the ceilings rest on a single in-water observation
+   * (`lib/beach/cromwells.ts`), and this project has twice been burned by
+   * blanket tightening on thin evidence (DECISIONS.md #15). Fixing the silence
+   * is separable from re-opening that line, and only the silence is fixed here.
+   */
+  MARGINAL_WIND: {
+    severity: 'caveat',
+    text: 'Wind is above the range this beach reads as calm, though below the level CoveCheck treats as too gusty',
   },
   STRONG_GUSTS: {
     severity: 'negative',

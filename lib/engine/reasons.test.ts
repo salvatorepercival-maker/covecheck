@@ -120,6 +120,15 @@ describe('reason severities', () => {
     expect(severityOf('HAZARD_STATE_UNKNOWN')).toBe('disqualifying')
   })
 
+  it('treats wind in the marginal band as a caveat, which shows it without moving the verdict', () => {
+    // Deliberately `caveat` rather than `negative`: PR #19's option B fixes the
+    // silence — an hour over the `great` ceiling emitted no wind reason at all —
+    // without re-opening where the green/amber line sits on ceilings that rest
+    // on one in-water observation. `negative` here would flip those hours to
+    // caution, which is a different option and was not the one chosen.
+    expect(severityOf('MARGINAL_WIND')).toBe('caveat')
+  })
+
   it('treats uncalibrated wind as preventing a green verdict', () => {
     // Deliberately `negative` rather than `caveat`: an unassessable primary
     // factor must not yield an enthusiastic recommendation. See DECISIONS.md #7.
