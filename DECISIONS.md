@@ -74,6 +74,14 @@ investigate, not to hand the verdict to whichever source sounds more official.
 
 **Decided:** 2026-08-02 · **Status:** active
 
+> **Written 2026-09-21**, seven weeks after the decision it records, and
+> reconstructed from `da04034`'s commit message rather than from notes taken at
+> the time. The measurements and the Surfline cross-check are quoted from that
+> commit; the framing and the "would reverse this" line are not Sal's words.
+> Why #14 was originally omitted was never established. **This is the only entry
+> in this file not written contemporaneously with its decision** — see
+> `AGENT-LOG.md`, 2026-09-21.
+
 The direction filter from #1 was correct and was being fed too little. Only the
 primary swell partition and the wind wave were requested from Open-Meteo, so a
 small south swell sitting *beneath* a dominant easterly windswell — the ordinary
