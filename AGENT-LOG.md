@@ -150,13 +150,42 @@ help, and the too-permissive verdict `watchdog` escalated is still on the page.
 Options A and C on the card would have moved the verdict; neither was chosen and
 neither is implemented here, not even partially.
 
+**`ENGINE_VERSION` bumped: `2026-08-02.1` → `2026-09-23.1`** (`lib/engine/index.ts:28`).
+Its own docstring says "bump on any change to thresholds interpretation, reason
+semantics, or ranking", and this change hits all three clauses: it adds a reason
+code, it changes what an unchanged hour reports, and via the `high` → `medium`
+confidence move it changes `scoreWindow` output and so can re-rank windows.
+Raised by `reviewer` in round 1 and left open until now. Nothing in the repo
+asserts the literal string — the only consumer is
+`lib/engine/scenarios.test.ts:322`, which matches `/^\d{4}-\d{2}-\d{2}/` and
+still passes, plus a display line in `lib/spike.live.ts:219`. There are no
+snapshots and no stored fixtures anywhere in the repo, so nothing needed
+regenerating and nothing broke. The version has not been bumped since
+`f4cdc9b` created it, so `.1` on a new date follows the `YYYY-MM-DD.N`
+convention without ambiguity.
+
 **Verified by execution.** All numbers below are from the revised head; the
 earlier head's numbers are kept alongside where they moved.
 
 - `npm test` — 285 passed, 15 files, 0 failed (275 at `0bbdb526`, 266 before the
-  branch; 10 added by this revision).
-- `npm run typecheck` — exit 0, no output.
-- `npm run lint` — exit 0, no output.
+  branch; 10 added by this revision). **Unchanged by the version bump** — same
+  285, re-run after it.
+- `npm run typecheck` — exit 0, no output. Re-run after the bump.
+- `npm run lint` — exit 0, no output. Re-run after the bump.
+- **The zero-verdict-change property re-established after the bump**, since it
+  is the load-bearing claim of this PR and a changed constant must not be
+  allowed to quietly invalidate it. Fresh two-worktree sweep against `31922cf`,
+  widened well past the earlier one: **209,664 hour rows, 13,440 windows and
+  16,128 whole-day evaluations per side** across three profiles.
+  **Hour, day and window verdict differences: 0. Window boundaries and lengths:
+  identical. `recommendedWindow` and `bestWindow` differences: 0.** Confidence
+  moved on 12,480 hours and 800 windows, every one of them `high` → `medium`
+  and never the reverse, with the window score delta exactly `+0.05` in all 800
+  — the `scoreWindow` medium penalty, and the only numeric effect in the sweep.
+  This grid holds conditions flat across each day, so it contains no two
+  near-tied `great` windows and therefore does **not** re-measure the 7
+  `recommendedWindow` differences reported below; it neither confirms nor
+  contradicts them.
 - **The regression tests fail against `0bbdb526`.** Checked by copying the three
   revised test files into a worktree at that commit and running them against its
   engine: **6 of the 10 new tests fail there and pass here**, covering all three
@@ -224,6 +253,61 @@ above it. With the pair suppressed, the remaining placements are correct — abo
 `report-view.tsx` renders only the first three, so the caveat can still be
 pushed off-screen by three negatives. That is existing, intended behaviour for a
 caveat and is not changed here.
+
+**But the cap cuts the other way too, and that part is new. This change can
+push `TIDE_BAND_PROVISIONAL` off the page.** Raised by `reviewer` in round 1,
+still reproducing at `d75c085`, and until now acknowledged nowhere — so it is
+stated here as a known and accepted consequence, not an oversight.
+
+`components/report-view.tsx:69` renders `explanation.slice(0, 3)`. Both
+`MARGINAL_WIND` and `TIDE_BAND_PROVISIONAL` are `caveat`, so they sort into the
+same severity block and the tie is broken by emission order in `assessHour` —
+wind at `assess.ts:427`, tide at `assess.ts:447`. **Wind is emitted first, so
+`MARGINAL_WIND` always sorts ahead of the tide caveat**, and where the tide
+caveat was occupying the third and last rendered slot, it is now displaced out
+of the render entirely.
+
+Measured, not argued. The same two-worktree method: 2,464 whole-day evaluations
+on the **live Cromwell's profile only**, reading exactly the list
+`report-view.tsx` computes — `(day.recommendedWindow ?? day.bestWindow).reasons`
+— and slicing it to three.
+
+- `TIDE_BAND_PROVISIONAL` present in the full merged list: **2,464 of 2,464 on
+  both sides.** The reason is never suppressed; only its rendered position moves.
+- Rendered inside the visible three: **1,273 at `31922cf` → 1,196 here.**
+- **Displaced: 77** (3.1% of the swept grid). Gained back: **0**.
+- In **all 77**, `TIDE_BAND_PROVISIONAL` sat at index 2 — the last visible slot —
+  at baseline, and `MARGINAL_WIND` takes that slot here. Two shapes, both real:
+  `MARGINAL_SWELL, DIRECT_SOUTH_SWELL, [tide → wind]` (63, offshore) and
+  `ONSHORE_WIND, HIGH_TIDE_LESS_SHALLOW, [tide → wind]` (14, onshore).
+- **All 77 are `caution` days. Zero are `great` days.** The displacement needs
+  two negatives already ahead of the caveats, and an all-green day has none —
+  so on the green days this change exists to annotate, the tide caveat keeps
+  its slot.
+
+**Why this is worse than an ordinary caveat being crowded out.** The
+displacement is of a reason whose own docstring (`reasons.ts:245-251`) says it
+"must always be shown, so a one-observation estimate is never mistaken for a
+calibrated threshold" — and DECISIONS.md #13 has the tide band as **provisional
+and now gating** (0.0–1.5 ft MLLW, `n=1`, edges still open), so it is the caveat
+with the thinnest evidence behind it and the most reason to stay on screen. This
+change does not clear that bar on 77 swept day-evaluations.
+
+**The 3.1% is a grid rate, not a production rate — do not read it as one.** The
+sweep samples wind, swell and tide bands uniformly, which is the right shape for
+finding whether a case is reachable and wrong for estimating how often a family
+would meet it. How often it actually fires on the live site depends on the real
+joint distribution of those conditions, which I did not measure: §2 restricts
+`npm run spike` and `npm run diagnose` and I ran neither, so there was no live
+fetch behind any number in this entry.
+
+**Deliberately not fixed here.** Raising the cap above three, or ordering
+caveats by anything other than emission order, is a behaviour change to a
+component outside this change's scope, and Sal authorised the disclosure, not
+the repair. Fixing it silently inside a PR whose load-bearing claim is "nothing
+a user sees changes except one added line" would be the wrong way to do it. It
+should be its own change, with its own review — `builder`'s recommendation is
+that it get one.
 
 **Found while verifying, and not mentioned on the decision card — flagged, and
 carried forward unchanged from the first head.** Window *ranking* can change,

@@ -25,7 +25,7 @@ export * from './windows'
  * Verdicts carry both this and the beach `configVersion` so a stored verdict can
  * always be traced to the logic that produced it.
  */
-export const ENGINE_VERSION = '2026-08-02.1'
+export const ENGINE_VERSION = '2026-09-23.1'
 
 export type DaySummary = {
   date: string
