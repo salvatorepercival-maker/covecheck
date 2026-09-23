@@ -54,23 +54,86 @@ that then closed its target. **Inferred, not verified:** that these are schema
 and UI artefacts rather than a race. I did not establish the cause, only that
 their answers disagree with the observed outcome.
 
-**Proposed:** `proposals/2026-09-23-escalation-autoclose-deploy_api.patch`. It
-adds `escalation_autoclose_instruction(key)` and calls it from the existing
-`else` branch in `decide()`. The brief now tells `builder` to put
-`Closes #<escalation PR>` on its own line in the PR description. The key is the
-card's own, so it is the escalation report by construction and cannot name the
-fix's own number or anyone else's. The request-card branch above it is
-untouched: no PR exists yet, so there is nothing to close. If the link ever
-comes back `None` on the PR-keyed branch the call returns 500 and dispatches
-nothing, rather than briefing a fix with no way to close its report.
+**Proposed:** `proposals/2026-09-23-escalation-autoclose.patch`, covering
+`deploy_api.py` **and** `record-decision.sh` in one file so neither can be
+applied without the other. It adds `is_escalation_report()`,
+`escalation_report_now()` and `escalation_autoclose_instruction()`, and calls
+them from the existing `else` branch in `decide()`. Where the target is
+established as an escalation report the brief tells `builder` to put
+`Closes #<escalation PR>` on its own line in the PR description. The
+request-card branch above it is untouched: no PR exists yet, so there is nothing
+to close.
 
 Also `AGENTS-CHARTER.md` §2, "Closing the escalation report", and a line in
 "The reviewer" — the rule has to be stated, because nothing enforces it.
 
-**Verified:** `scripts/test_escalation_autoclose.py`, 19 assertions, all passing
-against the patched copy. It fails against the unpatched file, and a mutation
-that keeps the helper but restores the old `link =` line is caught by 2 failing
-assertions — so the seam is covered, not just the function's existence.
+**Corrected after review — the first draft had a real safety hole, and this is
+the substance of the change.** That draft emitted `Closes #<key>`
+unconditionally, on the written claim that a PR-keyed card "is the escalation
+report by construction". **It is not.** `record-decision.sh` accepted any PR
+number and never looked at it. A card recorded against a pull request somebody
+intended to merge would have briefed a fix that silently closed it, and nothing
+downstream could have caught it: a closing keyword is invisible to the merge
+gate, looks correct to a reviewer, and takes effect at merge with no warning.
+`reviewer` flagged this on this pull request. **I did not soften the wording to
+match the weak behaviour; I made the guarantee true**, because the claim was the
+right claim — it simply was not being kept anywhere:
+
+- **`record-decision.sh` refuses to write a PR-keyed card whose target is not an
+  escalation report.** Loud error, nothing written, nothing dispatched. Under
+  auto-select, writing *is* dispatching, so refusing to write is refusing to
+  brief. This is the point the mistake is made, so it is the point that names it.
+- **`escalation_autoclose_instruction()` omits the keyword unless the caller
+  established the target live.** It re-derives rather than trusting a flag the
+  script wrote, so a card arriving by another route — an older script, a
+  hand-appended JSONL row — still cannot produce closing syntax.
+
+**The rule: declaration *and* file set, both required.** A report declares
+`ESCALATE`/`ESCALATED` in its title or opening line (§3), changes nothing but
+`AGENT-LOG.md`, and is not merged. Checked against all 25 pull requests in this
+repository: declaration alone also matches #22; the file rule alone also matches
+#17, #15, #11, #9 and #3 — ordinary log-keeping PRs that *merged*, exactly the
+class this must never fire on. Both together match **#19 and #12 and nothing
+else**, which is exactly the set of real escalation reports, and they reject
+this pull request too.
+
+**The two callers fail differently, on purpose.** `record-decision.sh` refuses;
+`decide()` degrades to a plain reference and says why. `decide()` runs on the
+ESCALATE path, where a GitHub hiccup must not be able to strand a safety
+finding — so it never blocks, it only declines to emit the dangerous half. At
+record time nothing has been written or dispatched and a person is right there
+to fix the number, so refusing costs nothing and is clearer.
+
+**Verified:** `scripts/test_escalation_autoclose.py`, **46 assertions, 0
+failures** against the patched copy, stdlib only and no network — the rule is a
+pure function so it can be tested offline, and the one fetching function is
+stubbed. It fails against the unpatched file (`FATAL`, exit 1). Four mutations,
+each caught:
+
+| mutation | result |
+| --- | --- |
+| restore the old unconditional `Closes #N` (the hole itself) | **3 failed** |
+| `is_escalation_report()` always returns `True` | **9 failed** |
+| match the `ESCALATE` marker case-insensitively | **1 failed** |
+| drop the "changes nothing but `AGENT-LOG.md`" condition | **1 failed** |
+
+**Layer 1 proven end to end**, against live GitHub in a sandboxed `HOME` so the
+real decision log was never touched (confirmed unchanged, 9 lines): a card
+against **#26** — this pull request, a real change intended to merge — was
+refused *"it declares no ESCALATE finding and changes 4 file(s) beyond the agent
+log"*; against **#20**, refused *"it is MERGED"*; against **#19**, accepted and
+written. That is the hole, closed, demonstrated on the exact shape that would
+have caused the damage.
+
+**Two defects the new tests caught in my own drafts**, recorded because both
+would have shipped: the degraded brief originally said "do not write
+`Closes #N`", which put the exact dangerous string into the brief where a
+builder could copy it out of a sentence forbidding it and a reviewer grepping
+for closing syntax would hit it — the prohibition now names the keyword never
+adjacent to the number. And my first case-sensitivity test used the word
+"escalation", which never matches `\bESCALATED?\b` in *either* case, so it
+passed against a deliberately case-insensitive mutant and proved nothing; it now
+uses lowercase "escalated", which discriminates.
 
 **Rationale:** the closing keyword is the mechanism Sal specified and it
 demonstrably works, so the merge-path alternative — deriving the escalation in
@@ -79,16 +142,44 @@ demonstrably works, so the merge-path alternative — deriving the escalation in
 fix answers it, so the derivation would have been a guess at exactly the moment
 a wrong answer closes the wrong pull request.
 
-**What argues against it, stated plainly:** it is an instruction in a brief, and
-nothing verifies `builder` complied. A missed line reintroduces the manual close
-silently. I could not close that gap generally — the card does not record its
-fix PR, so `deploy_api.py` cannot check after the fact — so the charter makes it
-the reviewer's explicit check instead. That is a weaker guarantee than
-enforcement and should be read as one.
+**What argues against it, stated plainly:**
 
-**PROPOSE-ONLY** on two counts: `deploy_api.py` is deploy infrastructure (§2),
-and this amends the charter, which §2 says to treat as at least PROPOSE-ONLY.
-Not applied to `~/agent-worlds/deploy_api.py`, not merged, not deployed.
+- **It is still an instruction in a brief, and nothing verifies `builder`
+  complied.** A missed line reintroduces the manual close silently. I could not
+  close that gap generally — the card does not record its fix PR, so
+  `deploy_api.py` cannot check after the fact — so the charter makes it the
+  reviewer's explicit check instead. That is weaker than enforcement and should
+  be read as one. What *is* now enforced is the opposite and worse failure: a
+  closing keyword aimed at the wrong pull request.
+- **The escalation-report test reads conventions, not facts.** A title prefix
+  and a file set are how this repository happens to write reports; both are
+  editable by anyone at any time, and a report whose title is reworded stops
+  qualifying. I chose conventions over a stored flag because a flag would have
+  to be written by the same caller that supplies the number, and would therefore
+  prove nothing. The mitigation is the direction of failure, not the strength of
+  the signal: it fails towards *not closing*, which is where things stood
+  before this existed.
+- **Empirically it separates all 25 pull requests here correctly, which is a
+  small sample and a single repository.** The first report that does not follow
+  the convention will be refused, and the charter says to fix the check rather
+  than hand-write the keyword. That instruction is itself only a norm.
+
+**Merging this pull request does not make any of it true.** The charter text
+lands; the code does not — it lives in `~/agent-worlds/`, outside git. The
+patch must be applied and **the town server restarted**, because it holds the
+old `deploy_api` in memory and a correctly applied patch changes nothing until
+it does. Both commands, in order, are in the quoted block at the top of §2
+"Closing the escalation report", where whoever merges will see them, and again
+in `proposals/README.md`. The step that gets missed is the restart, and it fails
+silently — file correct on disk, process still running the old import.
+
+**PROPOSE-ONLY** on three counts: `deploy_api.py` is deploy infrastructure (§2),
+`record-decision.sh` is the same, and this amends the charter, which §2 says to
+treat as at least PROPOSE-ONLY. Neither file under `~/agent-worlds/` was
+modified — both confirmed byte-identical by `md5` after all testing
+(`deploy_api.py f1865bda87e1991b2b88caebab383cb4`,
+`record-decision.sh e8a7e598627a3a0ab28c871d2ac89807`). Not merged, not
+deployed.
 
 **Scratch artefacts, all cleaned up:** branches `test/autoclose-probe-{a,b,c,d}`
 deleted; PRs #22 and #24 closed (both by the mechanism under test); issue #21

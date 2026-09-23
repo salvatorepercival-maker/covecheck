@@ -341,6 +341,35 @@ own branch until the pull request lands, so look for it there rather than in
 
 #### Closing the escalation report
 
+> **NOT LIVE YET — this section describes machinery that merging this pull
+> request does not create.** The rule below is written in the present tense
+> because that is how a charter reads, but the code implementing it lives in
+> `~/agent-worlds/`, which is outside this repository. Merging writes the words
+> and nothing else. **Two further steps are required, in this order:**
+>
+> ```bash
+> # 1. apply the patch this pull request carries
+> patch -p1 -d ~/agent-worlds --dry-run < ~/covecheck/proposals/2026-09-23-escalation-autoclose.patch
+> patch -p1 -d ~/agent-worlds          < ~/covecheck/proposals/2026-09-23-escalation-autoclose.patch
+>
+> # 2. restart the town server — it holds the OLD deploy_api in memory,
+> #    so step 1 alone changes nothing anybody can reach
+> pkill -f 'town-server.py'
+> cd ~/agent-worlds && nohup python3 town-server.py 8777 \
+>     >> ~/Library/Logs/covecheck-town-server.log 2>&1 &
+> curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8777/   # expect 200
+> ```
+>
+> Step 2 is the one that gets forgotten, and it fails silently: the patch is
+> correctly applied, the file on disk is right, and the running process goes on
+> using the version it imported at start. Nothing looks wrong; the mechanism
+> simply does not happen.
+>
+> **Delete this block once both steps are done** — and until they are, read
+> every "does" and "must" below as "will, once this is deployed". Whoever
+> deploys it should say so in `AGENT-LOG.md`, because there is no other record
+> of when the words and the machinery came into agreement.
+
 **A fix pull request that answers a PR-keyed decision card must carry
 `Closes #<escalation PR>` on its own line in its description.** The description
 — the PR body — not a commit message and not a comment; GitHub reads only the
@@ -352,19 +381,67 @@ whose fix #20 merged while #19 sat open. The whole point of a fix is that the
 finding it answers is finished; leaving the report open makes the record say
 otherwise, and makes a person do the bookkeeping.
 
-**Who does what.** `decide()` in `deploy_api.py` puts the instruction, with the
-right number already filled in, into the brief that reaches `main` and then
-`builder` — see `escalation_autoclose_instruction()`. `builder` writes the line
-into the PR body. **`reviewer` checks the line is there**, because nothing
+**Who does what.** `decide()` in `deploy_api.py` checks the target is an
+escalation report, then puts the instruction, with the right number already
+filled in, into the brief that reaches `main` and then `builder` — see
+`escalation_autoclose_instruction()`. `builder` writes the line into the PR
+body. **`reviewer` checks the brief and the body agree**, because nothing
 enforces it: the mechanism is an instruction in a brief, and an instruction can
 be missed. That check is the backstop, and it is the reason this is written here
 rather than left as a behaviour of a script.
 
-**It is always the card's own key, never a number anyone typed.** A PR-keyed
-card is keyed by the pull request its finding was reported on, so that key *is*
-the escalation report by construction. It cannot name a different pull request,
-and it cannot name the fix's own number — the fix does not exist when the brief
-is written. Do not hand-write the number from memory; use the one in the brief.
+**Read the brief, not the convention.** A brief that asked for the closing line
+and a PR body without one is a finding. So is the reverse, and the reverse is
+the worse of the two: a closing line nobody was asked to write means an
+unverified number is aimed at a pull request, which is the failure this section
+is built around.
+
+**The number comes from the card's own key, never from anyone's memory.** Use
+the one in the brief. It is never the fix's own number — the fix does not exist
+when the brief is written.
+
+**But the key alone guarantees nothing, and an earlier draft of this section
+claimed it did.** It said a PR-keyed card "*is* the escalation report by
+construction" and so "cannot name a different pull request". That was false.
+`record-decision.sh` took whatever PR number it was given and never looked at
+it, so a card recorded against a pull request somebody intended to merge would
+have produced a fix carrying closing syntax aimed at that pull request — and
+merging the fix would have closed it. **Nothing downstream could have caught
+that.** A closing keyword is invisible to the merge gate: `_merge_gate` does not
+read PR bodies, a reviewer would see a line that looks correct, and the damage
+lands at merge time with no warning. Flagged by `reviewer` on this pull request.
+
+**The guarantee is now actually made, in two independent places.** Neither is a
+restatement of the other, and either alone would close the hole:
+
+| where | what it does | on failure |
+| --- | --- | --- |
+| `record-decision.sh`, before writing | refuses to record a PR-keyed card whose target is not an escalation report | loud error, **nothing written, nothing dispatched** |
+| `escalation_autoclose_instruction()`, before emitting | omits the closing keyword unless the caller established the target live | brief still sent, carrying a plain reference and the reason the keyword is absent |
+
+The second deliberately **re-derives** the answer rather than trusting a flag the
+first wrote, so a card that arrived by some other route — an older script, a
+hand-appended row in the JSONL — still cannot produce closing syntax.
+
+**What counts as an escalation report — two conditions, both required.** It
+**declares** `ESCALATE`/`ESCALATED` in its title or its opening line, per §3;
+**and** it changes nothing but `AGENT-LOG.md`, because a report reports. A
+merged pull request is never one. Checked against all 25 pull requests in this
+repository on 2026-09-23: the declaration alone also matches scratch PR #22, and
+the file rule alone also matches #17, #15, #11, #9 and #3 — ordinary log-keeping
+pull requests that were *merged*, which is exactly the class this must never
+fire on. Together they match #19 and #12 and nothing else, which is precisely
+the set of real escalation reports. They also correctly reject this very pull
+request.
+
+**The check is deliberately strict, and will sometimes be wrong in the safe
+direction.** A false negative costs an automation — somebody closes a report by
+hand, which is where things stood before any of this existed. A false positive
+closes a live pull request somebody meant to merge. Those are not comparable, so
+anything the check cannot positively establish, including anything it cannot
+read, is treated as "not a report". If it refuses a genuine escalation report,
+**fix the check rather than writing the keyword in by hand** — a hand-written
+line is exactly the unverified number this whole section exists to prevent.
 
 **Request cards are excluded, deliberately.** A `req-` card was raised from a
 City Hall request before any pull request existed, so there is no escalation
@@ -478,10 +555,12 @@ What a review must contain:
 - **UNCERTAINTIES** — what it could not establish, stated as such. "I could not
   verify X" is a first-class result and must never be rounded up to `safe`.
 
-On a fix that answers a PR-keyed decision card, also check the body carries
-`Closes #<escalation PR>` — §2, "Closing the escalation report". Nothing
-enforces that line, so this is the only check standing between a missing one and
-Sal closing the report by hand.
+On a fix that answers a PR-keyed decision card, also check the closing line
+against **what the brief asked for** — §2, "Closing the escalation report". A
+brief that asked for it and a body without one means somebody closes a report by
+hand. **A closing keyword the brief did not ask for is the more serious finding**
+and is not a formatting nit: it aims an unverified number at a pull request, and
+merging the fix would close whatever that number names.
 
 **Verify, do not trust.** Claims in a PR body are the thing under review, not
 evidence for it. Re-run the tests, re-read the cited lines, hash the content
