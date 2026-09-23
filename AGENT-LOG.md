@@ -540,9 +540,35 @@ says an agent could write its own approval because nothing prevents it — and t
 is exactly what happened on the first use, by agreement rather than by evasion.
 Recorded so the first passage through the gate is not mistaken for a clean one.
 
-The approval was also given for a commit Sal had not personally inspected: his
-instruction predated `d19205e`. That is the precise gap commit-binding exists to
-expose, and it is noted here rather than smoothed over.
+The approval was also given for a commit Sal had not personally inspected — but
+**not** because his instruction predated it, which an earlier draft of this
+sentence claimed and `reviewer` disproved on PR #11. The chronology, from the
+record: `d19205e` was committed at **19:29:03Z** and the approval was recorded at
+**19:36:28Z**, seven minutes *after*. What predated the commit was his earlier
+standing instruction — merge it if the review comes back `safe` — given before
+that commit existed and therefore before anyone could have shown it to him. The
+approval instruction itself came after. Either way he had not inspected the
+diff, but the reason matters, and the first version of this entry got it
+backwards. That is the precise gap commit-binding exists to expose, and it is
+noted here rather than smoothed over.
+
+**Verified, from the record rather than from memory:** `3e645ec` is a two-parent
+merge of `d19205e`; both gate conditions are bound to that exact sha in
+`review-log/covecheck.jsonl`; three review rounds preceded it, returning
+`flagged`, `uncertain` and `safe`; and the commit and approval timestamps above.
+
+**Not verified, and not resolvable from the repository:** that Sal had not
+personally inspected `d19205e`. The circumstantial support is strong — the
+approval was recorded seven minutes after the commit, by `main`, on an
+instruction that named no sha — but nothing in the repo records what he read.
+Who pressed Merge is likewise unrecorded; §2 permits an agent to press it on a
+recorded approval, so its absence is not itself an exception.
+
+**A narrower gap this entry should name.** `approve-change.sh` records no actor,
+so the gate's own record of #10 reads clean — nothing in
+`review-log/covecheck.jsonl` shows that `main` rather than Sal ran it. Every
+later exception tonight marks that in its `approvedNote`; #10's, written before
+the practice existed, does not. This entry is the only record of it.
 
 **Why this entry is a follow-up rather than part of #10.** Both gate conditions
 were bound to `d19205e`. Committing this entry to that branch would have moved
