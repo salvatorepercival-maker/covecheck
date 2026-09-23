@@ -1,0 +1,315 @@
+--- a/deploy_api.py
++++ b/deploy_api.py
+@@ -263,8 +263,215 @@
+ def _label_for(key):
+     """How a card's identity is spoken in messages and logs."""
+     return "request %s" % key if is_request_key(key) else "PR #%s" % key
++
++
++# The keyword the fix PR carries so that merging it closes the escalation report
++# it answers. GitHub treats Closes/Fixes/Resolves identically; one is named here
++# so every brief says the same thing and a reviewer has one string to look for.
++CLOSING_KEYWORD = "Closes"
++
++# The only file an escalation report is allowed to change.
++#
++# THIS IS THE LOAD-BEARING HALF OF THE SAFETY CHECK, so it is worth saying why.
++# A report reports: AGENTS-CHARTER.md S3 puts findings in AGENT-LOG.md, and
++# PR #19 said so in its own body -- "Log entry only. No code is changed by this
++# pull request." A pull request that changes anything else is a CHANGE, and a
++# change is something somebody intends to merge. Emitting `Closes #N` against
++# one of those silently closes it the moment the fix lands, and closing syntax
++# is not something the merge gate can see or refuse.
++ESCALATION_REPORT_FILES = frozenset(["AGENT-LOG.md"])
+ 
++# AGENTS-CHARTER.md S3: "ESCALATE entries carry ESCALATED". Matched
++# case-sensitively as a whole word so that PROSE about escalation does not read
++# as a declaration of one -- PR #26's own title, "close the escalation report
++# automatically when its fix merges", must not match, and does not.
++_ESCALATION_MARKER = re.compile(r"\bESCALATED?\b")
+ 
++
++def is_escalation_report(pr):
++    """Does this pull request's own content establish it as an escalation report?
++
++    Returns (True, why) or (False, why) -- the reason is returned either way
++    because both outcomes get quoted at somebody, and "no" is the one that needs
++    explaining.
++
++    `pr` is a dict as `gh pr view --json number,title,body,state,files` returns
++    it. Pure: it performs no I/O, so the rule can be tested without a network.
++    `_escalation_report_now()` below is the thing that fetches.
++
++    THE RULE -- two independent conditions, BOTH required:
++
++      1. It DECLARES itself an ESCALATE finding, in its title or in the first
++         non-blank line of its body. That is the charter's own convention.
++      2. It CHANGES nothing but AGENT-LOG.md, and changes at least one file.
++
++    Neither condition alone is enough, and that is not hypothetical -- checked
++    against all 25 pull requests in this repository on 2026-09-23:
++
++      * condition 1 alone also matches scratch PR #22
++      * condition 2 alone also matches #17, #15, #11, #9 and #3 -- ordinary
++        log-keeping pull requests that were MERGED, exactly the class this
++        must never emit closing syntax against
++      * BOTH conditions, plus "not merged", match #19 and #12 and nothing else
++        -- which is precisely the set of real escalation reports
++
++    DELIBERATELY CONSERVATIVE, AND THE ASYMMETRY IS THE POINT. A false negative
++    costs an automation: somebody closes a report by hand, which is exactly
++    where things stood before any of this existed. A false positive closes a
++    live pull request that was meant to merge, irreversibly as far as the gate
++    is concerned, and nobody sees it coming. So anything this cannot positively
++    establish is False, including anything it cannot read.
++    """
++    if not isinstance(pr, dict):
++        return False, "no pull request data to judge"
++
++    # A merged pull request is not a report -- it was a change, and it landed.
++    # Kept separate from the file check because it is a different argument, and
++    # because "it merged" is the single clearest disqualification there is.
++    state = (pr.get("state") or "").upper()
++    if state == "MERGED":
++        return False, "it is MERGED, so it was a change that landed, not a report"
++
++    title = pr.get("title") or ""
++    body = pr.get("body") or ""
++    first_line = next((ln for ln in body.splitlines() if ln.strip()), "")
++    declared = bool(_ESCALATION_MARKER.search(title)
++                    or _ESCALATION_MARKER.search(first_line))
++
++    files = pr.get("files")
++    if files is None:
++        # Not "it changed nothing" -- it is "nobody told us". Those are
++        # different, and collapsing them is how a check like this turns into a
++        # rubber stamp.
++        return False, "its changed-file list could not be read"
++    paths = set()
++    for f in files:
++        paths.add(f.get("path") if isinstance(f, dict) else f)
++    log_only = bool(paths) and paths <= ESCALATION_REPORT_FILES
++
++    if declared and log_only:
++        return True, ("it declares ESCALATE and changes nothing but %s"
++                      % ", ".join(sorted(ESCALATION_REPORT_FILES)))
++    if not declared and not log_only:
++        return False, ("it declares no ESCALATE finding and changes %d file(s) "
++                       "beyond the agent log" % len(paths - ESCALATION_REPORT_FILES))
++    if not declared:
++        return False, "it declares no ESCALATE finding in its title or opening line"
++    if not paths:
++        # An empty diff is not a report either. It is the shape the scratch
++        # probe PRs had (#22, #24), and it carries no finding to fix.
++        return False, "it changes no files at all, so it carries no report"
++    return False, ("it changes %s, which a report does not do"
++                   % ", ".join(sorted(paths - ESCALATION_REPORT_FILES)))
++
++
++def escalation_report_now(cfg, number):
++    """Read PR `number` live and judge it. Returns (True|False, why).
++
++    Separate from is_escalation_report() so the rule stays testable offline and
++    this stays the only place that touches the network.
++
++    Its own `gh` call rather than _pr_now()'s: this needs `body` and `files`,
++    and _pr_now() is on the merge path, where widening the query to drag a PR's
++    entire diff listing through every mergeability poll would be a cost paid by
++    code that has no use for it.
++
++    A read that fails returns False with the reason, never True. See the
++    asymmetry note in is_escalation_report().
++    """
++    rc, body, err = _run(
++        ["gh", "pr", "view", str(number), "--repo", cfg["gh"], "--json",
++         "number,title,body,state,files"], timeout=GH_TIMEOUT_SEC)
++    if rc != 0:
++        return False, ("it could not be read from GitHub (%s)"
++                       % (err.splitlines()[0] if err else "gh exited %s" % rc))
++    try:
++        data = json.loads(body)
++    except ValueError:
++        return False, "GitHub returned an unreadable response for it"
++    return is_escalation_report(data)
++
++
++def escalation_autoclose_instruction(key, established=False, why=""):
++    """What to tell the builder about linking the fix back to its report.
++
++    Returns the instruction, or None when the card has no escalation PR at all.
++
++    `key` is the decision card's own key, taken AFTER canonicalisation in
++    decide(). A request card (`req-...`) returns None: it was raised from a City
++    Hall request before any pull request existed, so there is nothing to link
++    and inventing a number would be far worse than saying nothing. That branch
++    keeps its existing behaviour untouched.
++
++    `established` IS THE WHOLE SAFETY PROPERTY, and it is passed in rather than
++    assumed. Closing syntax is emitted only when the caller has positively
++    established, against GitHub, that #key is an escalation report -- see
++    is_escalation_report(). Otherwise this returns the plain back-link that was
++    here before any of this existed, plus a plain statement of why the closing
++    line is absent, so the gap is visible to the builder and the reviewer rather
++    than silently filled in.
++
++    WHAT THIS REPLACED, AND WHY IT IS NOT MERELY A SOFTENED CLAIM. An earlier
++    version of this function emitted `Closes #key` unconditionally, on the
++    argument that a PR-keyed card is "by construction" keyed to its escalation
++    report. That argument was wrong: record-decision.sh accepts any PR number
++    and never checked what it named, so a card recorded against a pull request
++    somebody intended to merge would have produced a fix that silently closed
++    it. Nothing downstream could catch that -- closing syntax is invisible to
++    the merge gate. The construction guarantee is now actually made, in two
++    independent places: record-decision.sh refuses to write such a card at all,
++    and this refuses to emit the syntax even if one reaches it by another route.
++
++    WHY THIS WORKS, AND WHY NOT TO "CORRECT" IT BACK. GitHub's closing keywords
++    close a referenced PULL REQUEST, not only an issue. Verified by execution
++    against this repository on 2026-09-23, twice: a scratch PR whose body carried
++    `Closes #22` closed PR #22 on merge, and a replication carrying `Fixes #24`
++    closed PR #24 -- which had a real diff, so it was not closed for being empty.
++    Both ClosedEvents name the merging pull request as `closer`, stateReason
++    COMPLETED, where PRs closed by hand (#19, #12) carry `closer: null`.
++
++    Two GitHub APIs report this as not happening, and both are wrong about the
++    outcome: `closingIssuesReferences` is typed IssueConnection, so a PR cannot
++    appear in it whatever the link, and `CrossReferencedEvent.willCloseTarget`
++    read false on a reference that then closed its target. They are silent, not
++    negative. If this ever looks wrong, re-run the live test rather than
++    reasoning from those two fields.
++
++    Takes effect only on merge into the DEFAULT branch, which is the only way
++    anything lands here: `main` is protected and nothing reaches it except
++    through a pull request (AGENTS-CHARTER.md S2).
++    """
++    if is_request_key(key):
++        return None
++    if not established:
++        # DELIBERATELY NEVER SPELLS THE FORBIDDEN LINE OUT. An earlier draft of
++        # this said "do not write `Closes #N`" -- which put the exact dangerous
++        # string into the brief, where a builder could copy it out of a sentence
++        # telling it not to, and where a reviewer grepping the brief for closing
++        # syntax would find a hit. The prohibition is named by keyword only,
++        # never adjacent to the number.
++        return (
++            "Link the new PR back to #%d, as a plain reference. Do NOT put a "
++            "GitHub closing keyword (`%s`, `Fixes`, `Resolves`) in front of "
++            "that number anywhere in the pull request: #%d could not be "
++            "established as an escalation report -- %s -- and a closing keyword "
++            "aimed at a pull request somebody meant to merge would close it the "
++            "moment this fix lands, invisibly to the merge gate. If #%d really "
++            "is an escalation report, say so rather than adding the keyword by "
++            "hand: the check is then what needs fixing, not the pull request."
++            % (key, CLOSING_KEYWORD, key, why or "no reason was recorded", key)
++        )
++    return (
++        "Put `%s #%d` on its own line in the new pull request's DESCRIPTION -- "
++        "the body, not a commit message and not a comment. #%d is the escalation "
++        "report this fix answers (confirmed: %s), and that line is what closes "
++        "it automatically when the fix merges. Without it somebody has to close "
++        "#%d by hand, which is the exact thing this line exists to prevent, so "
++        "treat it as part of the change and not as a formality."
++        % (CLOSING_KEYWORD, key, key, why or "checked", key)
++    )
++
++
+ def request_cards(project):
+     """City Hall decision cards that have no pull request yet, newest first.
+ 
+@@ -738,7 +945,45 @@
+                 "decision card can be migrated onto it -- the card and the PR "
+                 "must end up as one record, not two.")
+     else:
+-        link = "Link the new PR back to #%d." % number
++        # WHAT THIS REPLACED, AND WHY. This used to read "Link the new PR back
++        # to #N." -- which produced a cross-reference and nothing else, so when
++        # the fix merged the escalation report stayed open and Sal closed it by
++        # hand. #19 was the last one he had to. A `Closes #N` line is still that
++        # back-link, and additionally closes it.
++        #
++        # BUT ONLY WHERE #N IS ESTABLISHED AS A REPORT. Closing syntax is not
++        # something the merge gate can see, let alone refuse, so if the card is
++        # keyed to a pull request somebody meant to merge, the fix closes it and
++        # nobody finds out until afterwards. record-decision.sh refuses to write
++        # such a card in the first place; this is the independent second check,
++        # deliberately re-derived here rather than trusted from a flag on the
++        # card, so a card that arrived by some other route -- an older script, a
++        # hand-appended row -- still cannot produce the syntax.
++        #
++        # Failing the check DEGRADES to the old plain back-link rather than
++        # refusing the dispatch. That is the deliberate choice: this branch is
++        # the ESCALATE path, and a GitHub hiccup must not be able to strand a
++        # safety finding. The degraded brief says plainly that the line is
++        # missing and why, so the gap is loud where somebody will act on it.
++        #
++        # `key`, not `number`: after canonicalisation above, `key` is the card's
++        # own identity and is guaranteed an int on this branch, while `number`
++        # is whatever the caller happened to pass in.
++        established, why = escalation_report_now(cfg, key)
++        link = escalation_autoclose_instruction(key, established=established,
++                                                why=why)
++        if link is None:
++            # Unreachable while this branch means "not a request key" -- but if
++            # those two predicates ever drift apart, briefing the builder with
++            # no link at all would silently reintroduce the manual close, and
++            # the symptom would be an escalation quietly left open weeks later.
++            # Refuse instead. Nothing is recorded and nothing is dispatched,
++            # so the card is still there to retry once the cause is fixed.
++            return 500, {"ok": False,
++                         "error": "could not derive the escalation link for %s; "
++                                  "refusing to brief a fix that has no way to "
++                                  "close its escalation report"
++                                  % _label_for(key)}
+ 
+     brief = (
+         "%s\n\n"
+--- a/record-decision.sh
++++ b/record-decision.sh
+@@ -177,6 +177,47 @@
+             "       Decide the existing card, or migrate that request elsewhere."
+             % (key, prior.get("requestId")))
+ 
++# THE TARGET MUST ACTUALLY BE AN ESCALATION REPORT -- refuse, do not write.
++#
++# This is the point the mistake is made, so it is the point that names it.
++#
++# A PR-keyed decision card says "this pull request reported a finding, here are
++# the ways to fix it". Under auto-select, writing the card IS dispatching it:
++# decide() briefs a builder in this same run, and that brief now tells the
++# builder to put `Closes #<this PR>` in the fix. If this PR is not a report but
++# an ordinary change somebody intends to merge, that line closes it the instant
++# the fix lands -- silently, and invisibly to the merge gate, which cannot see
++# closing syntax at all.
++#
++# Nothing above checked. `$pr` is any number the caller typed, and the only
++# thing it was previously used for was a provenance SHA. So the "by
++# construction" guarantee the charter used to claim was not made anywhere; it
++# is made here, and independently again in escalation_autoclose_instruction().
++#
++# Refusing rather than degrading, HERE. The two callers differ on purpose:
++# decide() degrades to a non-closing back-link because it runs on the ESCALATE
++# path where a GitHub hiccup must not strand a safety finding, whereas at this
++# point nothing has been written, nothing has been dispatched, and a person is
++# right here to read the error and fix the number.
++if not is_request:
++    ok, why = deploy_api.escalation_report_now(deploy_api.PROJECTS[project], key)
++    if not ok:
++        sys.exit(
++            # Deliberately does not spell the closing line out next to the
++            # number, for the same reason the brief does not: an error message
++            # is something a person or an agent copies from.
++            "error: PR #%s is not an escalation report -- %s.\n"
++            "       Refusing to record a PR-keyed decision card against it.\n"
++            "       A card recorded here briefs a fix whose description carries\n"
++            "       a GitHub closing keyword aimed at #%s, so merging that fix\n"
++            "       would close #%s. If #%s is a pull request anybody intends to\n"
++            "       merge, that is silent damage the merge gate cannot see.\n"
++            "       An escalation report declares ESCALATE in its title or\n"
++            "       opening line and changes nothing but AGENT-LOG.md.\n"
++            "       If this finding came from a City Hall request rather than a\n"
++            "       pull request, record it under its req-<id> instead."
++            % (key, why, key, key, key))
++
+ rec = {
+     "ts": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+     "project": project,

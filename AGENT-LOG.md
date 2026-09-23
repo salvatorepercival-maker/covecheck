@@ -24,6 +24,174 @@ Record what was verified separately from what was inferred. Leave
 
 ## 2026-09-23 · builder · PROPOSE-ONLY · AWAITING APPROVAL
 
+**Found:** merging a fix PR left the escalation report it answered open, and Sal
+closed it by hand. #20 merged on 2026-09-23 and #19 stayed open. The brief that
+`main` sends `builder` said only "Link the new PR back to #N."
+(`deploy_api.py:741`), which produces a cross-reference and closes nothing.
+
+**Verified by execution, and this is the part that decided the design.** The
+premise I was given was that GitHub's closing keywords close *issues* only and
+would be inert on a pull request, so the mechanism Sal asked for would never
+work. **That premise is false.** Tested twice against this repository with
+disposable pull requests, all since deleted:
+
+- Scratch PR #23, body `Closes #22` and `Closes #21`, merged into `main`.
+  **PR #22 closed** (`closedAt 2026-09-23T19:58:16Z`) and issue #21 closed. The
+  `ClosedEvent` on #22 names `closer: PullRequest #23`, `stateReason: COMPLETED`.
+- Replication, because #22 and #23 were both empty commits and an empty PR being
+  tidied up would look identical: PR #24 carried a **real diff**, was confirmed
+  `OPEN` immediately before the merge, and #25 carried `Fixes #24`. On merge,
+  **#24 closed** with `closer: PullRequest #25`, `stateReason: COMPLETED`.
+- Confound ruled out directly: #22's head commit `c3ab7df` was never an ancestor
+  of `main`, so nothing closed it by being merged.
+
+**Two GitHub APIs said the opposite and both were wrong**, which is worth
+recording because either would mislead the next person who checks:
+`closingIssuesReferences` on #23 returned `totalCount: 1` listing only the
+issue — it is typed `IssueConnection`, so a PR cannot appear in it whatever the
+link — and `CrossReferencedEvent.willCloseTarget` read `false` on a reference
+that then closed its target. **Inferred, not verified:** that these are schema
+and UI artefacts rather than a race. I did not establish the cause, only that
+their answers disagree with the observed outcome.
+
+**Proposed:** `proposals/2026-09-23-escalation-autoclose.patch`, covering
+`deploy_api.py` **and** `record-decision.sh` in one file so neither can be
+applied without the other. It adds `is_escalation_report()`,
+`escalation_report_now()` and `escalation_autoclose_instruction()`, and calls
+them from the existing `else` branch in `decide()`. Where the target is
+established as an escalation report the brief tells `builder` to put
+`Closes #<escalation PR>` on its own line in the PR description. The
+request-card branch above it is untouched: no PR exists yet, so there is nothing
+to close.
+
+Also `AGENTS-CHARTER.md` §2, "Closing the escalation report", and a line in
+"The reviewer" — the rule has to be stated, because nothing enforces it.
+
+**Corrected after review — the first draft had a real safety hole, and this is
+the substance of the change.** That draft emitted `Closes #<key>`
+unconditionally, on the written claim that a PR-keyed card "is the escalation
+report by construction". **It is not.** `record-decision.sh` accepted any PR
+number and never looked at it. A card recorded against a pull request somebody
+intended to merge would have briefed a fix that silently closed it, and nothing
+downstream could have caught it: a closing keyword is invisible to the merge
+gate, looks correct to a reviewer, and takes effect at merge with no warning.
+`reviewer` flagged this on this pull request. **I did not soften the wording to
+match the weak behaviour; I made the guarantee true**, because the claim was the
+right claim — it simply was not being kept anywhere:
+
+- **`record-decision.sh` refuses to write a PR-keyed card whose target is not an
+  escalation report.** Loud error, nothing written, nothing dispatched. Under
+  auto-select, writing *is* dispatching, so refusing to write is refusing to
+  brief. This is the point the mistake is made, so it is the point that names it.
+- **`escalation_autoclose_instruction()` omits the keyword unless the caller
+  established the target live.** It re-derives rather than trusting a flag the
+  script wrote, so a card arriving by another route — an older script, a
+  hand-appended JSONL row — still cannot produce closing syntax.
+
+**The rule: declaration *and* file set, both required.** A report declares
+`ESCALATE`/`ESCALATED` in its title or opening line (§3), changes nothing but
+`AGENT-LOG.md`, and is not merged. Checked against all 25 pull requests in this
+repository: declaration alone also matches #22; the file rule alone also matches
+#17, #15, #11, #9 and #3 — ordinary log-keeping PRs that *merged*, exactly the
+class this must never fire on. Both together match **#19 and #12 and nothing
+else**, which is exactly the set of real escalation reports, and they reject
+this pull request too.
+
+**The two callers fail differently, on purpose.** `record-decision.sh` refuses;
+`decide()` degrades to a plain reference and says why. `decide()` runs on the
+ESCALATE path, where a GitHub hiccup must not be able to strand a safety
+finding — so it never blocks, it only declines to emit the dangerous half. At
+record time nothing has been written or dispatched and a person is right there
+to fix the number, so refusing costs nothing and is clearer.
+
+**Verified:** `scripts/test_escalation_autoclose.py`, **46 assertions, 0
+failures** against the patched copy, stdlib only and no network — the rule is a
+pure function so it can be tested offline, and the one fetching function is
+stubbed. It fails against the unpatched file (`FATAL`, exit 1). Four mutations,
+each caught:
+
+| mutation | result |
+| --- | --- |
+| restore the old unconditional `Closes #N` (the hole itself) | **3 failed** |
+| `is_escalation_report()` always returns `True` | **9 failed** |
+| match the `ESCALATE` marker case-insensitively | **1 failed** |
+| drop the "changes nothing but `AGENT-LOG.md`" condition | **1 failed** |
+
+**Layer 1 proven end to end**, against live GitHub in a sandboxed `HOME` so the
+real decision log was never touched (confirmed unchanged, 9 lines): a card
+against **#26** — this pull request, a real change intended to merge — was
+refused *"it declares no ESCALATE finding and changes 4 file(s) beyond the agent
+log"*; against **#20**, refused *"it is MERGED"*; against **#19**, accepted and
+written. That is the hole, closed, demonstrated on the exact shape that would
+have caused the damage.
+
+**Two defects the new tests caught in my own drafts**, recorded because both
+would have shipped: the degraded brief originally said "do not write
+`Closes #N`", which put the exact dangerous string into the brief where a
+builder could copy it out of a sentence forbidding it and a reviewer grepping
+for closing syntax would hit it — the prohibition now names the keyword never
+adjacent to the number. And my first case-sensitivity test used the word
+"escalation", which never matches `\bESCALATED?\b` in *either* case, so it
+passed against a deliberately case-insensitive mutant and proved nothing; it now
+uses lowercase "escalated", which discriminates.
+
+**Rationale:** the closing keyword is the mechanism Sal specified and it
+demonstrably works, so the merge-path alternative — deriving the escalation in
+`merge_confirm` and closing it — is not needed, and it would have been worse:
+`merge_confirm` knows the fix PR, and nothing on a watchdog card records which
+fix answers it, so the derivation would have been a guess at exactly the moment
+a wrong answer closes the wrong pull request.
+
+**What argues against it, stated plainly:**
+
+- **It is still an instruction in a brief, and nothing verifies `builder`
+  complied.** A missed line reintroduces the manual close silently. I could not
+  close that gap generally — the card does not record its fix PR, so
+  `deploy_api.py` cannot check after the fact — so the charter makes it the
+  reviewer's explicit check instead. That is weaker than enforcement and should
+  be read as one. What *is* now enforced is the opposite and worse failure: a
+  closing keyword aimed at the wrong pull request.
+- **The escalation-report test reads conventions, not facts.** A title prefix
+  and a file set are how this repository happens to write reports; both are
+  editable by anyone at any time, and a report whose title is reworded stops
+  qualifying. I chose conventions over a stored flag because a flag would have
+  to be written by the same caller that supplies the number, and would therefore
+  prove nothing. The mitigation is the direction of failure, not the strength of
+  the signal: it fails towards *not closing*, which is where things stood
+  before this existed.
+- **Empirically it separates all 25 pull requests here correctly, which is a
+  small sample and a single repository.** The first report that does not follow
+  the convention will be refused, and the charter says to fix the check rather
+  than hand-write the keyword. That instruction is itself only a norm.
+
+**Merging this pull request does not make any of it true.** The charter text
+lands; the code does not — it lives in `~/agent-worlds/`, outside git. The
+patch must be applied and **the town server restarted**, because it holds the
+old `deploy_api` in memory and a correctly applied patch changes nothing until
+it does. Both commands, in order, are in the quoted block at the top of §2
+"Closing the escalation report", where whoever merges will see them, and again
+in `proposals/README.md`. The step that gets missed is the restart, and it fails
+silently — file correct on disk, process still running the old import.
+
+**PROPOSE-ONLY** on three counts: `deploy_api.py` is deploy infrastructure (§2),
+`record-decision.sh` is the same, and this amends the charter, which §2 says to
+treat as at least PROPOSE-ONLY. Neither file under `~/agent-worlds/` was
+modified — both confirmed byte-identical by `md5` after all testing
+(`deploy_api.py f1865bda87e1991b2b88caebab383cb4`,
+`record-decision.sh e8a7e598627a3a0ab28c871d2ac89807`). Not merged, not
+deployed.
+
+**Scratch artefacts, all cleaned up:** branches `test/autoclose-probe-{a,b,c,d}`
+deleted; PRs #22 and #24 closed (both by the mechanism under test); issue #21
+closed. #23 and #25 are merged and cannot be unmerged. **Both were empty
+commits**, so `main`'s file tree is byte-identical to `b25aba9` before the test —
+confirmed with `git diff --stat`. What they did leave is four commits of scratch
+in `main`'s history, and `main` now sits ahead of the deployed SHA on the
+Shipyard with nothing real to deploy. I did not merge #19's fix or anything else
+to get there, and I did not close #19.
+
+## 2026-09-23 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
 **Found:** nothing new. This implements **option B** of the decision card on
 PR #19, chosen by Sal. The finding is `watchdog`'s, on that pull request: wind
 between this beach's `great` ceiling and its `caution` ceiling emitted no reason
