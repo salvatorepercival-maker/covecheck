@@ -24,6 +24,83 @@ Record what was verified separately from what was inferred. Leave
 
 ## 2026-09-23 · builder · PROPOSE-ONLY · AWAITING APPROVAL
 
+**Found:** merging a fix PR left the escalation report it answered open, and Sal
+closed it by hand. #20 merged on 2026-09-23 and #19 stayed open. The brief that
+`main` sends `builder` said only "Link the new PR back to #N."
+(`deploy_api.py:741`), which produces a cross-reference and closes nothing.
+
+**Verified by execution, and this is the part that decided the design.** The
+premise I was given was that GitHub's closing keywords close *issues* only and
+would be inert on a pull request, so the mechanism Sal asked for would never
+work. **That premise is false.** Tested twice against this repository with
+disposable pull requests, all since deleted:
+
+- Scratch PR #23, body `Closes #22` and `Closes #21`, merged into `main`.
+  **PR #22 closed** (`closedAt 2026-09-23T19:58:16Z`) and issue #21 closed. The
+  `ClosedEvent` on #22 names `closer: PullRequest #23`, `stateReason: COMPLETED`.
+- Replication, because #22 and #23 were both empty commits and an empty PR being
+  tidied up would look identical: PR #24 carried a **real diff**, was confirmed
+  `OPEN` immediately before the merge, and #25 carried `Fixes #24`. On merge,
+  **#24 closed** with `closer: PullRequest #25`, `stateReason: COMPLETED`.
+- Confound ruled out directly: #22's head commit `c3ab7df` was never an ancestor
+  of `main`, so nothing closed it by being merged.
+
+**Two GitHub APIs said the opposite and both were wrong**, which is worth
+recording because either would mislead the next person who checks:
+`closingIssuesReferences` on #23 returned `totalCount: 1` listing only the
+issue — it is typed `IssueConnection`, so a PR cannot appear in it whatever the
+link — and `CrossReferencedEvent.willCloseTarget` read `false` on a reference
+that then closed its target. **Inferred, not verified:** that these are schema
+and UI artefacts rather than a race. I did not establish the cause, only that
+their answers disagree with the observed outcome.
+
+**Proposed:** `proposals/2026-09-23-escalation-autoclose-deploy_api.patch`. It
+adds `escalation_autoclose_instruction(key)` and calls it from the existing
+`else` branch in `decide()`. The brief now tells `builder` to put
+`Closes #<escalation PR>` on its own line in the PR description. The key is the
+card's own, so it is the escalation report by construction and cannot name the
+fix's own number or anyone else's. The request-card branch above it is
+untouched: no PR exists yet, so there is nothing to close. If the link ever
+comes back `None` on the PR-keyed branch the call returns 500 and dispatches
+nothing, rather than briefing a fix with no way to close its report.
+
+Also `AGENTS-CHARTER.md` §2, "Closing the escalation report", and a line in
+"The reviewer" — the rule has to be stated, because nothing enforces it.
+
+**Verified:** `scripts/test_escalation_autoclose.py`, 19 assertions, all passing
+against the patched copy. It fails against the unpatched file, and a mutation
+that keeps the helper but restores the old `link =` line is caught by 2 failing
+assertions — so the seam is covered, not just the function's existence.
+
+**Rationale:** the closing keyword is the mechanism Sal specified and it
+demonstrably works, so the merge-path alternative — deriving the escalation in
+`merge_confirm` and closing it — is not needed, and it would have been worse:
+`merge_confirm` knows the fix PR, and nothing on a watchdog card records which
+fix answers it, so the derivation would have been a guess at exactly the moment
+a wrong answer closes the wrong pull request.
+
+**What argues against it, stated plainly:** it is an instruction in a brief, and
+nothing verifies `builder` complied. A missed line reintroduces the manual close
+silently. I could not close that gap generally — the card does not record its
+fix PR, so `deploy_api.py` cannot check after the fact — so the charter makes it
+the reviewer's explicit check instead. That is a weaker guarantee than
+enforcement and should be read as one.
+
+**PROPOSE-ONLY** on two counts: `deploy_api.py` is deploy infrastructure (§2),
+and this amends the charter, which §2 says to treat as at least PROPOSE-ONLY.
+Not applied to `~/agent-worlds/deploy_api.py`, not merged, not deployed.
+
+**Scratch artefacts, all cleaned up:** branches `test/autoclose-probe-{a,b,c,d}`
+deleted; PRs #22 and #24 closed (both by the mechanism under test); issue #21
+closed. #23 and #25 are merged and cannot be unmerged. **Both were empty
+commits**, so `main`'s file tree is byte-identical to `b25aba9` before the test —
+confirmed with `git diff --stat`. What they did leave is four commits of scratch
+in `main`'s history, and `main` now sits ahead of the deployed SHA on the
+Shipyard with nothing real to deploy. I did not merge #19's fix or anything else
+to get there, and I did not close #19.
+
+## 2026-09-23 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
 **Found:** nothing new. This implements **option B** of the decision card on
 PR #19, chosen by Sal. The finding is `watchdog`'s, on that pull request: wind
 between this beach's `great` ceiling and its `caution` ceiling emitted no reason

@@ -339,6 +339,59 @@ First applied on PR #12, 2026-09-22. Its log entry lives on that pull request's
 own branch until the pull request lands, so look for it there rather than in
 `AGENT-LOG.md` on `main`.
 
+#### Closing the escalation report
+
+**A fix pull request that answers a PR-keyed decision card must carry
+`Closes #<escalation PR>` on its own line in its description.** The description
+— the PR body — not a commit message and not a comment; GitHub reads only the
+body. Merging the fix then closes the escalation report automatically.
+
+**Why this is a rule and not a nicety.** Without that line, merging the fix left
+the escalation report open and Sal closed it by hand. That happened on #19,
+whose fix #20 merged while #19 sat open. The whole point of a fix is that the
+finding it answers is finished; leaving the report open makes the record say
+otherwise, and makes a person do the bookkeeping.
+
+**Who does what.** `decide()` in `deploy_api.py` puts the instruction, with the
+right number already filled in, into the brief that reaches `main` and then
+`builder` — see `escalation_autoclose_instruction()`. `builder` writes the line
+into the PR body. **`reviewer` checks the line is there**, because nothing
+enforces it: the mechanism is an instruction in a brief, and an instruction can
+be missed. That check is the backstop, and it is the reason this is written here
+rather than left as a behaviour of a script.
+
+**It is always the card's own key, never a number anyone typed.** A PR-keyed
+card is keyed by the pull request its finding was reported on, so that key *is*
+the escalation report by construction. It cannot name a different pull request,
+and it cannot name the fix's own number — the fix does not exist when the brief
+is written. Do not hand-write the number from memory; use the one in the brief.
+
+**Request cards are excluded, deliberately.** A `req-` card was raised from a
+City Hall request before any pull request existed, so there is no escalation
+report to close and no honest number to emit. Those briefs keep their existing
+instruction: report the new PR's number back so `migrate-decision.sh` can fold
+it onto the same record.
+
+**Verified by execution, 2026-09-23, and worth re-running rather than
+re-reasoning.** GitHub's closing keywords close a referenced **pull request**,
+not only an issue — a widely held belief says otherwise and it is wrong. Tested
+twice against this repository with disposable PRs: a scratch PR carrying
+`Closes #22` closed PR #22 on merge, and a replication carrying `Fixes #24`
+closed PR #24, which had a real diff and so cannot be dismissed as an empty PR
+being tidied up. Both `ClosedEvent`s name the merging pull request as `closer`
+with `stateReason: COMPLETED`.
+
+Two GitHub APIs report this as not happening and **both are wrong about the
+outcome**: `closingIssuesReferences` is typed `IssueConnection`, so a pull
+request cannot appear in it however the link was made, and
+`CrossReferencedEvent.willCloseTarget` read `false` on a reference that then
+closed its target. They are silent, not negative. If this ever looks broken,
+re-run the live test — do not conclude anything from those two fields.
+
+This works only on merge into the **default branch**, which is the only way
+anything lands here: `main` is protected and nothing reaches it except through a
+pull request.
+
 ### Git: commits, pushes, and attribution
 
 **`main` is really protected. Everything short of it is not.** Know which side
@@ -424,6 +477,11 @@ What a review must contain:
   stand alone.
 - **UNCERTAINTIES** — what it could not establish, stated as such. "I could not
   verify X" is a first-class result and must never be rounded up to `safe`.
+
+On a fix that answers a PR-keyed decision card, also check the body carries
+`Closes #<escalation PR>` — §2, "Closing the escalation report". Nothing
+enforces that line, so this is the only check standing between a missing one and
+Sal closing the report by hand.
 
 **Verify, do not trust.** Claims in a PR body are the thing under review, not
 evidence for it. Re-run the tests, re-read the cited lines, hash the content
