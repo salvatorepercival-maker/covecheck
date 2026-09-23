@@ -22,6 +22,637 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Merged on Sal's direct authorisation, with no reviewer `verdict: safe`.**
+Recorded here before the merge, because §2 makes the recorded verdict the normal
+route and this was not it. Same exception shape as PRs #8, #13 and #14, and the
+same limit: it covers this change and does not carry to the next one.
+
+**What the review log holds for this PR: nothing.** That is deliberate and worth
+being exact about. `reviewer` did review it, at head `1f74582`, and returned
+**`flagged`** with four findings — all four are recorded in this entry below and
+all four were fixed. But that verdict judged the *pre-fix* commit, and
+`record-review.sh` binds a verdict to whatever head GitHub reports at the moment
+it runs. Running it now would bind a `flagged` verdict to `ee2a2cc`, asserting
+the reviewer judged code it never saw. So no verdict was recorded at all, and
+this entry is the durable record of the review instead.
+
+**Nobody has reviewed the merged state.** The fixes for the four findings went in
+unreviewed, and Sal accepted them on the strength of the verification below
+rather than a second pass. The implementation was already live in
+`~/agent-worlds` before this landed; what merged here is the charter describing
+it, which is why leaving it unmerged was the worse option — a live rule nobody
+had written down is the exact failure this pipeline spent the night fixing.
+
+**Found:** nothing — this is a change Sal asked for, not a finding. Logging it
+because it alters §2 and, more to the point, because it removes one of his
+checkpoints. A change that reduces his oversight should never be discoverable
+only by reading a diff.
+
+**Proposed:** auto-select the recommended option on a decision card.
+
+Sal's instruction, 2026-09-22: where a card carries a recommendation, act on it
+immediately instead of waiting for him to click Choose. His role in this
+pipeline becomes approval only — `approvedBySal` before merge — rather than
+selection. Implemented in `~/agent-worlds`: `record-decision.sh` calls
+`decide(..., source="auto")` in the same run that writes the card, gated on
+`AUTO_SELECT_PROJECTS = {"covecheck"}`.
+
+**What is deliberately unchanged.** The merge gate. `verdict: safe` and
+`approvedBySal` are both still required, `_merge_gate` still never reads a
+decision record, and the auto-selected fix still enters the gate from the top as
+an ordinary PROPOSE-ONLY change. Proven, not assumed — see **Verified** below.
+
+**Rationale:** Sal's call, and he made it knowing the cost. The charter now says
+so in those terms: the original design had him see the options before any work
+started, because the options differ in what a user sees and that is a product
+judgement about what a parent reads before putting a child in the water. That
+look now happens after the fact.
+
+What argues against it, recorded because it is the real risk and not a
+formality: the recommendation is the finding agent's own argument for its own
+finding, and under auto-selection nothing sits between it and a builder starting
+work. **This is not hypothetical.** PR #12's option A was recommended partly
+because "it errs cautious" — `reviewer` disproved that by executing the engine,
+and `builder` reproduced it independently. Had that card been auto-selected, a
+false safety claim would have been the reason work began. The gate would still
+have caught the change before merge, so the exposure is wasted work and a
+product direction Sal did not choose, not a bad deploy. The charter and the
+brief to `main` both now say the recommendation is unchecked and should be
+weighed rather than taken as settled.
+
+**A card with no recommended option still waits for him**, and that is now the
+only route that puts a choice back in his hands. `record-decision.sh` used to
+require exactly one recommendation; it now accepts zero. The charter says
+plainly that marking an option recommended to keep things moving converts his
+decision into yours.
+
+**`reviewer` returned `flagged` on the first implementation (PR #16 at
+`1f74582`). Four findings, all upheld, all fixed.** Recorded rather than folded
+in silently, because one of them would have quietly undone the fallback Sal
+asked for.
+
+1. **The charter still said "exactly one carries `recommended`"** (§2, unchanged
+   from `main` and written by `main` two PRs earlier). That contradicts both the
+   script and the new fallback: followed literally, a zero-recommendation card
+   never gets written, the fallback never fires, and **Sal's checkpoint is gone
+   rather than moved**. The consequential finding, and one `main`'s own
+   contradiction sweep missed. Now "at most one may carry `recommended`".
+2. **A failed dispatch rendered as a decision.** `decide()` records `chosen`
+   even when queueing to `main` fails, and the panel's `done = !!dc.chosen`
+   then hid the Choose buttons behind a card saying main had been briefed — a
+   dead end with no way to retry. All three renderers now branch on
+   `chosen-not-dispatched` and say the dispatch failed; the panel puts the
+   Choose buttons back, since re-choosing *is* the retry. This was a
+   pre-existing bug on the manual path too.
+3. **Re-running `record-decision.sh` dispatched twice.** Under the manual flow
+   the panel was the guard — once chosen, no buttons. Auto-select removed that
+   guard and nothing replaced it. There is now an idempotency check before
+   dispatch.
+4. **This entry's own verification claim was partly hollow.** The fallback test
+   wrote a no-recommendation fixture and then asserted the fixture, with no
+   auto-select code running in between, while this entry listed it under
+   **Verified**. Exactly the error the entry above warns about. The test now
+   invokes the real script.
+
+**Verified — 42 assertions, all passing, plus an end-to-end run.** The decision
+log and task queue are redirected to temp files, so no brief reached `main` and
+no builder ran:
+
+- `decide(source="auto")` records `chosen`, `selection: auto` and
+  `selectionWhy`; all options survive on the record.
+- The brief to `main` states **"SAL HAS NOT SEEN THIS YET"**, names only the
+  selected option, carries the unchecked-recommendation warning, and still
+  demands a reviewer verdict and `approvedBySal`. It no longer says "Sal chose".
+- All three renderers agree and none claims he chose it: `[ AUTO-SELECTED ]` and
+  `[ not built ]` in the log block, "auto-selected" rather than "you chose this"
+  on the panel, "You did not pick this" on Telegram.
+- **The gate, tested directly:** a decision record alone is refused; auto-select
+  plus `approvedBySal` with no verdict is refused; `verdict: safe` with no
+  approval is refused; both together pass; the approval still dies when the head
+  moves. `reviewer` confirmed independently that no path — `_merge_gate`,
+  `ready_to_merge`, `merge_prepare`/`merge_confirm`, the token stores, the panel
+  — lets an auto-selection reach a button, and that `/decide` over HTTP cannot
+  forge `source="auto"`.
+- **The fallback now actually executes:** the real script runs on a
+  no-recommendation card, reports the manual fallback, queues nothing, and
+  writes `awaiting-decision`.
+- **Idempotency, end-to-end in a sandboxed `HOME`:** three consecutive real runs
+  of `record-decision.sh` against the same PR produced **exactly one** brief.
+- A failed dispatch renders as a failure and keeps the options visible.
+- Two recommendations still errors; a redirected `DECISION_LOG` reports a loud
+  SKIP rather than silently failing to dispatch.
+- The real `decision-log/covecheck.jsonl` was byte-identical (md5) before and
+  after every run.
+
+**Known and not fixed — cosmetic, recorded so nobody chases it as a bug.**
+Re-running the script on an already-decided PR appends a fresh card row, and
+`_decisions` merges newest-wins, so `status` reverts to `awaiting-decision`
+while `chosen` persists. Every consumer keys off `chosen` and the explicit
+`chosen-not-dispatched` value, so nothing misreads it; the SKIP message
+deliberately does not quote `status`.
+
+**Not verified:** no card has been auto-selected on a live finding. The
+successful path was proven through `decide()` and through a sandboxed `HOME`,
+not by dispatching a real brief to `main` and starting a real builder run —
+that would have been indistinguishable from real work. The first live card is
+the remaining proof.
+
+**Ripper is not enabled.** `AUTO_SELECT_PROJECTS` holds `covecheck` only, per
+Sal's instruction to prove it here first. Porting is adding `"ripper"` to that
+set plus the matching amendment to the Ripper charter.
+
+## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**PR #13 and PR #14 were merged on Sal's direct authorisation, with no reviewer
+`verdict: safe` on either.** Recording it because §2 makes the recorded verdict
+the normal route and this was not it. Same exception shape as PR #8, and the
+same limit: it covers these two changes and does not carry to the next one.
+
+**What the review log actually holds.** Both PRs were reviewed twice. Every one
+of the four verdicts was **`flagged`** — none was ever `safe`:
+
+| PR | head reviewed | verdict |
+| --- | --- | --- |
+| #13 | `474f716` | `flagged` — comment and log asserted a false safety property |
+| #13 | `0c71a01` | `flagged` — code and prose correct; PR *description* still carried the disproven claim |
+| #14 | `e0fc605` | `flagged` — three findings, all upheld |
+| #14 | `b5b6f81` | `flagged` — §3 claim false, block rule incoherent, "cannot drift" overstated |
+
+The final round of fixes closed the remaining findings on both, and Sal accepted
+them without a further review pass. **So no reviewer has cleared the state that
+was merged.** `approvedBySal` was recorded for both, on his explicit instruction
+in the moment; the gate's other condition was never met, and the merges did not
+go through the Shipyard button.
+
+**What stood in for the clearance, stated plainly so nobody later mistakes it
+for a review.** `main` independently confirmed the substantive findings against
+source rather than relaying them: the `AWAITING DECISION` heading in
+`markdown_card`, the `DELIBERATELY NOT SHA-BOUND` comment and its three-failures
+note in `decide()`, the absence of any PR #12 entry in `main`'s log, and — for
+the §3 finding — that `main`'s `AGENT-LOG.md` uses six heading markers beyond the
+template's two, which is what disproved `main`'s own earlier wording. That is
+verification by the author of one of these changes. It is not independence, and
+§4 exists precisely because those are different things.
+
+**Known to remain open at merge, none of it fixed here:**
+
+- `lib/engine/index.ts:32` — the `DaySummary.verdict` doc comment ("best verdict
+  achieved anywhere in the usable hours of this day") is false in the permissive
+  direction, and is the likely origin of the error PR #13 corrects. Wants its
+  own PROPOSE-ONLY proposal.
+- `lib/engine/index.ts:152-157` — returns the last series hour when `now` is
+  past the series end rather than null, and `report-view.tsx:44` derives "today"
+  from it. Reproduced by execution; **not** escalated, because nobody has
+  established it fires in production.
+- Nobody has rendered the page. PR #13's effect is inferred from the
+  substitution at every step, by `builder` and by both reviewers.
+- The `:62` / `:63` divergence between PR #12's pasted options block and the
+  stored card records. The markdown was corrected; the card records in
+  `~/agent-worlds/decision-log/covecheck.jsonl` still read `:62`, so the town
+  panel still renders the old number. Left alone deliberately — that log is
+  append-only and already carries a dispatched decision.
+
+## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**Resolved by Sal, 2026-09-22.** Approved and merged as PR #14 (merge commit
+`992b70f`) on his direct authorisation, with no reviewer `verdict: safe`. He
+instructed the **AWAITING APPROVAL** marker be removed, which is what §3
+reserves to him. The exception, and what stood in for the reviewer clearance,
+are recorded in the entry above.
+
+**Found:** the decision-ready rule for ESCALATE findings is live and in use, but
+the charter never states it. `record-decision.sh` exists and carries the trigger
+test in its header comment; `deploy_api.py` renders the card, queues the brief
+and states in `_decisions` that the record is informational; `world.html` renders
+the options and says choosing is "a REQUIRED pipeline step, not a summary". PR
+#12's log entry already cites "the decision-ready standing rule" as though the
+charter defined it. `AGENTS-CHARTER.md` does not mention it anywhere.
+
+So the rule binding every agent lived only in the tooling that implements it.
+Three copies of the reasoning, no authoritative one, and nothing an agent reading
+the charter before acting would find.
+
+**Proposed:** two subsections at the end of §2 ESCALATE.
+
+*Decision-ready escalations* states the trigger test verbatim from
+`record-decision.sh` — two or more defensible fixes that differ in **what a user
+would actually see**, not in how different the diffs look — requires the options
+be recorded before the log entry is written, and requires the options block be
+pasted from the script's stdout so the prose and the rendered card cannot drift.
+It closes by restating that this is still ESCALATE: drafting options is not
+attempting a fix.
+
+*What a recorded choice binds, and what it does not* is the part worth having
+written down. A decision record approves nothing — `_merge_gate` never reads it —
+and substitutes for neither `verdict: safe` nor `approvedBySal`. What it does is
+brief: it queues `main` to brief `builder` to draft only the chosen option, which
+then re-enters the gate from the top as an ordinary PROPOSE-ONLY change with its
+own review and its own approval. And a choice is deliberately *not* bound to the
+head commit — the inverse of the rule the verdict and the approval follow, and
+the section says why.
+
+**Three corrections from `reviewer`, which returned `flagged` on the first
+draft at `e0fc605`.** Recording them rather than quietly replacing the text,
+since two of the three were claims this entry had presented as checked.
+
+1. **The draft told agents to take the whole log entry from the script's
+   stdout, which contradicts §3.** `markdown_card` (`deploy_api.py`) heads its
+   block `· AWAITING DECISION`, a marker §3 does not admit, and the block
+   carries none of §3's **Found:** / **Proposed:** / **Rationale:** structure.
+   An agent following the rule literally would have produced an entry violating
+   §3; one adapting it would be doing the retyping the rule forbids. The
+   precedent this PR cited disproves the rule as drafted: PR #12's entry is
+   hand-written and headed **ESCALATED**, with only the options block pasted in.
+   Now scoped to the options block, with the heading explicitly discarded.
+
+2. **"First applied on PR #12, 2026-09-22; see `AGENT-LOG.md`" pointed at
+   nothing.** PR #12 is open, so its entry exists only on its own branch — the
+   file the charter named does not contain the record it promised. Exactly the
+   citation rot `reviewer` logged on PR #10, which this PR's own body claimed to
+   have avoided. The file pointer is gone; the PR reference stays, since that
+   does not rot.
+
+3. **The `decisionSha` sentence canonised a rationale the implementation
+   records rejecting.** The draft said the card binds to the head commit "the
+   same rule the verdict and the approval follow." `decide()` says the opposite
+   in terms — *"DELIBERATELY NOT SHA-BOUND"* — and that binding it "punish[ed]
+   the wrong trigger — and it did, three times, before this was relaxed on
+   2026-09-22." `record-decision.sh`'s header still carries the older wording,
+   and the draft copied the loser of that argument into the constitution. The
+   two implementation files genuinely disagree; the charter now follows
+   `decide()`, distinguishes the card's `decisionSha` stamp from the binding of
+   the choice, and says why an authorising record binds where a non-authorising
+   one need not.
+
+Verified independently before rewriting, not taken on the reviewer's report:
+the `AWAITING DECISION` heading at `deploy_api.markdown_card`, the
+`DELIBERATELY NOT SHA-BOUND` comment and its three-failures note in
+`deploy_api.decide()`, and that `main`'s `AGENT-LOG.md` holds no PR #12 entry.
+
+**A second round, because correction 1 above overcorrected.** The review of
+`b5b6f81` returned `flagged` again. Correction 3 — the substantive one — was
+confirmed right, and correction 2 was complete. Correction 1 was not, and it had
+introduced a *new* false claim in the course of fixing a real one:
+
+- **"§3 admits only AWAITING APPROVAL or ESCALATED in that slot" was false.**
+  §3 requires **AWAITING APPROVAL** on PROPOSE-ONLY entries and **ESCALATED** on
+  ESCALATE entries; it does not restrict the slot to those two. `main`'s own log
+  uses six others — `APPLIED`, `DECLINED`, `DECIDED BY SAL`, `SESSION CLOSE`,
+  `APPROVED, APPLIED`, `APPLIED BY EXCEPTION`. Confirmed by counting the
+  headings on `main`, not by re-reading §3. The passage no longer makes the
+  claim; it now says only what §3 does say about ESCALATE headings.
+- **"Discard that line" described one element; `markdown_card` emits four**
+  above the options — heading, title, problem paragraph, `**Impact:**` — plus a
+  closing `Recorded to …` line. PR #12 dropped exactly those four and kept the
+  options and the footer, so the precedent disproved the rule twice over. Now
+  stated as what it is: keep the options block and the footer, hand-write the
+  rest.
+- **"cannot drift apart" overstated what pasting achieves**, and had already
+  failed: PR #12's pasted block reads `report-view.tsx:63` while the stored card
+  records read `:62`. Now says pasting keeps them in step but does not guarantee
+  agreement, names the divergence, and says the stored record is what the panel
+  renders.
+
+Also corrected without being flagged: the charter said the script takes "two or
+more" options; `record-decision.sh` enforces two to four.
+
+**Rationale:** the behaviour is already live and already being cited, so the
+choice was between documenting it now and letting more escalations run under an
+undocumented rule. Sal's call, 2026-09-22: write it now, do not wait for the
+fix PR that PR #12's decision briefed.
+
+What argues against it: the charter's own known gap — it still assigns no tier to
+editing itself — is not resolved by this entry either, and this amendment adds
+process text to a file that has grown twice this week. Against that, every
+sentence here is describing something an agent can already trip over unaware, and
+the binding distinction is exactly the kind of thing that gets assumed wrongly in
+the permissive direction: that Sal picking an option means the fix is cleared.
+
+**Tier.** Treated as PROPOSE-ONLY per the known-gap note at the top of §2, and
+saying so here is what that note requires. Sal authorised writing this and
+opening the pull request; per §2 that starts the route rather than ending it, so
+this still needs a reviewer `verdict: safe` and Sal's `approvedBySal` recorded
+against this branch's head commit before the Shipyard button will appear.
+**AWAITING APPROVAL** stays until he removes it. *(Resolved: he approved it
+directly and instructed the marker's removal on 2026-09-22. The reviewer
+condition was never met — see the heading and the entry above.)*
+
+**Not verified:** whether this wording survives PR #7, which is open, also edits
+`AGENTS-CHARTER.md`, and is already `CONFLICTING` against `main` from PR #10's
+rewrite. Its hunks land in a different region than this one, but it will need
+rebasing on its own account regardless.
+
+## 2026-09-22 · builder · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**Resolved by Sal, 2026-09-22.** Approved and merged as PR #13 (merge commit
+`a792491`) on his direct authorisation, with no reviewer `verdict: safe`. He
+instructed the **AWAITING APPROVAL** marker be removed, which is what §3
+reserves to him. Both reviews of this change returned `flagged`; the findings
+were fixed and he accepted the result without a further review pass.
+
+**Implements option A of the decision card on PR #12** — "Pill follows the block
+it sits in", chosen by Sal and recorded to
+`~/agent-worlds/decision-log/covecheck.jsonl` at `2026-09-22T23:10:48Z`. Options
+B and C were not drafted.
+
+`components/` safety copy is PROPOSE-ONLY (charter §2), so this is a proposal and
+not a landed change. Per §2 "How an approved one lands", Sal's choice starts the
+route rather than ending it: this is open as a pull request against `main` and
+still needs a reviewer `verdict: safe` **and** Sal's `approvedBySal` for this
+exact head commit, both in `~/agent-worlds/review-log/covecheck.jsonl`, before
+the Shipyard's Merge button applies. Not merged by me, and not mine to merge.
+*(Resolved: Sal approved it directly and merged it on 2026-09-22. The Merge
+button never appeared — the reviewer condition was never met.)*
+
+**Found:** `components/report-view.tsx:169` fed `<VerdictPill>` the raw
+`day.verdict` while the heading it sits inside (`:161-167`) prints "conditions
+now" whenever `isToday && evaluation.current`. The pill therefore labelled a
+different scope from the words beside it. In the case `watchdog` observed on
+PR #12 — `day: great`, `current: caution` — it read more permissive than the
+hour the heading names. Full observation, including the live HTML, is in the
+`watchdog` ESCALATE entry on PR #12.
+
+**This entry previously claimed more than that, and the extra claim was false.**
+See **Correction** at the end.
+
+**Proposed:**
+
+```diff
+--- a/components/report-view.tsx
++++ b/components/report-view.tsx
+@@ -166,7 +166,32 @@ export function ReportView({
+               </span>
+             ) : null}
+           </h3>
+-          <VerdictPill verdict={day.verdict} label={VERDICT_LABEL[day.verdict]} />
++          {/*
++            Same `verdict` the hero uses, so the pill matches the scope the heading
++            above claims: the current hour on today, the day's own verdict otherwise.
++
++            This is not a one-way move toward caution. `day.verdict` is the best
++            *window's* verdict, not the best *hour's* (`lib/engine/index.ts:140`),
++            and two things break the ordering — both reproduced by executing the
++            real `groupWindows`/`bestWindowForDate`, not inferred:
++
++              - A run of `great` hours shorter than `minWindowHours` is downgraded
++                to `caution` (`lib/engine/windows.ts:109`, `:127`). Cromwells sets
++                `minWindowHours: 2` (`lib/beach/cromwells.ts:135`), so an isolated
++                `great` hour gives `day: caution` while `current` is `great`.
++              - Only hours 6-18 are eligible for windows
++                (`lib/engine/windows.ts:19`, `:71-73`, `:152-154`), but `current`
++                is picked with no such filter (`lib/engine/index.ts:152-157`). A
++                favourable 19:00 hour gives `day: caution` with `current: great`.
++
++            In both, this pill now reads more permissive than it did. It is still
++            the right scope for the heading it sits under, and the hero at `:89-91`
++            has rendered this same `verdict` all along — so where that happens the
++            page's largest element already said it, and this removes a
++            contradiction rather than introducing the reading. Whether the net
++            safety effect is negative is not established: that needs frequency
++            data on how often each shape occurs, which nobody has measured.
++          */}
++          <VerdictPill verdict={verdict} label={VERDICT_LABEL[verdict]} />
+         </div>
+```
+
+One behavioural change, one file. Nothing under `lib/engine/` or `lib/beach/`.
+
+**Rationale:** `report-view.tsx:63` already computes
+`isToday && evaluation.current ? evaluation.current.verdict : day.verdict`, and
+its condition is character-for-character the condition the heading at `:161`
+branches on, so the pill and the words beside it now agree by construction rather
+than by coincidence. The hero at `:89-91` has been using that same `verdict` all
+along. This removes the last raw read, so it deletes an inconsistency instead of
+introducing a rule.
+
+**It does not only move cautious-ward.** For the observed bug it plainly does:
+`day: great` with `current: caution` becomes `caution`, which is both less
+permissive and in agreement with the heading. But `day.verdict` is the best
+*window's* verdict, not the best *hour's* (`lib/engine/index.ts:140`), and two
+mechanisms let the current hour outrank the day:
+
+1. **`INSUFFICIENT_WINDOW` downgrade** — `lib/engine/windows.ts:109` and `:127`.
+   A run of `great` hours shorter than `minWindowHours` becomes a `caution`
+   window. Cromwells sets `minWindowHours: 2` (`lib/beach/cromwells.ts:135`), so
+   one isolated `great` hour produces a `caution` day verdict while
+   `evaluation.current` for that hour is `great`.
+2. **Usable-hours exclusion** — `lib/engine/windows.ts:19`, `:71-73`, `:152-154`.
+   Only hours 6–18 are eligible for windows, but `evaluation.current`
+   (`lib/engine/index.ts:152-157`) is selected with no such filter. A favourable
+   hour at 19:00 gives `current: great` under `day: caution`.
+
+In both shapes this pill now reads *more* permissive than before.
+
+What weighs the other way, and should be weighed fairly: the hero at `:89-91`
+has rendered this same `verdict` expression all along, so in exactly those cases
+the largest element on the page already read that way. This PR does not
+introduce that reading; it removes a contradiction that in the other direction
+happened to hedge cautious.
+
+**Whether the net safety effect is negative is not established.** Deciding that
+needs frequency data — how often `day: great`/`current: caution` occurs versus
+the two shapes above — and nobody has measured it, here or on PR #12. Recorded
+as open rather than resolved with a guess.
+
+What argues against it: the "is any part of today good?" signal leaves this block.
+It is not lost — the hero still carries "Best window today: 6–9 AM" and the day
+selector still shows each day's best-of verdict — but a reader who had learned to
+read this pill as the day's outlook will now read a narrower thing. That is the
+tradeoff the decision card names, and Sal accepted it.
+
+**Verified:**
+
+- `npm test` — 266 passed, 15 files. Matches the baseline in the `watchdog` entry;
+  no test covers this pill's scope, so the suite passing is evidence of no
+  regression elsewhere, not evidence this pill is now right.
+- `npm run typecheck` (`tsc --noEmit`) — clean, no output.
+- `npm run lint` (`eslint`) — clean, no output.
+- **Both counterexamples in the Rationale, by execution.** Built synthetic
+  `HourAssessment[]` and ran the real `groupWindows` + `bestWindowForDate`,
+  reproducing `DaySummary.verdict` the way `lib/engine/index.ts:137-140` derives
+  it. A lone `great` hour at 10:00 between two `not_recommended` hours →
+  `day: caution`. `great` hours at 19:00–20:00 with `caution` at 10:00–11:00 →
+  `day: caution`, and the 19:00 hour is what `evaluation.current` would select.
+  A 2-hour `great` run inside 6–18 was run as a control and does give
+  `day: great`. The scratch test was not committed; it exists to have checked,
+  not as coverage. `CROMWELLS.thresholds.minWindowHours === 2` asserted directly.
+- The decision card's claim that `:169` is the only raw `day.verdict` left in the
+  file: confirmed at head `3e645ec` by grep. The one other hit in the repo is
+  `lib/spike.live.ts:184`, a per-day diagnostic table where the day scope is
+  correct and which is untouched here.
+- Sal's recorded choice, read from the decision log at the timestamp above.
+
+**Inferred, not verified:** that the rendered page now reads "Use caution" at a
+midday caution hour. The change was not rendered against live provider data —
+`npm run diagnose` and `npm run spike` hit third-party APIs and the charter says
+not to run them as a default check, and this reasoning does not need live data.
+The behaviour follows from the substitution, but I did not observe it.
+
+**One correction to the decision card:** it cites the already-correct expression
+as `report-view.tsx:62`; it is at `:63` at head `3e645ec`. Same line of code, off
+by one in the reference. Nothing else in the card was wrong — the line numbers,
+the definitions, and the "only place reading it raw" claim all held on re-check.
+
+**Correction — I filed a false claim as verified content.** The first version of
+this entry, at head `474f716`, said under **Found:** that `DaySummary.verdict`
+"is greater than or equal to the current hour by construction — the mismatch
+could only ever read more permissive than the truth", and under **Rationale:**
+that "where it changes anything it changes it cautious-ward". Both are false, and
+both sat in a section the charter §3 reserves for what was actually verified. I
+had not verified them; I reasoned from the name `DaySummary.verdict` and assumed
+a best-of-day rollup dominates any single hour, without reading how it is derived
+or testing it.
+
+**How it was caught:** `reviewer` returned `flagged` on this PR and demonstrated
+both counterexamples by executing `groupWindows`/`bestWindowForDate` against
+synthetic assessments rather than by reading the code. I re-derived both
+independently before rewriting — see the **Verified** bullet above — and they
+hold. The code change is unchanged from `474f716`; only the comment at
+`report-view.tsx:169` and this entry's prose were wrong, and only they changed.
+
+**What the error was:** substituting a plausible reading of an identifier for a
+check of the thing it names. The narrower claim that survives is in **Found** and
+**Rationale** above: the fix is correct and less permissive for the observed bug,
+and is not universally cautious-ward.
+
+---
+
+## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
+
+**Closes the question the entry below left open.** That entry ended "whether a
+PROPOSE-ONLY path should be merge-gated now that the gate exists … Sal's call."
+This is the call, in his words:
+
+> PROPOSE-ONLY paths should go through the merge gate now that it exists. My
+> direct authorization was a stopgap because the gate didn't exist yet; now that
+> it does, use it. This should be the last time a PROPOSE-ONLY change lands
+> without going through review + merge-gate, unless I explicitly say otherwise
+> in the moment.
+
+**Applied to the charter** (§2, PROPOSE-ONLY): an approved proposal now lands
+through the same gate as anything else — pull request, reviewer verdict, then
+the Shipyard Merge button. Direct authorisation alone is no longer the route.
+The one exception is Sal saying otherwise in the moment, and it covers only the
+change in front of him.
+
+**The gate requires two independent records**, both in
+`~/agent-worlds/review-log/covecheck.jsonl`: a reviewer's `verdict: safe`
+(`record-review.sh`) and Sal's `approvedBySal` (`approve-change.sh`). Neither
+substitutes for the other — the reviewer judges the diff, Sal approves the
+change itself. The approval is bound to the exact head commit, so it does not
+survive the branch moving.
+
+**That two-condition shape is a correction, and `reviewer` is why.** The first
+draft of this PR said only "withheld unless the verdict is `safe`", while the
+implemented gate also blocked any PR whose recorded tier was PROPOSE-ONLY —
+`deploy_api.py:72`, `BLOCKING_TIERS`. Those two together were a deadlock: the
+charter made the gate the mandatory route for approved PROPOSE-ONLY changes,
+and the gate could never show a button for one, so with direct say-so also
+declared "not the route any more" those changes had no working route at all.
+`reviewer` caught it on the first review of this PR and flagged rather than
+merged. `BLOCKING_TIERS` is gone; `approvedBySal` replaces it and is strictly
+stronger, since it requires a positive record that Sal decided rather than
+inferring from a tier that he had not.
+
+Three wording fixes came with it, to avoid leaving the charter contradicting
+itself: the tier heading read "never apply" (now "never apply unilaterally");
+"do not open it as a PR" now reads "until he approves it: … do not open it as a
+PR", since after approval a PR is exactly the route; and §2 now says explicitly
+**who may press the button** — an agent may land its own change only where Sal's
+approval is recorded against that exact commit, and the Git section carries the
+matching cross-reference.
+
+**`approvedBySal` claims only what it can back, second correction from
+`reviewer`.** The draft above called a recorded approval "proof" an agent did not
+approve its own work, and said naming who may press the button made "never merge
+your own" *enforceable*. Both overstated. `approve-change.sh` is an ordinary file
+owned by the same user every agent runs as; an agent that chose to could write
+its own approval. §2 now says plainly that `approvedBySal` is **provenance and a
+norm, not an enforced control** — the same language the charter already uses for
+the tier boundaries and the commit-identity stamp — and the Git section now says
+a recorded approval is *evidence*, not proof. Sal's call, deliberately deferred:
+what would actually constitute unforgeable proof of his approval is its own
+design question and is not being answered late in a session to close out this PR.
+
+**Citations no longer rot.** This entry previously cited the charter by line
+number (`AGENTS-CHARTER.md:44`, `:51-52`, `:91`). `reviewer` pointed out that
+every one of them was correct against `main` and wrong the moment this PR's own
+charter edits landed — including a `:91` the PR itself newly wrote. They are now
+section-plus-quoted-phrase references, which survive the file moving. Each quoted
+phrase was checked to resolve against the amended charter.
+
+**Recorded as known and unresolved:** the charter still assigns no tier to
+editing itself. `reviewer` raised it on PR #7 and again here, where it is more
+load-bearing because this PR changes how changes land. §2 now carries it as an
+explicit open gap with an interim rule (treat an amendment as at least
+PROPOSE-ONLY and say so in the log), rather than leaving it silently absent.
+Settling it is a decision about the constitution, not a correction to it, so it
+stays open for Sal.
+
+**One thing this entry has to admit about itself.** PR #9 — the entry directly
+below, which documents `main` merging its own pull request — was also merged by
+`main`, on Sal's explicit instruction in the same message that made this
+decision. So the norm in `AGENTS-CHARTER.md` §2, Git section — "Never merge your
+own." — was crossed a second time, with authorisation, by the very change
+recording the first crossing. It was
+documentation rather than a PROPOSE-ONLY path, so the new rule above does not
+reach it, and the "unless I explicitly say otherwise" exception covers it. Noted
+here because a log that recorded one self-merge while silently containing
+another would be worth less than no log.
+
+---
+
+## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**Logged retrospectively, after the fact.** This entry exists because the
+deviation was not recorded when it happened. It documents an exception, not a
+normal run through the process.
+
+**What happened:** PR #8, "deploy: record what shipped to a log outside the
+repo", added deploy logging to `scripts/deploy.sh`. Opened by `main`, then
+merged by `main` on Sal's direct instruction. Verified from the GitHub record:
+
+- merge commit `e0fd293`, merged `2026-09-22T18:00:55Z`
+- branch `deploy-log-20260922`, single commit `d09bd40` stamped `main (agent)`
+- sole file changed: `scripts/deploy.sh`
+- `reviews: 0`, `reviewDecision: ""` — no review of any kind was recorded
+
+A real production deploy of `e0fd293` followed at `18:06:25Z`, also on Sal's
+direct instruction, recorded in `~/agent-worlds/deploy-log/covecheck.jsonl`.
+
+**Why this is an exception.** `scripts/deploy.sh` is named verbatim in the
+PROPOSE-ONLY list (`AGENTS-CHARTER.md` §2: "Deploy configuration,
+`scripts/deploy.sh`, Vercel settings, environment variables, or anything else
+that reaches production infrastructure"). That tier says to write the fix as a
+proposal and — as it read at the time — "do not apply it to the working tree, do
+not commit it, do not open it as a PR". Three separate norms were crossed:
+
+1. The change was applied rather than proposed.
+2. It was opened as a pull request, which PROPOSE-ONLY excluded outright.
+3. `main` merged its own pull request, against the Git section's "Never merge
+   your own."
+
+Each was done on Sal's explicit, contemporaneous instruction — he asked for the
+PR, then for the merge, then for the deploy. That is authorisation, and it is
+the only reason this was not a violation. It is recorded here as an exception so
+the record does not read as though the normal process was followed.
+
+**What did not exist yet.** The reviewer-gated merge flow — the Shipyard panel's
+"Ready to merge" section, the review log at
+`~/agent-worlds/review-log/covecheck.jsonl`, and the gate that withholds a Merge
+button unless a reviewer recorded `verdict: safe` — was built later the same
+evening, after this merge. There was no gate to route PR #8 through at the time.
+That explains the route taken; it does not make it the normal one.
+
+**How it surfaced:** not caught at the time, by Sal or by `main`. CoveCheck's
+`reviewer` raised it unprompted while reviewing PR #7, noting the pattern had
+recurred on production infrastructure rather than documentation.
+
+**Deliberately not decided here:** whether a PROPOSE-ONLY path should be
+merge-gated now that the gate exists, or whether Sal's direct authorisation
+stays a standing exception for it. Sal's call.
 
 ## 2026-09-21 · main · KNOWN DEBT · NOT FIXED
 
@@ -104,7 +735,22 @@ six inline dated notes elsewhere in the file.
 
 ---
 
-## 2026-09-21 · reviewer · KNOWN DEBT · NOT FIXED
+## 2026-09-21 · reviewer · KNOWN DEBT · LARGELY RESOLVED 2026-09-22
+
+> **Resolved while this pull request sat open.** The debt below lists three
+> possible fixes and calls the third "recording approvals somewhere durable at
+> the moment they are given". That is what `approve-change.sh` and
+> `approvedBySal` now do (PR #10, `AGENT-LOG.md` 2026-09-22): an approval is a
+> record bound to an exact head commit, and it stops being honoured when the
+> branch moves.
+>
+> **The residual gap is narrower, and §2 already states it.** The artifact
+> exists but is not unforgeable — `approve-change.sh` is an ordinary file owned
+> by the same user every agent runs as, so an agent that chose to could write
+> its own approval. The charter calls `approvedBySal` "provenance and a norm,
+> not an enforced control", and records that what would constitute unforgeable
+> proof is a real design question, deliberately left open. The debt below is
+> kept verbatim because it is what made the case for the fix.
 
 **Approval leaves no artifact. A reviewer cannot confirm the one fact this
 whole tier depends on.**
