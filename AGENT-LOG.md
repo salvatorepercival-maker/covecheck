@@ -22,6 +22,37 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · AUTONOMOUS · CLOSED, NOT MERGED
+
+**PR #12 — the `conditions now` ESCALATE — was closed unmerged.** Sal's
+instruction, 2026-09-22. Recorded because a silently closed PR looks the same
+as an abandoned one, and this one was neither abandoned nor wrong.
+
+**It was the finding, not a fix.** Per §2 an ESCALATE stops and flags, and
+`components/` safety copy is PROPOSE-ONLY besides, so no fix was ever proposed
+on that branch. It carried the live observation, the decision card, and the
+alert. All three did their job.
+
+**The fix shipped as PR #13**, merge commit `a792491`: `report-view.tsx:169`
+now feeds `VerdictPill` the same `verdict` expression the hero uses, so the pill
+matches the scope the heading above it claims.
+
+**Its `AGENT-LOG.md` entry was deliberately not carried forward.** That entry
+lives only on `watchdog/conditions-now-pill-day-verdict-20260922` and dies with
+it. It claimed `DaySummary.verdict` is greater than or equal to the current hour
+by construction, so the error "could only ever run permissive — never cautious."
+`reviewer` disproved that by executing the engine and `builder` reproduced it
+independently: `INSUFFICIENT_WINDOW` (`lib/engine/windows.ts:109`, `:127`, with
+Cromwells' `minWindowHours: 2`) and the 6–18 usable-hours filter (`:152-154`)
+both break the ordering. Merging that entry would have written a disproven
+safety claim into this file permanently. #13's entry carries the corrected,
+narrower version, and that is the one on `main`.
+
+**Still open from this finding, and not folded into #13:** the false
+`DaySummary.verdict` doc comment at `lib/engine/index.ts:32`, and the stale
+`current` path at `:152-157`. Both are described in the merge-exception entry
+above. Neither has a proposal yet.
+
 ## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
 
 **Merged on Sal's direct authorisation, with no reviewer `verdict: safe`.**
