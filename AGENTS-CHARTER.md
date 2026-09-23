@@ -136,8 +136,10 @@ original task first is not acceptable.
 
 Stopping at "here is the problem" is not enough when the finding lands in a
 PROPOSE-ONLY area and has more than one defensible fix. Left there, Sal has to
-redo the investigation before he can choose. The agent that found it drafts the
-options; Sal only picks.
+redo the investigation before he can judge it. The agent that found it drafts
+the options, and states which it recommends and why — see "Automatic selection"
+below for what happens to that recommendation, and for where Sal's decision
+now sits.
 
 **The trigger test: two or more defensible fixes that differ in what a user
 would actually see.** If the candidates differ only internally — same rendered
@@ -167,6 +169,54 @@ card; where they disagree, the stored record is what the panel shows.
 attempting a fix: do not apply one, do not draft one as a diff, and do not open
 a pull request for one.
 
+#### Automatic selection — Sal's role is approval, not selection
+
+**Changed by Sal, 2026-09-22.** A card that carries a recommended option is
+acted on **immediately**, in the same action that writes it:
+`record-decision.sh` calls `decide()` for that option, which briefs `main`,
+which briefs `builder`. There is no Choose step and no waiting.
+
+Sal's checkpoint in this pipeline is now **`approvedBySal` before merge, and
+only that.** He approves or rejects the finished change; he does not pick the
+approach it took.
+
+**This removes a checkpoint, and it is meant to.** Say so plainly rather than
+describing the new flow as if nothing was given up. The original design had him
+see the options *before* any work started, and the reason was written down: the
+fixes in a decision card differ in **what a user sees**, so choosing between
+them is a product judgement, and on this project that judgement is about what a
+parent reads before putting a child in the water. That look now happens after
+the fact. Sal weighed that and chose it. It is a deliberate tradeoff, not an
+oversight, and nobody should "fix" it by quietly reinstating the pick.
+
+**What this does not change — check this before assuming otherwise.** The merge
+gate is untouched. A reviewer's `verdict: safe` and Sal's `approvedBySal` are
+both still required, `_merge_gate` still never reads a decision record, and an
+auto-selected option still enters the gate from the top as an ordinary
+PROPOSE-ONLY change. The only step removed is the pick.
+
+**The card still shows everything.** All options stay on the record, the
+selected one is marked auto-selected with its reasoning, and the rest are marked
+not built. Nothing renders "you chose this" over a choice Sal did not make — the
+record carries `selection: auto | manual` so no renderer has to guess.
+
+**A card with no recommended option still waits for him.** That is the intended
+fallback for options that are genuinely equal, and it is now the only way to put
+a choice back in his hands. So do not mark an option recommended merely to keep
+the pipeline moving — that converts his decision into yours, silently.
+
+**Weigh the recommendation; it has not been checked by anyone.** It is the
+finding agent's own argument for its own finding, and under auto-selection
+nothing stands between it and a builder starting work. One has already been
+wrong in the direction that matters: PR #12's option A was recommended partly
+because "it errs cautious", which `reviewer` later disproved by executing the
+engine — the change can read *more* permissive in two reachable configurations.
+Had that card been auto-selected, the false claim would have been the reason
+work began. If a recommendation looks wrong, say so instead of building it.
+
+Enabled for CoveCheck only, via `AUTO_SELECT_PROJECTS` in `deploy_api.py`.
+Ripper keeps the manual pick until this is proven here.
+
 #### What a recorded choice binds, and what it does not
 
 **A decision record approves nothing.** It is informational — `_merge_gate` in
@@ -180,9 +230,11 @@ briefs `builder` to draft only the chosen option, on its own branch, as a pull
 request. That fix then enters the gate from the top as an ordinary PROPOSE-ONLY
 change — its own review, its own approval, against its own commit.
 
-So choosing is a required step in the pipeline, not a summary of one. Until an
-option is recorded, nobody has been briefed and no fix diff exists to review.
-An escalation with options on it does not advance until Sal picks.
+So recording a choice is a required step in the pipeline, not a summary of one.
+Until an option is recorded, nobody has been briefed and no fix diff exists to
+review. Under "Automatic selection" above, a recommended option is recorded the
+moment the card is written, so that step is no longer a wait on Sal — but a card
+with no recommendation still sits there until he picks.
 
 **A choice is deliberately not bound to the head commit, and that is the
 opposite of the rule the verdict and the approval follow.** Those two judge a

@@ -22,6 +22,83 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** nothing — this is a change Sal asked for, not a finding. Logging it
+because it alters §2 and, more to the point, because it removes one of his
+checkpoints. A change that reduces his oversight should never be discoverable
+only by reading a diff.
+
+**Proposed:** auto-select the recommended option on a decision card.
+
+Sal's instruction, 2026-09-22: where a card carries a recommendation, act on it
+immediately instead of waiting for him to click Choose. His role in this
+pipeline becomes approval only — `approvedBySal` before merge — rather than
+selection. Implemented in `~/agent-worlds`: `record-decision.sh` calls
+`decide(..., source="auto")` in the same run that writes the card, gated on
+`AUTO_SELECT_PROJECTS = {"covecheck"}`.
+
+**What is deliberately unchanged.** The merge gate. `verdict: safe` and
+`approvedBySal` are both still required, `_merge_gate` still never reads a
+decision record, and the auto-selected fix still enters the gate from the top as
+an ordinary PROPOSE-ONLY change. Proven, not assumed — see **Verified** below.
+
+**Rationale:** Sal's call, and he made it knowing the cost. The charter now says
+so in those terms: the original design had him see the options before any work
+started, because the options differ in what a user sees and that is a product
+judgement about what a parent reads before putting a child in the water. That
+look now happens after the fact.
+
+What argues against it, recorded because it is the real risk and not a
+formality: the recommendation is the finding agent's own argument for its own
+finding, and under auto-selection nothing sits between it and a builder starting
+work. **This is not hypothetical.** PR #12's option A was recommended partly
+because "it errs cautious" — `reviewer` disproved that by executing the engine,
+and `builder` reproduced it independently. Had that card been auto-selected, a
+false safety claim would have been the reason work began. The gate would still
+have caught the change before merge, so the exposure is wasted work and a
+product direction Sal did not choose, not a bad deploy. The charter and the
+brief to `main` both now say the recommendation is unchecked and should be
+weighed rather than taken as settled.
+
+**A card with no recommended option still waits for him**, and that is now the
+only route that puts a choice back in his hands. `record-decision.sh` used to
+require exactly one recommendation; it now accepts zero. The charter says
+plainly that marking an option recommended to keep things moving converts his
+decision into yours.
+
+**Verified — 33 assertions, all passing, against the real code path with the
+decision log and task queue redirected to temp files:**
+
+- `decide(source="auto")` records `chosen`, `selection: auto` and
+  `selectionWhy`; all options survive on the record.
+- The brief to `main` states **"SAL HAS NOT SEEN THIS YET"**, names only the
+  selected option, carries the unchecked-recommendation warning, and still
+  demands a reviewer verdict and `approvedBySal`. It no longer says "Sal chose".
+- All three renderers agree and none claims he chose it: the `AGENT-LOG.md`
+  block marks `[ AUTO-SELECTED ]` and `[ not built ]`, the panel says
+  "auto-selected" rather than "you chose this", and the Telegram card says "You
+  did not pick this" and stops asking him to choose.
+- **The gate, tested directly:** a decision record alone is refused; auto-select
+  plus `approvedBySal` with no verdict is refused; `verdict: safe` with no
+  approval is refused; both together pass; and the approval still dies when the
+  head moves.
+- The no-recommendation card stays `awaiting-decision` and queues nothing.
+- Two recommendations is still an error. A redirected `DECISION_LOG` reports a
+  loud SKIP rather than silently failing to dispatch.
+- The real `decision-log/covecheck.jsonl` was byte-identical (md5) before and
+  after every test.
+
+**Not verified:** no card has yet been auto-selected on a live finding. The
+successful path was proven through `decide()` with state redirected, rather than
+by dispatching a real brief to `main` and starting a real builder run — that
+would have been indistinguishable from real work. The first live card is the
+remaining proof.
+
+**Ripper is not enabled.** `AUTO_SELECT_PROJECTS` holds `covecheck` only, per
+Sal's instruction to prove it here first. Porting is adding `"ripper"` to that
+set plus the matching amendment to the Ripper charter.
+
 ## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
 
 **PR #13 and PR #14 were merged on Sal's direct authorisation, with no reviewer
