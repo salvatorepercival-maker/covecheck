@@ -22,6 +22,153 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-23 · main · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** nothing — Sal asked for this. Logged because it changes §2 and
+because it extends auto-selection to a path where `main` has *less* independent
+checking than the watchdog path, which is worth stating rather than discovering.
+
+**Proposed:** decision cards on the City Hall path.
+
+A request Sal submits now goes through the same decision-ready process as a
+watchdog finding **when it has a genuine judgment call behind it** — two or more
+defensible approaches that would look different to him. Options drafted, one
+recommended, auto-selected, `builder` briefed with only that one, all options
+kept visible. Requests with one obvious reading proceed directly, unchanged.
+
+**What the investigation found, before any code.** The premise that the
+mechanism was wired for watchdogs was wrong: `author` and `tier` are free
+strings with no allowlist, and auto-select never asks who wrote a card. The real
+blocker was that cards were **PR-keyed end to end** — `record-decision.sh`
+rejected a non-numeric target, `decide()` called `_pr_now()` and returned 502
+without a PR, `_decisions()` keyed by `int(pr)`, and the panel attached cards
+only to rows built from open PRs, so a request card had nowhere to render.
+`reviewer` had already flagged the `<pr>` assumption on PR #16 as a non-blocking
+finding; this is what made it load-bearing.
+
+**Built:** a request identity (`req-<queueId>`) validated by `decision_key()`, a
+`decide()` path that skips `_pr_now` when there is no PR to read,
+`request_cards()` plus a City Hall render surface, and `migrate-decision.sh`.
+
+**One record, not two — Sal's decision.** Migration sets `prNumber` on the
+existing record; `_decisions()` then indexes that same object under both
+identities. The card is never copied, so the two identities cannot drift.
+Re-migrating to the same PR is a no-op; re-pointing at a different PR is
+refused, because that is likelier a mistake than an intention.
+
+**The structural difference, recorded because it is the real cost.** On the
+watchdog path a finding agent drafts the options and `reviewer` independently
+checks the fix. On this path `main` decides whether a card is warranted, drafts
+the options, recommends one, auto-selects it and briefs the builder. **One fewer
+independent check before Sal's approval**, and §4 cannot repair it — there is no
+second agent to brief blind. `reviewer` still reviews the resulting PR and the
+merge gate is untouched, but the judgement that produced the work was made
+entirely by the agent doing it. Sal accepted this knowingly and asked that it be
+stated plainly rather than buried.
+
+**Four findings from `reviewer` at `f5359b4`, all upheld, all fixed.** Two were
+real defects in code I wrote, and one of them broke the exact guarantee this
+change was built to provide.
+
+1. **The "one record, not two" invariant was not enforced.** `_decisions()`
+   aliased under the PR key only `if pr_num not in out`. Migrating a request
+   card onto a PR that already carried its own card therefore skipped the
+   alias — leaving that card reachable by **neither** identity (filtered out of
+   `request_cards()` because `prNumber` was set, absent from the PR row because
+   the alias never happened) while `migrate_decision()` returned success with a
+   note asserting the invariant it had just broken. `migrate_decision()` now
+   refuses an occupied PR key, and `_decisions()` records a `keyConflict` rather
+   than resolving a collision silently.
+2. **Deciding a migrated card by its PR number split it in two.** `decide()`
+   wrote under whichever identity the caller used, so one card became two rows
+   that could hold different `chosen` values. It now resolves the card's own
+   canonical identity and writes there regardless of how it was reached.
+3. **The no-recommendation fallback was a dead end on this path.** City Hall
+   drew no Choose controls and `/decide` coerced its target with `int()`, so a
+   `req-` key was rejected outright. The fallback §2 calls "the only way to put
+   a choice back in his hands" did not exist where it was most needed. Both
+   fixed — buttons render when nothing was auto-selected, and `/decide` now
+   takes either identity.
+4. **A counted assertion was vacuous**, and the count was wrong. The "nothing
+   was briefed" check read the queue size *after* the subprocess and compared it
+   to itself; it could not fail. It now snapshots before. The claimed total also
+   counted the `def check(` line.
+
+**Three further findings from `reviewer` at `d3093c3`, all upheld, all
+addressed.** Sal authorised one final round, scoped to these.
+
+- **N1 — a failed dispatch had no retry.** `renderRequestCards` gated its
+  buttons on `chosen` alone, while the Shipyard gates on `chosen && !stuck`. A
+  request card whose brief never reached `main` therefore displayed the failure
+  with no way to act on it — the same dead end the previous round claimed to
+  have closed, sitting in the paragraph that claimed it. Now on the Shipyard's
+  rule: choosing again is the retry.
+- **N2 — "CoveCheck only" was false.** Only auto-select was gated; the
+  request-card machinery itself ran anywhere, so it was live on Ripper while the
+  charter said otherwise. **Gated rather than documented**, on Sal's choice of
+  the two: a new `REQUEST_CARD_PROJECTS`, checked in `request_cards()`,
+  `migrate_decision()`, `decide()` and `record-decision.sh`. Kept separate from
+  `AUTO_SELECT_PROJECTS` because the two answer different questions. Documenting
+  it as ungated would have overridden Sal's CoveCheck-first scoping with our own
+  judgement; making the existing claim true was the honest half.
+- **N3 — narrowed, not closed, and deliberately so.** The reverse-order
+  collision — migrate onto a free PR, then record a native card for that number
+  — now makes `record-decision.sh` **refuse before writing anything**, naming
+  the request that owns the number. The real fix, letting two cards coexist on
+  one pull request, is **not built**. If that refusal ever fires in practice,
+  that is the signal to build it.
+
+**A defect found while testing N3, worth recording on its own.** The first
+version of that check read `cfg["decision"]` rather than the log the run was
+actually writing, so under an overridden `DECISION_LOG` it silently passed —
+answering a question about a different file. Exactly the failure the auto-select
+`DECISION_LOG` guard was written for, repeated. `decisions_from_path()` was
+extracted so both paths share one reader and the caller names the file.
+
+**Verified — 51 assertions, all passing, with the decision log and task queue
+redirected to temp files.** No brief reached `main` and no builder ran. The
+count is the number of `PASS` lines the run prints, checked rather than
+estimated.
+
+The real `decision-log/covecheck.jsonl` did change during this round, and **not
+because of these tests**: `watchdog` recorded a live ESCALATE for PR #19 at
+07:06Z. Verified by diffing against the pre-test snapshot — one appended line,
+authored by `watchdog`, unrelated to anything here.
+
+- A request card keys by request id, and `decide()` succeeds with **no pull
+  request at all** — the 502 that previously made this impossible is gone.
+- The brief names the request rather than inventing a PR number, carries only
+  the chosen option, says **"SAL HAS NOT SEEN THIS YET"**, still demands a
+  reviewer verdict and `approvedBySal`, and asks for the PR number back so the
+  card can be migrated.
+- The card reaches the City Hall payload with the auto-selection marked and the
+  unbuilt option preserved; `markdown_card` and `telegram_card` both render it
+  and neither invents a PR number.
+- **Migration:** after migrating, the card is reachable by request id *and* by
+  PR number and is the **same object** (identity-checked, not equality); it
+  leaves the City Hall list; re-migrating is a no-op; re-pointing is refused.
+- **The gate is unchanged:** a request card alone is refused, auto-select plus
+  `approvedBySal` with no verdict is refused, verdict plus approval passes.
+- The "should not get a card" case: a single-option card is refused outright.
+  Recorded honestly — that refusal is the backstop, not the path. A request with
+  no judgment call never reaches the script; `main` just proceeds. **What no
+  test covers is whether `main` correctly declines to raise a card**, which is a
+  judgement, not a code path. `reviewer` and the merge gate sit downstream of
+  it; nothing sits upstream.
+- **The two migration defects above, each reproduced before and after the fix:**
+  migrating onto an occupied PR key is refused and leaves both cards reachable;
+  deciding a migrated card by its PR number keeps one object under both
+  identities with both agreeing on `chosen`.
+
+**Not verified:** no real City Hall request has yet produced a card end to end,
+and no card has been migrated onto a PR that a builder actually opened. Both
+were exercised against redirected state, not by dispatching real work. The first
+live request is the remaining proof.
+
+**Ripper is not enabled.** CoveCheck first, per Sal's instruction.
+
+---
+
 ## 2026-09-22 · main · AUTONOMOUS · CLOSED, NOT MERGED
 
 **PR #12 — the `conditions now` ESCALATE — was closed unmerged.** Sal's
@@ -52,6 +199,9 @@ narrower version, and that is the one on `main`.
 `DaySummary.verdict` doc comment at `lib/engine/index.ts:32`, and the stale
 `current` path at `:152-157`. Both are described in the merge-exception entry
 above. Neither has a proposal yet.
+
+---
+
 
 ## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
 

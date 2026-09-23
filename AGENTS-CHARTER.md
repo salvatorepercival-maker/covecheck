@@ -225,6 +225,81 @@ work began. If a recommendation looks wrong, say so instead of building it.
 Enabled for CoveCheck only, via `AUTO_SELECT_PROJECTS` in `deploy_api.py`.
 Ripper keeps the manual pick until this is proven here.
 
+#### Decision cards on the City Hall path
+
+**Sal's requests get the same treatment as watchdog findings, under the same
+bar.** Before this, a request with more than one defensible reading was resolved
+by `main` silently picking one and handing it to `builder`. Sal never saw that a
+choice had been made, let alone what the alternatives were.
+
+**The trigger — decided by Sal, 2026-09-22, and worded by him:**
+
+> A City Hall request gets a decision card when **two or more defensible
+> approaches would produce visibly different results for Sal** — different UI,
+> different copy, different behaviour he would notice. Judge by what he'd see,
+> not by how different the implementations are.
+
+If the request has one obvious reading, or the candidate approaches differ only
+internally, **proceed directly**. No card, no ceremony. The test is whether
+`main` would otherwise be picking silently between real alternatives on his
+behalf — that, and only that, is what a card is for. Inventing a second option
+to justify raising one is the same abuse as marking an option `recommended` to
+keep things moving.
+
+**When a card is warranted, the behaviour matches the watchdog path.** Options
+drafted, one recommended, auto-selected on the spot, `builder` briefed with only
+that one. All options stay on the card with the selected one marked and the rest
+marked not built, so Sal can see what was not chosen and why. His checkpoint
+remains `approvedBySal` before merge.
+
+**The no-recommendation fallback works here too, and it had to be made to.** A
+request card carrying no recommendation waits for Sal, and City Hall renders a
+Choose control for each option on the same rule the Shipyard uses — a card is
+finished only when a choice was made **and** its brief actually reached `main`.
+A dispatch that failed therefore keeps its buttons, because choosing again is
+the retry. `reviewer` found on
+PR #18 that this was originally a dead end — the panel drew no buttons and
+`/decide` rejected a `req-` key outright, so the one route §2 calls "the only
+way to put a choice back in his hands" did not exist on the path that most
+needed it. Both were fixed rather than documented as a limitation.
+
+**Known structural difference, and it is worse here — say so rather than let it
+be discovered.** On the watchdog path, one agent finds the problem and drafts
+the options, and a separate `reviewer` independently checks the fix before Sal
+approves. **On the City Hall path `main` does both: it assesses whether the
+request even warrants a card, and then drafts and recommends the options it
+will act on.** There is no separate finding agent, so there is one fewer
+independent check between the request and Sal's approval than the watchdog path
+has. `reviewer` still reviews the resulting pull request, and the merge gate is
+unchanged — but the *judgement that produced the work* has been made entirely
+by the agent doing it. That is a real reduction in independence, accepted
+knowingly, and §4's blind-briefing rule cannot repair it because there is no
+second agent to brief.
+
+**Identity and migration.** A request card is keyed by its request id
+(`req-<queueId>`), because the request exists before any pull request does.
+When `builder` opens one, `migrate-decision.sh` sets `prNumber` on **the same
+record** — it is not copied to a second row. One record, reachable by either
+identity; two rows could drift, and drift is what this avoids.
+
+**Enabled for CoveCheck only, and genuinely gated** — `REQUEST_CARD_PROJECTS`
+in `deploy_api.py`, checked in `request_cards()`, `migrate_decision()`,
+`decide()` and `record-decision.sh`. It is deliberately a separate set from
+`AUTO_SELECT_PROJECTS`: "may a request raise a card here?" and "is that card
+acted on without Sal picking?" are different questions, and a project could
+reasonably have the first without the second. `reviewer` found on PR #18 that
+only auto-select had been gated, so the machinery was live on Ripper while this
+paragraph claimed otherwise. PR-keyed watchdog cards are unaffected by the gate
+on either project.
+
+**Known gap, narrowed rather than closed.** A request card migrated onto PR #N
+owns that number, and `_decisions()` cannot hold two different records under one
+key. `record-decision.sh` now **refuses** to record a second, PR-keyed card for
+such a pull request, so the collision is a loud error before anything is written
+rather than a silent success that leaves one card unreachable. What is **not**
+built is the real fix — letting both cards coexist on one pull request. If that
+refusal ever fires in practice, that is the signal to build it.
+
 #### What a recorded choice binds, and what it does not
 
 **A decision record approves nothing.** It is informational — `_merge_gate` in
