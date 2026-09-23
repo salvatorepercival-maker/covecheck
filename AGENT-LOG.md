@@ -700,6 +700,71 @@ and is not universally cautious-ward.
 
 ---
 
+## 2026-09-22 · main · PROPOSE-ONLY · MERGED THROUGH THE GATE, WITH ONE EXCEPTION
+
+**First change to land through the full merge gate.** PR #10 — the amendment
+that created the gate — went through it: reviewer `verdict: safe`, Sal's
+`approvedBySal`, both bound to head `d19205e`, then the Shipyard **Merge**
+button. Merge commit `3e645ec`, `--merge`, so `d19205e` keeps `main (agent)`
+authorship underneath. Three review rounds preceded it; the first two returned
+`flagged` and `uncertain`, and neither was merged.
+
+**The exception, stated plainly: `main` recorded Sal's approval, not Sal.**
+`approve-change.sh covecheck 10` was run by `main` on Sal's explicit instruction,
+in a message that named the norm it crosses and authorised the crossing anyway —
+the same shape as PR #8 and PR #9 earlier the same evening. The `approvedBySal`
+record for `d19205e` is therefore Sal's decision, but not Sal's keystroke.
+
+Why that matters more here than for #8 or #9: this is the record the gate
+consults, on the very change that defines the gate. The §2 text merged in this PR
+says an agent could write its own approval because nothing prevents it — and that
+is exactly what happened on the first use, by agreement rather than by evasion.
+Recorded so the first passage through the gate is not mistaken for a clean one.
+
+The approval was also given for a commit Sal had not personally inspected — but
+**not** because his instruction predated it, which an earlier draft of this
+sentence claimed and `reviewer` disproved on PR #11. The chronology, from the
+record: `d19205e` was committed at **19:29:03Z** and the approval was recorded at
+**19:36:28Z**, seven minutes *after*. What predated the commit was his earlier
+standing instruction — merge it if the review comes back `safe` — given before
+that commit existed and therefore before anyone could have shown it to him. The
+approval instruction itself came after. Either way he had not inspected the
+diff, but the reason matters, and the first version of this entry got it
+backwards. That is the precise gap commit-binding exists to expose, and it is
+noted here rather than smoothed over.
+
+**Verified, from the record rather than from memory:** `3e645ec` is a two-parent
+merge of `d19205e`; both gate conditions are bound to that exact sha in
+`review-log/covecheck.jsonl`; three review rounds preceded it, returning
+`flagged`, `uncertain` and `safe`; and the commit and approval timestamps above.
+
+**Not verified, and not resolvable from the repository:** that Sal had not
+personally inspected `d19205e`. The circumstantial support is strong — the
+approval was recorded seven minutes after the commit, by `main`, on an
+instruction that named no sha — but nothing in the repo records what he read.
+Who pressed Merge is likewise unrecorded; §2 permits an agent to press it on a
+recorded approval, so its absence is not itself an exception.
+
+**A narrower gap this entry should name.** `approve-change.sh` records no actor,
+so the gate's own record of #10 reads clean — nothing in
+`review-log/covecheck.jsonl` shows that `main` rather than Sal ran it. Every
+later exception tonight marks that in its `approvedNote`; #10's, written before
+the practice existed, does not. This entry is the only record of it.
+
+**Why this entry is a follow-up rather than part of #10.** Both gate conditions
+were bound to `d19205e`. Committing this entry to that branch would have moved
+the head and invalidated the verdict *and* the approval, forcing a third review
+and a second approval in order to record a note about the first. Same
+retrospective shape as PR #9 backfilling PR #8.
+
+**Still open, deliberately:** what would constitute unforgeable proof of Sal's
+approval. Deferred as its own design question rather than answered late in a
+session to close out this PR. Until it is answered, `approvedBySal` is provenance
+and a norm — and tonight is the demonstration of why that distinction is not
+pedantic.
+
+---
+
 ## 2026-09-22 · main · AUTONOMOUS · DECIDED BY SAL
 
 **Closes the question the entry below left open.** That entry ended "whether a
