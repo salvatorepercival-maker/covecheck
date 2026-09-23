@@ -367,6 +367,140 @@ describe('assessHour marginal wind', () => {
   })
 })
 
+/**
+ * The caveat must never soften the hazard reason standing next to it.
+ *
+ * Sustained wind and gusts are banded independently, so one measure can be past
+ * `caution` — raising STRONG_GUSTS, "Gusty wind is forecast" — while the other
+ * is still mid-band. Before this, that hour also carried MARGINAL_WIND, whose
+ * copy ends "below the level CoveCheck treats as too gusty", printed directly
+ * beneath the hazard and contradicting it. Found by `reviewer` on PR #20.
+ *
+ * Only `text` reaches the screen — `components/report-view.tsx` renders the
+ * bullet copy and never the detail string — so the numbers that distinguished
+ * the two lines were not visible to the reader.
+ */
+describe('assessHour marginal wind beside a wind hazard', () => {
+  const assess = (spec: Parameters<typeof buildSeries>[0][number]) => {
+    const hours = buildSeries([spec])
+    return assessHour(hours, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null))
+  }
+
+  it('stays silent when the gusts are hazardous and the sustained wind is marginal', () => {
+    // The exact hour `reviewer` reproduced: 28 mph sustained sits in the
+    // offshore marginal band (great 25 / caution 32), 45 mph gusts are past the
+    // gust ceiling of 40.
+    const result = assess({ hour: 8, windSpeedMph: 28, windGustMph: 45, windDirectionDeg: 350 })
+    const codes = result.reasons.map((r) => r.code)
+
+    expect(codes).toContain('STRONG_GUSTS')
+    expect(codes).not.toContain('MARGINAL_WIND')
+    // Suppressing a caveat must not rescue the hour: it is still a hazard hour.
+    expect(result.verdict).toBe('caution')
+  })
+
+  it('stays silent in the mirror case, hazardous sustained wind and marginal gusts', () => {
+    // 35 mph sustained is past the 32 mph ceiling; 35 mph gusts sit in the
+    // marginal gust band (great 31 / caution 40). The same contradiction, with
+    // the two measures swapped.
+    const result = assess({ hour: 8, windSpeedMph: 35, windGustMph: 35, windDirectionDeg: 350 })
+    const codes = result.reasons.map((r) => r.code)
+
+    expect(codes).toContain('STRONG_GUSTS')
+    expect(codes).not.toContain('MARGINAL_WIND')
+    expect(result.verdict).toBe('caution')
+  })
+
+  it('applies the same rule on the onshore ceilings', () => {
+    // Onshore: sustained great 8 / caution 12, gusts great 12 / caution 18.
+    // 10 mph is marginal, 25 mph gusts are hazardous.
+    const codes = assess({
+      hour: 8,
+      windSpeedMph: 10,
+      windGustMph: 25,
+      windDirectionDeg: 180,
+    }).reasons.map((r) => r.code)
+
+    expect(codes).toContain('STRONG_GUSTS')
+    expect(codes).not.toContain('MARGINAL_WIND')
+  })
+
+  it('still speaks when neither measure is hazardous', () => {
+    // The suppression must not swallow the case the code exists for.
+    const codes = assess({
+      hour: 8,
+      windSpeedMph: 30,
+      windGustMph: 38.7,
+      windDirectionDeg: 350,
+    }).reasons.map((r) => r.code)
+
+    expect(codes).toContain('MARGINAL_WIND')
+    expect(codes).not.toContain('STRONG_GUSTS')
+  })
+
+  it('never pairs the caveat with the hazard, across every reachable combination', () => {
+    // The class, not the instance. Sweeps both exposures and every band
+    // boundary on both measures, and counts each outcome so the assertion
+    // cannot pass because nothing reached it.
+    const speeds = [null, 0, 7, 8, 9, 12, 13, 24, 25, 26, 31, 32, 33, 40]
+    const gusts = [null, 0, 11, 12, 13, 17, 18, 19, 30, 31, 32, 39, 40, 41, 55]
+    const directions = [350, 180, 90]
+
+    let marginalHours = 0
+    let suppressedHours = 0
+    for (const windSpeedMph of speeds) {
+      for (const windGustMph of gusts) {
+        for (const windDirectionDeg of directions) {
+          const codes = assess({ hour: 8, windSpeedMph, windGustMph, windDirectionDeg }).reasons.map(
+            (r) => r.code,
+          )
+          const hazard = codes.includes('STRONG_GUSTS')
+          const caveat = codes.includes('MARGINAL_WIND')
+
+          expect(
+            hazard && caveat,
+            `${windSpeedMph} mph / ${windGustMph} gust / ${windDirectionDeg}° rendered the caveat beside the hazard`,
+          ).toBe(false)
+
+          if (caveat) marginalHours += 1
+          // A measure in the middle band whose hour raised the hazard anyway is
+          // exactly what the suppression is for.
+          if (hazard && !caveat) suppressedHours += 1
+        }
+      }
+    }
+
+    expect(marginalHours).toBeGreaterThan(0)
+    expect(suppressedHours).toBeGreaterThan(0)
+  })
+
+  it('leaves the co-occurrences that are not contradictions alone', () => {
+    // CALM_WIND: sustained wind genuinely inside the calm band while the gusts
+    // are not. Both statements are true of different measures, and silencing
+    // either would delete information the reader needs. The copy carries the
+    // weight here — it claims the wind is "not fully within" the calm range,
+    // never that it is above it. See reasons.test.ts.
+    const calm = assess({ hour: 8, windSpeedMph: 20, windGustMph: 39, windDirectionDeg: 350 })
+    expect(calm.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(['CALM_WIND', 'MARGINAL_WIND']),
+    )
+
+    // ONSHORE_WIND and FAVORABLE_WIND_DIRECTION describe direction, not
+    // magnitude, so neither can contradict a band caveat. Onshore in
+    // particular is what *selected* the tighter ceilings this caveat is
+    // measured against, so the two agree by construction.
+    const onshore = assess({ hour: 8, windSpeedMph: 10, windGustMph: 14, windDirectionDeg: 180 })
+    expect(onshore.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(['ONSHORE_WIND', 'MARGINAL_WIND']),
+    )
+
+    const offshore = assess({ hour: 8, windSpeedMph: 30, windGustMph: 30, windDirectionDeg: 350 })
+    expect(offshore.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(['FAVORABLE_WIND_DIRECTION', 'MARGINAL_WIND']),
+    )
+  })
+})
+
 describe('assessHour runoff', () => {
   it('blocks a green verdict after heavy rain', () => {
     const hours = buildSeries([

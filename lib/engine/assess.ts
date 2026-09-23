@@ -393,23 +393,37 @@ export function assessHour(
     // untouched by design. The two measures collapse into one reason rather than
     // two, because they are one fact about the same wind and the copy would
     // otherwise repeat verbatim within a single hour.
+    //
+    // The two measures are banded INDEPENDENTLY, so one can be over `caution`
+    // while the other is still mid-band. That hour is a genuine wind hazard, and
+    // the caveat's copy ends "below the level CoveCheck treats as too gusty" —
+    // so emitting it there prints a reassurance directly beneath "Gusty wind is
+    // forecast" and softens it. `hazardousWind` suppresses the caveat for the
+    // whole hour whenever either measure has already raised STRONG_GUSTS: the
+    // hazard reason is the stronger and truer statement about that wind, and a
+    // caveat can only subtract from it. Found by `reviewer` on PR #20 at 28 mph
+    // sustained with 45 mph gusts. `mergeReasons` repeats the rule at window
+    // scope, where dedup across hours can reassemble the pair.
     const marginal: string[] = []
+    let hazardousWind = false
 
     if (hour.windSpeedMph <= windLimits.great) {
       reasons.push(reason('CALM_WIND', `${hour.windSpeedMph.toFixed(0)} mph ${exposure ?? 'wind'}`))
     } else if (hour.windSpeedMph > windLimits.caution) {
       reasons.push(reason('STRONG_GUSTS', `${hour.windSpeedMph.toFixed(0)} mph sustained`))
+      hazardousWind = true
     } else {
       marginal.push(`${hour.windSpeedMph.toFixed(0)} mph sustained`)
     }
 
     if (hour.windGustMph !== null && hour.windGustMph > gustLimits.caution) {
       reasons.push(reason('STRONG_GUSTS', `gusts to ${hour.windGustMph.toFixed(0)} mph`))
+      hazardousWind = true
     } else if (hour.windGustMph !== null && hour.windGustMph > gustLimits.great) {
       marginal.push(`gusts to ${hour.windGustMph.toFixed(0)} mph`)
     }
 
-    if (marginal.length > 0) {
+    if (marginal.length > 0 && !hazardousWind) {
       reasons.push(reason('MARGINAL_WIND', marginal.join(', ')))
     }
   }
