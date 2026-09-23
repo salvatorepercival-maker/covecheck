@@ -138,6 +138,28 @@ child in the water, which §2 says is Sal's, not mine.
 pull request covers this — `gh pr list --state open --search "watchdog in:title"`
 returned empty at 21:03 HST.
 
+**Options** — drafted with the finding, per the decision-ready rule. None is applied; Sal picks, then `builder` drafts only that one.
+
+**A — Mirror MARGINAL_SWELL with a negative marginal-wind reason**
+
+- Changes: Add a MARGINAL_WIND reason code with severity `negative`, emitted when sustained wind is above `great` and at or below `caution`, or when gusts are above the gust `great` and at or below the gust `caution`.
+- You would see: 39 of today's 168 hours flip from `Great window` to `Possible - use caution`, each carrying a new wind line in its reason list; green hours become noticeably scarcer through afternoons and evenings.
+- Tradeoff: Consistent with how swell and tide already behave and clearly the conservative choice, but it is a blanket tightening of exactly the kind this project has twice reversed (DECISIONS.md #15 'the same wall twice'; the exposedSwellFt note in cromwells.ts:57-68 about 55% of a calm week reading marginal), and the offshore ceilings it would newly enforce rest on a single in-water observation (n=1).
+
+**B — Emit a caveat in the band, leave the verdict alone**
+
+- Changes: Add a MARGINAL_WIND reason code with severity `caveat`, emitted over the same band as option A.
+- You would see: The same 39 hours stay `Great window`, but each gains a visible wind line in its reason list and drops to `medium` confidence, so a reader sees 'gusts to 39 mph' next to the green verdict instead of nothing.
+- Tradeoff: Closes the information gap without re-litigating the green/amber boundary on n=1 calibration, but it leaves a hour at 30 mph sustained / 38.7 mph gusts labelled `Great window` - if the ceilings are right, this fixes the silence and not the verdict.
+
+**C — Gate on gusts only; caveat the sustained band**
+
+- Changes: Emit a `negative` marginal-wind reason when gusts exceed the gust `great` ceiling, and a `caveat` when only sustained wind is in its marginal band.
+- You would see: Hours with gusts above 31 mph flip to `Possible - use caution` while hours that are merely breezy but not gusty stay green with an added wind line; fewer hours change colour than under option A, and the ones that do are the gusty ones.
+- Tradeoff: Targets gusts, which are what actually knock a child over, and leaves steady offshore trade wind - the thing the n=1 calibration was anchored on - able to read green; but it treats the two ceilings asymmetrically and the gust factor is explicitly the weakest number in the profile (cromwells.ts:104-106, derived at ~1.4x rather than observed).
+
+Recorded to `/Users/salvatorepercival/agent-worlds/decision-log/covecheck.jsonl`, bound to `72aa15f`.
+
 ---
 
 ## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
