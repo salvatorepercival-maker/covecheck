@@ -66,9 +66,39 @@ merge gate is untouched, but the judgement that produced the work was made
 entirely by the agent doing it. Sal accepted this knowingly and asked that it be
 stated plainly rather than buried.
 
-**Verified — 34 assertions, all passing, with the decision log and task queue
+**Four findings from `reviewer` at `f5359b4`, all upheld, all fixed.** Two were
+real defects in code I wrote, and one of them broke the exact guarantee this
+change was built to provide.
+
+1. **The "one record, not two" invariant was not enforced.** `_decisions()`
+   aliased under the PR key only `if pr_num not in out`. Migrating a request
+   card onto a PR that already carried its own card therefore skipped the
+   alias — leaving that card reachable by **neither** identity (filtered out of
+   `request_cards()` because `prNumber` was set, absent from the PR row because
+   the alias never happened) while `migrate_decision()` returned success with a
+   note asserting the invariant it had just broken. `migrate_decision()` now
+   refuses an occupied PR key, and `_decisions()` records a `keyConflict` rather
+   than resolving a collision silently.
+2. **Deciding a migrated card by its PR number split it in two.** `decide()`
+   wrote under whichever identity the caller used, so one card became two rows
+   that could hold different `chosen` values. It now resolves the card's own
+   canonical identity and writes there regardless of how it was reached.
+3. **The no-recommendation fallback was a dead end on this path.** City Hall
+   drew no Choose controls and `/decide` coerced its target with `int()`, so a
+   `req-` key was rejected outright. The fallback §2 calls "the only way to put
+   a choice back in his hands" did not exist where it was most needed. Both
+   fixed — buttons render when nothing was auto-selected, and `/decide` now
+   takes either identity.
+4. **A counted assertion was vacuous**, and the count was wrong. The "nothing
+   was briefed" check read the queue size *after* the subprocess and compared it
+   to itself; it could not fail. It now snapshots before. The claimed total also
+   counted the `def check(` line.
+
+**Verified — 39 assertions, all passing, with the decision log and task queue
 redirected to temp files.** No brief reached `main`, no builder ran, and the
-real `decision-log/covecheck.jsonl` was byte-identical before and after.
+real `decision-log/covecheck.jsonl` was byte-identical before and after. The
+count is the number of `PASS` lines the run prints, checked rather than
+estimated.
 
 - A request card keys by request id, and `decide()` succeeds with **no pull
   request at all** — the 502 that previously made this impossible is gone.
@@ -86,7 +116,14 @@ real `decision-log/covecheck.jsonl` was byte-identical before and after.
   `approvedBySal` with no verdict is refused, verdict plus approval passes.
 - The "should not get a card" case: a single-option card is refused outright.
   Recorded honestly — that refusal is the backstop, not the path. A request with
-  no judgment call never reaches the script; `main` just proceeds.
+  no judgment call never reaches the script; `main` just proceeds. **What no
+  test covers is whether `main` correctly declines to raise a card**, which is a
+  judgement, not a code path. `reviewer` and the merge gate sit downstream of
+  it; nothing sits upstream.
+- **The two migration defects above, each reproduced before and after the fix:**
+  migrating onto an occupied PR key is refused and leaves both cards reachable;
+  deciding a migrated card by its PR number keeps one object under both
+  identities with both agreeing on `chosen`.
 
 **Not verified:** no real City Hall request has yet produced a card end to end,
 and no card has been migrated onto a PR that a builder actually opened. Both

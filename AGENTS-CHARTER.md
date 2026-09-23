@@ -246,11 +246,19 @@ behalf — that, and only that, is what a card is for. Inventing a second option
 to justify raising one is the same abuse as marking an option `recommended` to
 keep things moving.
 
-**When a card is warranted, the behaviour is identical to the watchdog path.**
-Options drafted, one recommended, auto-selected on the spot, `builder` briefed
-with only that one. All options stay on the card with the selected one marked
-and the rest marked not built, so Sal can see what was not chosen and why. His
-checkpoint remains `approvedBySal` before merge.
+**When a card is warranted, the behaviour matches the watchdog path.** Options
+drafted, one recommended, auto-selected on the spot, `builder` briefed with only
+that one. All options stay on the card with the selected one marked and the rest
+marked not built, so Sal can see what was not chosen and why. His checkpoint
+remains `approvedBySal` before merge.
+
+**The no-recommendation fallback works here too, and it had to be made to.** A
+request card carrying no recommendation waits for Sal, and City Hall renders a
+Choose control for each option exactly as the Shipyard does. `reviewer` found on
+PR #18 that this was originally a dead end — the panel drew no buttons and
+`/decide` rejected a `req-` key outright, so the one route §2 calls "the only
+way to put a choice back in his hands" did not exist on the path that most
+needed it. Both were fixed rather than documented as a limitation.
 
 **Known structural difference, and it is worse here — say so rather than let it
 be discovered.** On the watchdog path, one agent finds the problem and drafts
