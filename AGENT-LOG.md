@@ -73,7 +73,13 @@ verification by the author of one of these changes. It is not independence, and
   panel still renders the old number. Left alone deliberately — that log is
   append-only and already carries a dispatched decision.
 
-## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
+## 2026-09-22 · main · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**Resolved by Sal, 2026-09-22.** Approved and merged as PR #14 (merge commit
+`992b70f`) on his direct authorisation, with no reviewer `verdict: safe`. He
+instructed the **AWAITING APPROVAL** marker be removed, which is what §3
+reserves to him. The exception, and what stood in for the reviewer clearance,
+are recorded in the entry above.
 
 **Found:** the decision-ready rule for ESCALATE findings is live and in use, but
 the charter never states it. `record-decision.sh` exists and carries the trigger
@@ -188,13 +194,22 @@ saying so here is what that note requires. Sal authorised writing this and
 opening the pull request; per §2 that starts the route rather than ending it, so
 this still needs a reviewer `verdict: safe` and Sal's `approvedBySal` recorded
 against this branch's head commit before the Shipyard button will appear.
-**AWAITING APPROVAL** stays until he removes it.
+**AWAITING APPROVAL** stays until he removes it. *(Resolved: he approved it
+directly and instructed the marker's removal on 2026-09-22. The reviewer
+condition was never met — see the heading and the entry above.)*
 
 **Not verified:** whether this wording survives PR #7, which is open, also edits
 `AGENTS-CHARTER.md`, and is already `CONFLICTING` against `main` from PR #10's
 rewrite. Its hunks land in a different region than this one, but it will need
 rebasing on its own account regardless.
-## 2026-09-22 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
+## 2026-09-22 · builder · PROPOSE-ONLY · APPLIED BY EXCEPTION
+
+**Resolved by Sal, 2026-09-22.** Approved and merged as PR #13 (merge commit
+`a792491`) on his direct authorisation, with no reviewer `verdict: safe`. He
+instructed the **AWAITING APPROVAL** marker be removed, which is what §3
+reserves to him. Both reviews of this change returned `flagged`; the findings
+were fixed and he accepted the result without a further review pass.
 
 **Implements option A of the decision card on PR #12** — "Pill follows the block
 it sits in", chosen by Sal and recorded to
@@ -207,6 +222,8 @@ route rather than ending it: this is open as a pull request against `main` and
 still needs a reviewer `verdict: safe` **and** Sal's `approvedBySal` for this
 exact head commit, both in `~/agent-worlds/review-log/covecheck.jsonl`, before
 the Shipyard's Merge button applies. Not merged by me, and not mine to merge.
+*(Resolved: Sal approved it directly and merged it on 2026-09-22. The Merge
+button never appeared — the reviewer condition was never met.)*
 
 **Found:** `components/report-view.tsx:169` fed `<VerdictPill>` the raw
 `day.verdict` while the heading it sits inside (`:161-167`) prints "conditions
