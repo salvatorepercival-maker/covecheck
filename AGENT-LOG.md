@@ -698,6 +698,14 @@ path was tested end to end -- a clearly labelled test message reached the phone.
 
 ## 2026-09-21 · main · AUTONOMOUS · APPLIED
 
+> **Tier note, added 2026-09-22.** This entry is filed AUTONOMOUS for what is a
+> charter amendment. §2's known-gap note — which requires treating a charter
+> amendment as at least PROPOSE-ONLY *and saying so in the log* — was written on
+> 2026-09-22, after this entry. So this is not a violation, but it is
+> contradictory precedent if read today. Flagged by `reviewer` on PR #7. The
+> heading is left as written rather than back-dated to a rule that did not exist;
+> the amendment it describes is landing through the full gate on PR #7.
+
 **Done: documented the `reviewer` agent, which existed in config but nowhere
 else.** `reviewer` (workspace `~/covecheck`) and `ripper-reviewer` were
 configured and present in `agents.entries.main.subagents.allowAgents`, and

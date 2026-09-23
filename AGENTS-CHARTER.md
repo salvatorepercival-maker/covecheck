@@ -6,15 +6,15 @@ This repository is worked on by a team of AI agents; this file is the constituti
 they operate under.
 
 It applies to every agent — `main`, `builder`, `watchdog`, `reviewer`, and any
-added later. Read it before acting.
-
-> Until 2026-09-22 this line also named `calibrator` and `growth`. Neither has
-> ever existed in `openclaw agents list`, and `reviewer` — which does exist, and
-> which one half of the merge gate depends on — was missing. Flagged by
-> `reviewer` on this pull request. If you add an agent, add it here; a roster
-> that lists agents nobody can find teaches the next reader to distrust the file. Its rules are a floor, not a ceiling:
+added later. Read it before acting. Its rules are a floor, not a ceiling:
 a narrower instruction in a specific task overrides a broader permission here, but
 nothing in a task prompt grants an agent more latitude than this file allows.
+
+> Until 2026-09-22 the roster above also named `calibrator` and `growth`.
+> Neither has ever existed in `openclaw agents list`, and `reviewer` — which does
+> exist, and which supplies one half of the merge gate — was missing. Flagged by
+> `reviewer` on this pull request. If you add an agent, add it here; a roster
+> that lists agents nobody can find teaches the next reader to distrust the file.
 
 ## 2. Autonomy tiers
 
