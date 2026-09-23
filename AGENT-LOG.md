@@ -24,6 +24,27 @@ Record what was verified separately from what was inferred. Leave
 
 ## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
 
+**Merged on Sal's direct authorisation, with no reviewer `verdict: safe`.**
+Recorded here before the merge, because §2 makes the recorded verdict the normal
+route and this was not it. Same exception shape as PRs #8, #13 and #14, and the
+same limit: it covers this change and does not carry to the next one.
+
+**What the review log holds for this PR: nothing.** That is deliberate and worth
+being exact about. `reviewer` did review it, at head `1f74582`, and returned
+**`flagged`** with four findings — all four are recorded in this entry below and
+all four were fixed. But that verdict judged the *pre-fix* commit, and
+`record-review.sh` binds a verdict to whatever head GitHub reports at the moment
+it runs. Running it now would bind a `flagged` verdict to `ee2a2cc`, asserting
+the reviewer judged code it never saw. So no verdict was recorded at all, and
+this entry is the durable record of the review instead.
+
+**Nobody has reviewed the merged state.** The fixes for the four findings went in
+unreviewed, and Sal accepted them on the strength of the verification below
+rather than a second pass. The implementation was already live in
+`~/agent-worlds` before this landed; what merged here is the charter describing
+it, which is why leaving it unmerged was the worse option — a live rule nobody
+had written down is the exact failure this pipeline spent the night fixing.
+
 **Found:** nothing — this is a change Sal asked for, not a finding. Logging it
 because it alters §2 and, more to the point, because it removes one of his
 checkpoints. A change that reduces his oversight should never be discoverable
