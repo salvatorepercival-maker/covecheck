@@ -148,8 +148,10 @@ Judge by what reaches the screen, not by how different the diffs look.
 
 Record the options with `record-decision.sh <project> <pr> <card.json>` before
 writing the log entry. The script takes **two to four** options; each carries
-what changes, what a user would see differently, and its tradeoff, and exactly
-one carries `recommended` and the reason for it.
+what changes, what a user would see differently, and its tradeoff. **At most one
+may carry `recommended`**, and if one does it needs its `why`. Marking none is
+allowed and is a real answer — see "Automatic selection" below, where it is the
+only thing that still puts the choice in Sal's hands.
 
 **Paste the options, write the rest by hand.** The script prints a whole log
 block on stdout, and only part of it belongs in your entry. Keep the
