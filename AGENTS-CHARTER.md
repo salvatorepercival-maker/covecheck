@@ -254,7 +254,10 @@ remains `approvedBySal` before merge.
 
 **The no-recommendation fallback works here too, and it had to be made to.** A
 request card carrying no recommendation waits for Sal, and City Hall renders a
-Choose control for each option exactly as the Shipyard does. `reviewer` found on
+Choose control for each option on the same rule the Shipyard uses — a card is
+finished only when a choice was made **and** its brief actually reached `main`.
+A dispatch that failed therefore keeps its buttons, because choosing again is
+the retry. `reviewer` found on
 PR #18 that this was originally a dead end — the panel drew no buttons and
 `/decide` rejected a `req-` key outright, so the one route §2 calls "the only
 way to put a choice back in his hands" did not exist on the path that most
@@ -279,7 +282,23 @@ When `builder` opens one, `migrate-decision.sh` sets `prNumber` on **the same
 record** — it is not copied to a second row. One record, reachable by either
 identity; two rows could drift, and drift is what this avoids.
 
-Enabled for CoveCheck only, alongside auto-select. Ripper follows once proven.
+**Enabled for CoveCheck only, and genuinely gated** — `REQUEST_CARD_PROJECTS`
+in `deploy_api.py`, checked in `request_cards()`, `migrate_decision()`,
+`decide()` and `record-decision.sh`. It is deliberately a separate set from
+`AUTO_SELECT_PROJECTS`: "may a request raise a card here?" and "is that card
+acted on without Sal picking?" are different questions, and a project could
+reasonably have the first without the second. `reviewer` found on PR #18 that
+only auto-select had been gated, so the machinery was live on Ripper while this
+paragraph claimed otherwise. PR-keyed watchdog cards are unaffected by the gate
+on either project.
+
+**Known gap, narrowed rather than closed.** A request card migrated onto PR #N
+owns that number, and `_decisions()` cannot hold two different records under one
+key. `record-decision.sh` now **refuses** to record a second, PR-keyed card for
+such a pull request, so the collision is a loud error before anything is written
+rather than a silent success that leaves one card unreachable. What is **not**
+built is the real fix — letting both cards coexist on one pull request. If that
+refusal ever fires in practice, that is the signal to build it.
 
 #### What a recorded choice binds, and what it does not
 

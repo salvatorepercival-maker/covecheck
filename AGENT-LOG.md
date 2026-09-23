@@ -94,11 +94,46 @@ change was built to provide.
    to itself; it could not fail. It now snapshots before. The claimed total also
    counted the `def check(` line.
 
-**Verified — 39 assertions, all passing, with the decision log and task queue
-redirected to temp files.** No brief reached `main`, no builder ran, and the
-real `decision-log/covecheck.jsonl` was byte-identical before and after. The
+**Three further findings from `reviewer` at `d3093c3`, all upheld, all
+addressed.** Sal authorised one final round, scoped to these.
+
+- **N1 — a failed dispatch had no retry.** `renderRequestCards` gated its
+  buttons on `chosen` alone, while the Shipyard gates on `chosen && !stuck`. A
+  request card whose brief never reached `main` therefore displayed the failure
+  with no way to act on it — the same dead end the previous round claimed to
+  have closed, sitting in the paragraph that claimed it. Now on the Shipyard's
+  rule: choosing again is the retry.
+- **N2 — "CoveCheck only" was false.** Only auto-select was gated; the
+  request-card machinery itself ran anywhere, so it was live on Ripper while the
+  charter said otherwise. **Gated rather than documented**, on Sal's choice of
+  the two: a new `REQUEST_CARD_PROJECTS`, checked in `request_cards()`,
+  `migrate_decision()`, `decide()` and `record-decision.sh`. Kept separate from
+  `AUTO_SELECT_PROJECTS` because the two answer different questions. Documenting
+  it as ungated would have overridden Sal's CoveCheck-first scoping with our own
+  judgement; making the existing claim true was the honest half.
+- **N3 — narrowed, not closed, and deliberately so.** The reverse-order
+  collision — migrate onto a free PR, then record a native card for that number
+  — now makes `record-decision.sh` **refuse before writing anything**, naming
+  the request that owns the number. The real fix, letting two cards coexist on
+  one pull request, is **not built**. If that refusal ever fires in practice,
+  that is the signal to build it.
+
+**A defect found while testing N3, worth recording on its own.** The first
+version of that check read `cfg["decision"]` rather than the log the run was
+actually writing, so under an overridden `DECISION_LOG` it silently passed —
+answering a question about a different file. Exactly the failure the auto-select
+`DECISION_LOG` guard was written for, repeated. `decisions_from_path()` was
+extracted so both paths share one reader and the caller names the file.
+
+**Verified — 51 assertions, all passing, with the decision log and task queue
+redirected to temp files.** No brief reached `main` and no builder ran. The
 count is the number of `PASS` lines the run prints, checked rather than
 estimated.
+
+The real `decision-log/covecheck.jsonl` did change during this round, and **not
+because of these tests**: `watchdog` recorded a live ESCALATE for PR #19 at
+07:06Z. Verified by diffing against the pre-test snapshot — one appended line,
+authored by `watchdog`, unrelated to anything here.
 
 - A request card keys by request id, and `decide()` succeeds with **no pull
   request at all** — the 502 that previously made this impossible is gone.
