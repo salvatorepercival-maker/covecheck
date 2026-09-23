@@ -197,6 +197,47 @@ describe('mergeReasons', () => {
     const merged = mergeReasons(hours)
     expect(merged.map((r) => r.code)).toEqual(['STRONG_GUSTS', 'LOW_WAVE_ENERGY', 'CALM_WIND'])
   })
+
+  /**
+   * `assessHour` refuses to emit MARGINAL_WIND in an hour that raised
+   * STRONG_GUSTS, because the caveat reads as a softening of the hazard. This
+   * list is deduplicated *across* hours, so it can rebuild that pair out of two
+   * hours neither of which had both — and this list, not the hour's, is what
+   * `components/report-view.tsx` renders.
+   *
+   * Reachable, not hypothetical: an onshore hour at 10 mph with 14 mph gusts is
+   * `caution` via ONSHORE_WIND and carries MARGINAL_WIND; the next hour at
+   * 20 mph with 25 mph gusts is `caution` via ONSHORE_WIND and STRONG_GUSTS.
+   * Same verdict, consecutive, so `groupWindows` puts them in one window.
+   */
+  it('drops the marginal-wind caveat from a window that carries a gust hazard', () => {
+    const hours: HourAssessment[] = [
+      {
+        ...hour({ hour: 8, verdict: 'caution' }),
+        reasons: [reason('ONSHORE_WIND'), reason('MARGINAL_WIND', '10 mph sustained')],
+      },
+      {
+        ...hour({ hour: 9, verdict: 'caution' }),
+        reasons: [reason('ONSHORE_WIND'), reason('STRONG_GUSTS', 'gusts to 25 mph')],
+      },
+    ]
+
+    const codes = mergeReasons(hours).map((r) => r.code)
+    expect(codes).toContain('STRONG_GUSTS')
+    expect(codes).not.toContain('MARGINAL_WIND')
+  })
+
+  it('keeps the caveat in a window with no gust hazard in any hour', () => {
+    const hours: HourAssessment[] = [
+      {
+        ...hour({ hour: 8, verdict: 'great' }),
+        reasons: [reason('LOW_WAVE_ENERGY'), reason('MARGINAL_WIND', '30 mph sustained')],
+      },
+      { ...hour({ hour: 9, verdict: 'great' }), reasons: [reason('LOW_WAVE_ENERGY')] },
+    ]
+
+    expect(mergeReasons(hours).map((r) => r.code)).toContain('MARGINAL_WIND')
+  })
 })
 
 describe('ranking two candidate windows', () => {

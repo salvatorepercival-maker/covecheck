@@ -218,6 +218,289 @@ describe('assessHour wind handling', () => {
   })
 })
 
+/**
+ * The band between this beach's `great` ceiling and its `caution` ceiling.
+ *
+ * Before MARGINAL_WIND this band emitted no wind reason of any kind, so the hour
+ * resolved to `great` and its reason list said nothing about the wind at all.
+ * The only wind-magnitude cases previously covered here were 40 mph / 55 mph —
+ * both well above `caution` — and `null`, which is exactly why the gap survived.
+ *
+ * Offshore ceilings at Cromwell's: sustained great 25 / caution 32, gusts great
+ * 31 / caution 40. Onshore: sustained 8 / 12, gusts 12 / 18.
+ */
+describe('assessHour marginal wind', () => {
+  const codesOf = (hours: ReturnType<typeof buildSeries>) =>
+    assessHour(hours, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null)).reasons.map(
+      (r) => r.code,
+    )
+
+  const assess = (spec: Parameters<typeof buildSeries>[0][number]) => {
+    const hours = buildSeries([spec])
+    return assessHour(hours, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null))
+  }
+
+  it('says the wind out loud for the case measured on production', () => {
+    // 2026-09-24T18:00 as served by the live site: 30.0 mph sustained with
+    // 38.7 mph gusts, offshore, rendering `great` with `FAVORABLE_WIND_DIRECTION`
+    // as its only wind reason. See PR #19.
+    const result = assess({ hour: 8, windSpeedMph: 30, windGustMph: 38.7, windDirectionDeg: 350 })
+    const marginal = result.reasons.find((r) => r.code === 'MARGINAL_WIND')
+
+    expect(marginal).toBeDefined()
+    expect(marginal?.detail).toBe('30 mph sustained, gusts to 39 mph')
+    expect(marginal?.severity).toBe('caveat')
+  })
+
+  it('leaves the verdict green and drops confidence to medium', () => {
+    // This is what option B on PR #19's decision card chose, and what it did NOT
+    // choose: the hour is no longer silent about the wind, and it still reads
+    // "Great window". Changing that is a separate calibration decision.
+    const result = assess({ hour: 8, windSpeedMph: 30, windGustMph: 38.7, windDirectionDeg: 350 })
+
+    expect(result.verdict).toBe('great')
+    expect(result.confidence).toBe('medium')
+  })
+
+  it('fires on either measure alone, carrying only the number that applies', () => {
+    const sustainedOnly = assess({ hour: 8, windSpeedMph: 30, windGustMph: 20 })
+    expect(sustainedOnly.reasons.find((r) => r.code === 'MARGINAL_WIND')?.detail).toBe(
+      '30 mph sustained',
+    )
+
+    const gustOnly = assess({ hour: 8, windSpeedMph: 20, windGustMph: 39 })
+    expect(gustOnly.reasons.find((r) => r.code === 'MARGINAL_WIND')?.detail).toBe(
+      'gusts to 39 mph',
+    )
+    // The sustained figure is genuinely calm, so it keeps saying so.
+    expect(gustOnly.reasons.map((r) => r.code)).toContain('CALM_WIND')
+  })
+
+  it('stays silent at or below the great ceiling, on both measures', () => {
+    const atCeiling = assess({ hour: 8, windSpeedMph: 25, windGustMph: 31 })
+    expect(atCeiling.reasons.map((r) => r.code)).not.toContain('MARGINAL_WIND')
+    expect(atCeiling.verdict).toBe('great')
+    expect(atCeiling.confidence).toBe('high')
+  })
+
+  it('hands over to STRONG_GUSTS strictly above the caution ceiling', () => {
+    // At the ceiling exactly, still marginal — the existing comparisons are `>`.
+    const atCaution = assess({ hour: 8, windSpeedMph: 32, windGustMph: 40 })
+    expect(atCaution.reasons.map((r) => r.code)).toContain('MARGINAL_WIND')
+    expect(atCaution.reasons.map((r) => r.code)).not.toContain('STRONG_GUSTS')
+    expect(atCaution.verdict).toBe('great')
+
+    const above = assess({ hour: 8, windSpeedMph: 33, windGustMph: 41 })
+    expect(above.reasons.map((r) => r.code)).toContain('STRONG_GUSTS')
+    expect(above.reasons.map((r) => r.code)).not.toContain('MARGINAL_WIND')
+    expect(above.verdict).toBe('caution')
+  })
+
+  it('uses the onshore ceilings when the wind is not offshore', () => {
+    // 180° is straight off the water: great 8 / caution 12 sustained. 10 mph is
+    // marginal there and squarely calm offshore, so this proves the band is read
+    // from the direction-selected limits rather than a fixed pair.
+    const onshore = codesOf(buildSeries([{ hour: 8, windSpeedMph: 10, windGustMph: 14, windDirectionDeg: 180 }]))
+    expect(onshore).toContain('MARGINAL_WIND')
+
+    const offshore = codesOf(buildSeries([{ hour: 8, windSpeedMph: 10, windGustMph: 14, windDirectionDeg: 350 }]))
+    expect(offshore).not.toContain('MARGINAL_WIND')
+    expect(offshore).toContain('CALM_WIND')
+  })
+
+  it('does not fire while wind calibration is unresolved', () => {
+    // With the gap open the engine must not compare raw provider wind against
+    // shoreline-referenced ceilings at all — including these ones.
+    const uncalibrated = {
+      ...CROMWELLS,
+      calibration: CROMWELLS.calibration.map((gap) =>
+        gap.affectedThresholds.some((t) => t.includes('wind'))
+          ? { ...gap, status: 'unresolved' as const }
+          : gap,
+      ),
+    }
+    const hours = buildSeries([{ hour: 8, windSpeedMph: 30, windGustMph: 38.7 }])
+    const codes = assessHour(hours, 0, buildContext(uncalibrated, hours, null)).reasons.map(
+      (r) => r.code,
+    )
+    expect(codes).toContain('WIND_NOT_CALIBRATED')
+    expect(codes).not.toContain('MARGINAL_WIND')
+  })
+
+  it('never changes a verdict, across every reachable wind and gust combination', () => {
+    // The load-bearing claim of this change, checked by execution rather than by
+    // reading: re-resolving each hour from its reasons with every MARGINAL_WIND
+    // removed must produce the same verdict it already has. Sweeps both
+    // exposures, both null gusts and measured ones, and every band boundary on
+    // both measures.
+    const speeds = [null, 0, 7, 8, 9, 12, 13, 24, 25, 26, 31, 32, 33, 40]
+    const gusts = [null, 0, 11, 12, 13, 17, 18, 19, 30, 31, 32, 39, 40, 41, 55]
+    const directions = [350, 180, 90]
+
+    let marginalHours = 0
+    for (const windSpeedMph of speeds) {
+      for (const windGustMph of gusts) {
+        for (const windDirectionDeg of directions) {
+          const result = assess({ hour: 8, windSpeedMph, windGustMph, windDirectionDeg })
+          const withoutMarginal = result.reasons.filter((r) => r.code !== 'MARGINAL_WIND')
+          if (withoutMarginal.length !== result.reasons.length) marginalHours += 1
+
+          const severities = new Set(withoutMarginal.map((r) => r.severity))
+          const expected = severities.has('blocker')
+            ? 'not_recommended'
+            : severities.has('disqualifying')
+              ? 'insufficient_data'
+              : severities.has('negative')
+                ? 'caution'
+                : 'great'
+
+          expect(
+            result.verdict,
+            `${windSpeedMph} mph / ${windGustMph} gust / ${windDirectionDeg}° changed verdict`,
+          ).toBe(expected)
+        }
+      }
+    }
+
+    // Guard against the sweep passing vacuously because nothing ever fired.
+    expect(marginalHours).toBeGreaterThan(0)
+  })
+})
+
+/**
+ * The caveat must never soften the hazard reason standing next to it.
+ *
+ * Sustained wind and gusts are banded independently, so one measure can be past
+ * `caution` — raising STRONG_GUSTS, "Gusty wind is forecast" — while the other
+ * is still mid-band. Before this, that hour also carried MARGINAL_WIND, whose
+ * copy ends "below the level CoveCheck treats as too gusty", printed directly
+ * beneath the hazard and contradicting it. Found by `reviewer` on PR #20.
+ *
+ * Only `text` reaches the screen — `components/report-view.tsx` renders the
+ * bullet copy and never the detail string — so the numbers that distinguished
+ * the two lines were not visible to the reader.
+ */
+describe('assessHour marginal wind beside a wind hazard', () => {
+  const assess = (spec: Parameters<typeof buildSeries>[0][number]) => {
+    const hours = buildSeries([spec])
+    return assessHour(hours, 0, buildContext(CROMWELLS_FULLY_CALIBRATED, hours, null))
+  }
+
+  it('stays silent when the gusts are hazardous and the sustained wind is marginal', () => {
+    // The exact hour `reviewer` reproduced: 28 mph sustained sits in the
+    // offshore marginal band (great 25 / caution 32), 45 mph gusts are past the
+    // gust ceiling of 40.
+    const result = assess({ hour: 8, windSpeedMph: 28, windGustMph: 45, windDirectionDeg: 350 })
+    const codes = result.reasons.map((r) => r.code)
+
+    expect(codes).toContain('STRONG_GUSTS')
+    expect(codes).not.toContain('MARGINAL_WIND')
+    // Suppressing a caveat must not rescue the hour: it is still a hazard hour.
+    expect(result.verdict).toBe('caution')
+  })
+
+  it('stays silent in the mirror case, hazardous sustained wind and marginal gusts', () => {
+    // 35 mph sustained is past the 32 mph ceiling; 35 mph gusts sit in the
+    // marginal gust band (great 31 / caution 40). The same contradiction, with
+    // the two measures swapped.
+    const result = assess({ hour: 8, windSpeedMph: 35, windGustMph: 35, windDirectionDeg: 350 })
+    const codes = result.reasons.map((r) => r.code)
+
+    expect(codes).toContain('STRONG_GUSTS')
+    expect(codes).not.toContain('MARGINAL_WIND')
+    expect(result.verdict).toBe('caution')
+  })
+
+  it('applies the same rule on the onshore ceilings', () => {
+    // Onshore: sustained great 8 / caution 12, gusts great 12 / caution 18.
+    // 10 mph is marginal, 25 mph gusts are hazardous.
+    const codes = assess({
+      hour: 8,
+      windSpeedMph: 10,
+      windGustMph: 25,
+      windDirectionDeg: 180,
+    }).reasons.map((r) => r.code)
+
+    expect(codes).toContain('STRONG_GUSTS')
+    expect(codes).not.toContain('MARGINAL_WIND')
+  })
+
+  it('still speaks when neither measure is hazardous', () => {
+    // The suppression must not swallow the case the code exists for.
+    const codes = assess({
+      hour: 8,
+      windSpeedMph: 30,
+      windGustMph: 38.7,
+      windDirectionDeg: 350,
+    }).reasons.map((r) => r.code)
+
+    expect(codes).toContain('MARGINAL_WIND')
+    expect(codes).not.toContain('STRONG_GUSTS')
+  })
+
+  it('never pairs the caveat with the hazard, across every reachable combination', () => {
+    // The class, not the instance. Sweeps both exposures and every band
+    // boundary on both measures, and counts each outcome so the assertion
+    // cannot pass because nothing reached it.
+    const speeds = [null, 0, 7, 8, 9, 12, 13, 24, 25, 26, 31, 32, 33, 40]
+    const gusts = [null, 0, 11, 12, 13, 17, 18, 19, 30, 31, 32, 39, 40, 41, 55]
+    const directions = [350, 180, 90]
+
+    let marginalHours = 0
+    let suppressedHours = 0
+    for (const windSpeedMph of speeds) {
+      for (const windGustMph of gusts) {
+        for (const windDirectionDeg of directions) {
+          const codes = assess({ hour: 8, windSpeedMph, windGustMph, windDirectionDeg }).reasons.map(
+            (r) => r.code,
+          )
+          const hazard = codes.includes('STRONG_GUSTS')
+          const caveat = codes.includes('MARGINAL_WIND')
+
+          expect(
+            hazard && caveat,
+            `${windSpeedMph} mph / ${windGustMph} gust / ${windDirectionDeg}° rendered the caveat beside the hazard`,
+          ).toBe(false)
+
+          if (caveat) marginalHours += 1
+          // A measure in the middle band whose hour raised the hazard anyway is
+          // exactly what the suppression is for.
+          if (hazard && !caveat) suppressedHours += 1
+        }
+      }
+    }
+
+    expect(marginalHours).toBeGreaterThan(0)
+    expect(suppressedHours).toBeGreaterThan(0)
+  })
+
+  it('leaves the co-occurrences that are not contradictions alone', () => {
+    // CALM_WIND: sustained wind genuinely inside the calm band while the gusts
+    // are not. Both statements are true of different measures, and silencing
+    // either would delete information the reader needs. The copy carries the
+    // weight here — it claims the wind is "not fully within" the calm range,
+    // never that it is above it. See reasons.test.ts.
+    const calm = assess({ hour: 8, windSpeedMph: 20, windGustMph: 39, windDirectionDeg: 350 })
+    expect(calm.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(['CALM_WIND', 'MARGINAL_WIND']),
+    )
+
+    // ONSHORE_WIND and FAVORABLE_WIND_DIRECTION describe direction, not
+    // magnitude, so neither can contradict a band caveat. Onshore in
+    // particular is what *selected* the tighter ceilings this caveat is
+    // measured against, so the two agree by construction.
+    const onshore = assess({ hour: 8, windSpeedMph: 10, windGustMph: 14, windDirectionDeg: 180 })
+    expect(onshore.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(['ONSHORE_WIND', 'MARGINAL_WIND']),
+    )
+
+    const offshore = assess({ hour: 8, windSpeedMph: 30, windGustMph: 30, windDirectionDeg: 350 })
+    expect(offshore.reasons.map((r) => r.code)).toEqual(
+      expect.arrayContaining(['FAVORABLE_WIND_DIRECTION', 'MARGINAL_WIND']),
+    )
+  })
+})
+
 describe('assessHour runoff', () => {
   it('blocks a green verdict after heavy rain', () => {
     const hours = buildSeries([

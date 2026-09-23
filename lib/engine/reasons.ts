@@ -24,6 +24,7 @@ export type ReasonCode =
   | 'DIRECT_SOUTH_SWELL'
   | 'MARGINAL_SWELL'
   | 'SRF_DISAGREES_WITH_MODEL'
+  | 'MARGINAL_WIND'
   | 'STRONG_GUSTS'
   | 'ONSHORE_WIND'
   | 'LOW_TIDE_OVER_REEF'
@@ -119,6 +120,47 @@ const COPY: Record<ReasonCode, { severity: ReasonSeverity; text: string }> = {
   SRF_DISAGREES_WITH_MODEL: {
     severity: 'caveat',
     text: 'The National Weather Service forecasts more surf for this shore than the swell reaching this cove suggests — worth a look at the water',
+  },
+  /**
+   * `caveat`, and that is the whole of what this code does.
+   *
+   * Wind between this beach's `great` ceiling and its `caution` ceiling used to
+   * emit no reason at all, so the hour resolved to `great` and the reason list
+   * carried no wind line — a parent read an offshore 30 mph hour with 39 mph
+   * gusts and was told nothing about the wind. This says the number out loud and
+   * caps confidence at `medium`; it deliberately does NOT move the verdict, so
+   * such an hour still reads `Great window`.
+   *
+   * That restraint is a choice, not a claim that the band is fine. Whether
+   * exceeding the `great` ceiling should cap the verdict is a live calibration
+   * question — the ceilings rest on a single in-water observation
+   * (`lib/beach/cromwells.ts`), and this project has twice been burned by
+   * blanket tightening on thin evidence (DECISIONS.md #15). Fixing the silence
+   * is separable from re-opening that line, and only the silence is fixed here.
+   *
+   * **The copy is a partial claim on purpose, and the clause order matters.**
+   * Sustained wind and gusts are banded independently, so this code fires when
+   * *either* is in its middle band — including when the other is squarely calm
+   * and `CALM_WIND` is emitted for the same hour. An earlier wording, "Wind is
+   * above the range this beach reads as calm", stated of the wind as a whole
+   * what was only known of one measure, and sat directly beside a positive
+   * saying the wind was among the lightest in the forecast. Only the detail
+   * string distinguished them, and `detail` is not rendered anywhere in the UI
+   * (`components/report-view.tsx` prints `text` alone), so on screen the two
+   * bullets simply disagreed. "Not fully within" is true of either measure
+   * being over, and contradicts nothing.
+   *
+   * The trailing "though below the level CoveCheck treats as too gusty" is a
+   * reassurance, and it is only ever true because `assessHour` and
+   * `mergeReasons` both suppress this code wherever `STRONG_GUSTS` shares the
+   * list. Do not remove either suppression while this clause is here: found by
+   * `reviewer` on PR #20, where an hour at 28 mph sustained with 45 mph gusts
+   * rendered this line directly beneath "Gusty wind is forecast" and softened
+   * it.
+   */
+  MARGINAL_WIND: {
+    severity: 'caveat',
+    text: 'Wind is not fully within this beach\'s calm range, though below the level CoveCheck treats as too gusty',
   },
   STRONG_GUSTS: {
     severity: 'negative',

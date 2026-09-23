@@ -105,6 +105,28 @@ describe('copy cannot contradict the condition cards', () => {
     expect(reason('LOW_WAVE_ENERGY').text).toMatch(/swell/i)
     expect(reason('LOW_WAVE_ENERGY').text.length).toBeGreaterThan(20)
   })
+
+  it('makes only a partial claim in the marginal-wind caveat', () => {
+    // The bug: "Wind is above the range this beach reads as calm" stated of the
+    // wind as a whole what the engine knew of one measure. Sustained wind and
+    // gusts are banded separately, so this code legitimately shares an hour
+    // with CALM_WIND — calm sustained wind, marginal gusts — and the two
+    // bullets then flatly disagreed. Only `text` is rendered
+    // (`components/report-view.tsx`), so the detail string carrying the numbers
+    // could not tell them apart for the reader.
+    const text = reason('MARGINAL_WIND').text
+    expect(text).not.toMatch(/^wind is above\b/i)
+    expect(text).toMatch(/\bnot fully\b|\bpartly\b|\bone measure\b/i)
+  })
+
+  it('keeps the marginal-wind reassurance, which its suppression rule makes true', () => {
+    // The trailing clause is what makes this a caveat rather than a warning,
+    // and it is only ever accurate because `assessHour` and `mergeReasons`
+    // suppress this code wherever STRONG_GUSTS shares the list. If the clause
+    // is ever dropped, those suppressions can be reconsidered; while it is
+    // here, they are load-bearing. See assess.test.ts and windows.test.ts.
+    expect(reason('MARGINAL_WIND').text).toMatch(/below the level/i)
+  })
 })
 
 describe('reason severities', () => {
@@ -118,6 +140,15 @@ describe('reason severities', () => {
     expect(severityOf('STALE_DATA')).toBe('disqualifying')
     expect(severityOf('MISSING_CRITICAL_DATA')).toBe('disqualifying')
     expect(severityOf('HAZARD_STATE_UNKNOWN')).toBe('disqualifying')
+  })
+
+  it('treats wind in the marginal band as a caveat, which shows it without moving the verdict', () => {
+    // Deliberately `caveat` rather than `negative`: PR #19's option B fixes the
+    // silence — an hour over the `great` ceiling emitted no wind reason at all —
+    // without re-opening where the green/amber line sits on ceilings that rest
+    // on one in-water observation. `negative` here would flip those hours to
+    // caution, which is a different option and was not the one chosen.
+    expect(severityOf('MARGINAL_WIND')).toBe('caveat')
   })
 
   it('treats uncalibrated wind as preventing a green verdict', () => {

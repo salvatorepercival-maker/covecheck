@@ -88,6 +88,21 @@ export function mergeReasons(hours: readonly HourAssessment[]): Reason[] {
     }
   }
 
+  // `assessHour` already refuses to emit MARGINAL_WIND in an hour that raised
+  // STRONG_GUSTS, because the caveat's copy ends "below the level CoveCheck
+  // treats as too gusty" and reads as a softening of the hazard beside it.
+  // Deduplicating across hours can put the pair back together from two
+  // different hours of one window — a marginal-wind hour and a strong-gust hour
+  // sharing a verdict (both `caution`, say, under an onshore wind) are grouped
+  // into the same window, and `components/report-view.tsx` renders this merged
+  // list, not the hour's. So the rule has to hold here too.
+  //
+  // This cannot move a verdict or a score: `resolveVerdict` reads an hour's own
+  // reasons, `weakestConfidence` reads hour confidences, and `scoreWindow`
+  // reads metrics and confidence. Nothing downstream resolves anything from
+  // this list; it is the display list.
+  if (seen.has('STRONG_GUSTS')) seen.delete('MARGINAL_WIND')
+
   const order = { blocker: 0, disqualifying: 1, negative: 2, caveat: 3, positive: 4 } as const
   return [...seen.values()].sort((a, b) => order[a.severity] - order[b.severity])
 }

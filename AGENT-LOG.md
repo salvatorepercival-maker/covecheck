@@ -22,6 +22,367 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-23 · builder · PROPOSE-ONLY · AWAITING APPROVAL
+
+**Found:** nothing new. This implements **option B** of the decision card on
+PR #19, chosen by Sal. The finding is `watchdog`'s, on that pull request: wind
+between this beach's `great` ceiling and its `caution` ceiling emitted no reason
+of any kind, so `resolveVerdict` — which reads only reason severities — resolved
+the hour to `great` and the reason list said nothing at all about the wind.
+
+PROPOSE-ONLY because it is `lib/engine/`; §2 says the directory decides. Sal's
+choice of option starts the route and does not end it, so this is open as a pull
+request and is not applied, merged, or deployed. It needs a reviewer
+`verdict: safe` and `approvedBySal` against its head commit before the Shipyard
+shows a button.
+
+**Revised 2026-09-23 — `reviewer` flagged the first head, and was right.**
+`reviewer` returned `verdict: flagged` on `0bbdb526`, recorded
+2026-09-23T18:16:26Z. Its finding, reproduced here before anything was changed:
+the two wind measures are banded *independently*, so `STRONG_GUSTS` can fire for
+one while the other is still mid-band and lands in `marginal[]`. On the live
+Cromwell's profile an hour at 28 mph sustained with 45 mph gusts emitted both,
+and `mergeReasons` sorts caveats immediately after negatives, so the page
+rendered
+
+> • Gusty wind is forecast
+> • Wind is above the range this beach reads as calm, though below the level
+>   CoveCheck treats as too gusty
+
+— a reassurance printed directly beneath a hazard, on a hazard hour, softening
+it. The reviewer's `verdict` findings held up in the other direction too: its
+independent sweep also found zero verdict differences, matching this entry's
+original claim. This was a copy and emission defect, not a problem with option B.
+
+**The head commit has therefore moved.** Any approval attaches to the new SHA;
+there was no `approvedBySal` on `0bbdb526`, so nothing was invalidated.
+
+**Proposed:** a new `MARGINAL_WIND` reason code, severity `caveat`, emitted for
+either measure in its middle band, carrying the measured number, **suppressed
+wherever a wind hazard shares the list**, and worded as a partial claim.
+
+```diff
+--- a/lib/engine/reasons.ts
++++ b/lib/engine/reasons.ts
++  MARGINAL_WIND: {
++    severity: 'caveat',
++    text: 'Wind is not fully within this beach\'s calm range, though below the level CoveCheck treats as too gusty',
++  },
+
+--- a/lib/engine/assess.ts
++++ b/lib/engine/assess.ts
+     const marginal: string[] = []
++    let hazardousWind = false
+
+     if (hour.windSpeedMph <= windLimits.great) {
+       reasons.push(reason('CALM_WIND', ...))
+     } else if (hour.windSpeedMph > windLimits.caution) {
+       reasons.push(reason('STRONG_GUSTS', `${...} mph sustained`))
++      hazardousWind = true
+     } else {
+       marginal.push(`${hour.windSpeedMph.toFixed(0)} mph sustained`)
+     }
+
+     if (hour.windGustMph !== null && hour.windGustMph > gustLimits.caution) {
+       reasons.push(reason('STRONG_GUSTS', `gusts to ${...} mph`))
++      hazardousWind = true
+     } else if (hour.windGustMph !== null && hour.windGustMph > gustLimits.great) {
+       marginal.push(`gusts to ${hour.windGustMph.toFixed(0)} mph`)
+     }
+
+-    if (marginal.length > 0) {
++    if (marginal.length > 0 && !hazardousWind) {
+       reasons.push(reason('MARGINAL_WIND', marginal.join(', ')))
+     }
+
+--- a/lib/engine/windows.ts
++++ b/lib/engine/windows.ts
+ export function mergeReasons(hours: readonly HourAssessment[]): Reason[] {
+   ...
++  if (seen.has('STRONG_GUSTS')) seen.delete('MARGINAL_WIND')
++
+   const order = { blocker: 0, disqualifying: 1, negative: 2, caveat: 3, positive: 4 }
+```
+
+**Why this fix, and what was rejected.**
+
+Three things were wrong at once, and they need different repairs:
+
+1. *The caveat softened a hazard beside it.* Fixed by suppressing
+   `MARGINAL_WIND` for the whole hour whenever either measure raised
+   `STRONG_GUSTS`. The hazard reason is the stronger and truer statement about
+   that wind; a caveat ending "below the level CoveCheck treats as too gusty"
+   can only subtract from it.
+2. *The same pair reassembles at window scope.* `mergeReasons` deduplicates
+   across the hours of a window, and `components/report-view.tsx:68` renders
+   **that merged list**, not the hour's. So the rule is repeated there.
+3. *The copy made an absolute claim from one measure.* "Wind is above the range
+   this beach reads as calm" is false of the wind as a whole when only the
+   gusts are marginal — and that hour also emits `CALM_WIND`. Reworded to
+   "Wind is not fully within this beach's calm range", which is true whichever
+   measure is over.
+
+**Rejected: suppression alone.** It leaves the `CALM_WIND` collision, where the
+caveat and a positive make opposite absolute claims about "Wind" on the same
+screen. Silencing either would delete true information — the sustained figure
+genuinely is calm and the gusts genuinely are not — so this one is a copy
+problem and had to be fixed as one.
+
+**Rejected: rewording alone, keeping the caveat beside the hazard.** Any wording
+that retains the trailing "below the level CoveCheck treats as too gusty" still
+reassures next to "Gusty wind is forecast", and dropping that clause would
+delete the band information option B exists to convey. It also wastes one of
+the three bullet slots `report-view.tsx` renders on a hazard hour.
+
+**Rejected: splitting into `MARGINAL_WIND_SPEED` and `MARGINAL_WIND_GUSTS`.**
+More precise, and it would fix the absolute-claim problem exactly rather than by
+hedging. Rejected on two counts: it still needs the hazard suppression, so it
+does not replace the main fix; and an hour with both measures marginal would
+spend two of the three lead bullets on wind, crowding out swell and tide. Worth
+revisiting if the caveat copy ever needs to name a number.
+
+**State the thing this does not do.** The hour still says **`Great window`**.
+Option B fixes what is *said*, not what is *claimed*: a 30 mph offshore hour with
+39 mph gusts now carries `gusts to 39 mph` in its reasons and is marked medium
+confidence, and it is still green. If the ceilings in `lib/beach/cromwells.ts`
+are wrong — they rest on one in-water observation, n=1 — this change does not
+help, and the too-permissive verdict `watchdog` escalated is still on the page.
+Options A and C on the card would have moved the verdict; neither was chosen and
+neither is implemented here, not even partially.
+
+**`ENGINE_VERSION` bumped: `2026-08-02.1` → `2026-09-23.1`** (`lib/engine/index.ts:28`).
+Its own docstring says "bump on any change to thresholds interpretation, reason
+semantics, or ranking", and this change hits all three clauses: it adds a reason
+code, it changes what an unchanged hour reports, and via the `high` → `medium`
+confidence move it changes `scoreWindow` output and so can re-rank windows.
+Raised by `reviewer` in round 1 and left open until now. Nothing in the repo
+asserts the literal string — the only consumer is
+`lib/engine/scenarios.test.ts:322`, which matches `/^\d{4}-\d{2}-\d{2}/` and
+still passes, plus a display line in `lib/spike.live.ts:219`. There are no
+snapshots and no stored fixtures anywhere in the repo, so nothing needed
+regenerating and nothing broke. The version has not been bumped since
+`f4cdc9b` created it, so `.1` on a new date follows the `YYYY-MM-DD.N`
+convention without ambiguity.
+
+**Verified by execution.** All numbers below are from the revised head; the
+earlier head's numbers are kept alongside where they moved.
+
+- `npm test` — 285 passed, 15 files, 0 failed (275 at `0bbdb526`, 266 before the
+  branch; 10 added by this revision). **Unchanged by the version bump** — same
+  285, re-run after it.
+- `npm run typecheck` — exit 0, no output. Re-run after the bump.
+- `npm run lint` — exit 0, no output. Re-run after the bump.
+- **The zero-verdict-change property re-established after the bump**, since it
+  is the load-bearing claim of this PR and a changed constant must not be
+  allowed to quietly invalidate it. Fresh two-worktree sweep against `31922cf`,
+  widened well past the earlier one: **209,664 hour rows, 13,440 windows and
+  16,128 whole-day evaluations per side** across three profiles.
+  **Hour, day and window verdict differences: 0. Window boundaries and lengths:
+  identical. `recommendedWindow` and `bestWindow` differences: 0.** Confidence
+  moved on 12,480 hours and 800 windows, every one of them `high` → `medium`
+  and never the reverse, with the window score delta exactly `+0.05` in all 800
+  — the `scoreWindow` medium penalty, and the only numeric effect in the sweep.
+  This grid holds conditions flat across each day, so it contains no two
+  near-tied `great` windows and therefore does **not** re-measure the 7
+  `recommendedWindow` differences reported below; it neither confirms nor
+  contradicts them.
+- **The regression tests fail against `0bbdb526`.** Checked by copying the three
+  revised test files into a worktree at that commit and running them against its
+  engine: **6 of the 10 new tests fail there and pass here**, covering all three
+  fix sites — hour-level suppression (4 in `assess.test.ts`), window-level
+  suppression (1 in `windows.test.ts`), and the copy (1 in `reasons.test.ts`).
+  The other 4 assert behaviour that is deliberately preserved, so they pass on
+  both sides by design.
+- **No hour's verdict changes.** Same method as before: one sweep harness run in
+  two worktrees, one at `31922cf` and one at this branch, JSON diffed — not read.
+  Widened for this revision to **15,435 hour rows and 50 whole-day evaluations
+  per side** across **five profiles** (live Cromwell's, fully-calibrated,
+  wind-unresolved, tide-unresolved, and a north-facing variant that puts the
+  onshore ceilings on the offshore directions). Every band boundary on both wind
+  measures on both exposures, crossed with every swell and tide band.
+  - **Hour verdict differences: 0.**
+  - **Day verdict differences: 0. Window verdict differences: 0. Window count
+    and window boundaries: identical.**
+  - Hour confidence differences: 942, **all `high` → `medium`**, none in the
+    other direction. Down from 1,866 at `0bbdb526`: suppressing the caveat on
+    hazard hours returns 924 hours to the confidence they had at `31922cf`.
+  - Window confidence and score differences: 7 each, all `high` → `medium` and
+    all exactly `+0.05` — the medium penalty in `scoreWindow`. Eight at
+    `0bbdb526`.
+  - `recommendedWindow` differences vs `31922cf`: **7, the same 7 as at
+    `0bbdb526`.** Old head → new head: **0**. This revision introduces no new
+    ranking movement; the effect flagged below is unchanged, not enlarged.
+- **The window-scope defect is real, was on the live profile, and needs the
+  second fix.** Reproduced at `0bbdb526` by execution, not argued: a day of
+  onshore hours running 20 mph / 25 mph gusts until 10:00 and 10 mph / 14 mph
+  after it produces **zero hours carrying both codes** — yet all thirteen hours
+  are `caution`, so `groupWindows` puts them in one window, and the merged list
+  `report-view.tsx` renders came back
+  `ONSHORE_WIND, STRONG_GUSTS, TIDE_BAND_PROVISIONAL, MARGINAL_WIND, …`. The
+  per-hour suppression alone would not have caught this. Nine window reason
+  lists lose `MARGINAL_WIND` between the two heads, three of them on the **live**
+  profile.
+- Window and day verdicts are unchanged on all seven canonical scenarios plus
+  the ten purpose-built days above.
+- A test in `assess.test.ts` re-resolves every hour of the in-suite sweep with
+  all `MARGINAL_WIND` reasons stripped and asserts the verdict is identical, so
+  the claim is guarded in the suite and not only in this log. It counts the
+  hours that actually fired, so it cannot pass vacuously. A second sweep test
+  asserts the hazard and the caveat never share an hour, and counts both the
+  hours that emitted the caveat and the hours where suppression fired, for the
+  same reason.
+
+**The co-occurrence class, checked in full — including where it came back
+clean.** `MARGINAL_WIND` can share an hour with four other wind reasons. All
+four were enumerated by execution across the sweep grid, not reasoned about:
+
+| co-occurring reason | reachable? | verdict |
+| --- | --- | --- |
+| `STRONG_GUSTS` | yes, both directions — hazardous gusts with marginal sustained wind, and hazardous sustained wind with marginal gusts | **contradiction, and a softening one. Fixed** at hour scope and window scope. |
+| `CALM_WIND` | yes — sustained wind inside the calm band, gusts in the marginal band | **contradiction in the opposite direction**: two absolute claims about "Wind", one saying it is among the lightest and one saying it is above the calm range. Not a safety softening, but the same absolute-claim defect. **Fixed by the copy**, not by suppression — both statements are true of their own measure and deleting either loses information. |
+| `ONSHORE_WIND` | yes | clean. Direction, not magnitude, and onshore is what *selected* the tighter ceilings the caveat is measured against, so the two agree by construction. |
+| `FAVORABLE_WIND_DIRECTION` | yes | clean. Direction, not magnitude. |
+| `WIND_NOT_CALIBRATED` | **no** | structurally impossible — they sit in mutually exclusive `else if` branches of the same conditional. Guarded by an existing test, re-confirmed in the sweep: zero co-occurrences in 15,435 rows. |
+
+On `mergeReasons` ordering: the sort is
+`blocker, disqualifying, negative, caveat, positive`, so a caveat lands
+immediately *below* every negative and immediately *above* every positive. That
+placement is what made the `STRONG_GUSTS` pair read as a rebuttal of the line
+above it. With the pair suppressed, the remaining placements are correct — above
+`CALM_WIND` and `FAVORABLE_WIND_DIRECTION`, below `ONSHORE_WIND` — and
+`report-view.tsx` renders only the first three, so the caveat can still be
+pushed off-screen by three negatives. That is existing, intended behaviour for a
+caveat and is not changed here.
+
+**But the cap cuts the other way too, and that part is new. This change can
+push `TIDE_BAND_PROVISIONAL` off the page.** Raised by `reviewer` in round 1,
+still reproducing at `d75c085`, and until now acknowledged nowhere — so it is
+stated here as a known and accepted consequence, not an oversight.
+
+`components/report-view.tsx:69` renders `explanation.slice(0, 3)`. Both
+`MARGINAL_WIND` and `TIDE_BAND_PROVISIONAL` are `caveat`, so they sort into the
+same severity block and the tie is broken by emission order in `assessHour` —
+wind at `assess.ts:427`, tide at `assess.ts:447`. **Wind is emitted first, so
+`MARGINAL_WIND` always sorts ahead of the tide caveat**, and where the tide
+caveat was occupying the third and last rendered slot, it is now displaced out
+of the render entirely.
+
+Measured, not argued. The same two-worktree method: 2,464 whole-day evaluations
+on the **live Cromwell's profile only**, reading exactly the list
+`report-view.tsx` computes — `(day.recommendedWindow ?? day.bestWindow).reasons`
+— and slicing it to three.
+
+- `TIDE_BAND_PROVISIONAL` present in the full merged list: **2,464 of 2,464 on
+  both sides.** The reason is never suppressed; only its rendered position moves.
+- Rendered inside the visible three: **1,273 at `31922cf` → 1,196 here.**
+- **Displaced: 77** (3.1% of the swept grid). Gained back: **0**.
+- In **all 77**, `TIDE_BAND_PROVISIONAL` sat at index 2 — the last visible slot —
+  at baseline, and `MARGINAL_WIND` takes that slot here. Two shapes, both real:
+  `MARGINAL_SWELL, DIRECT_SOUTH_SWELL, [tide → wind]` (63, offshore) and
+  `ONSHORE_WIND, HIGH_TIDE_LESS_SHALLOW, [tide → wind]` (14, onshore).
+- **All 77 are `caution` days. Zero are `great` days.** The displacement needs
+  two negatives already ahead of the caveats, and an all-green day has none —
+  so on the green days this change exists to annotate, the tide caveat keeps
+  its slot.
+
+**Why this is worse than an ordinary caveat being crowded out.** The
+displacement is of a reason whose own docstring (`reasons.ts:245-251`) says it
+"must always be shown, so a one-observation estimate is never mistaken for a
+calibrated threshold" — and DECISIONS.md #13 has the tide band as **provisional
+and now gating** (0.0–1.5 ft MLLW, `n=1`, edges still open), so it is the caveat
+with the thinnest evidence behind it and the most reason to stay on screen. This
+change does not clear that bar on 77 swept day-evaluations.
+
+**The 3.1% is a grid rate, not a production rate — do not read it as one.** The
+sweep samples wind, swell and tide bands uniformly, which is the right shape for
+finding whether a case is reachable and wrong for estimating how often a family
+would meet it. How often it actually fires on the live site depends on the real
+joint distribution of those conditions, which I did not measure: §2 restricts
+`npm run spike` and `npm run diagnose` and I ran neither, so there was no live
+fetch behind any number in this entry.
+
+**Deliberately not fixed here.** Raising the cap above three, or ordering
+caveats by anything other than emission order, is a behaviour change to a
+component outside this change's scope, and Sal authorised the disclosure, not
+the repair. Fixing it silently inside a PR whose load-bearing claim is "nothing
+a user sees changes except one added line" would be the wrong way to do it. It
+should be its own change, with its own review — `builder`'s recommendation is
+that it get one.
+
+**Found while verifying, and not mentioned on the decision card — flagged, and
+carried forward unchanged from the first head.** Window *ranking* can change,
+though no window's verdict does. `weakestConfidence` makes a window medium if
+any hour in it is, and `scoreWindow` charges medium exactly `0.05`. Where two
+`great` windows on one day sat within 0.05 of each other, the recommended window
+moves off the marginal-wind block and onto the calmer one. Reproduced
+deliberately rather than inferred: 7 `recommendedWindow` differences against
+`31922cf`, all on profiles whose tide band is settled, none on the live
+Cromwell's profile. This revision does not change that count — old head to new
+head it is 0. The direction of the effect is conservative: it recommends *away*
+from the windy hours. It is still a user-visible consequence option B's text
+does not describe, and a reviewer should decide whether it is in scope rather
+than discover it.
+
+**Inferred, flagged as such.**
+
+- I did not reproduce the production measurement in PR #19 — no live fetch, and
+  §2 restricts `npm run spike` and `npm run diagnose`, neither of which I ran.
+  The 30.0 mph / 38.7 mph case is reproduced as a **unit test** against the same
+  ceilings, not against the live payload. That the 39 hours `watchdog` counted
+  will now each carry a wind line follows from the ceilings and the band logic; I
+  did not re-count them on production.
+- `components/conditions-grid.tsx:64-69` derives its wind qualifier from reason
+  codes and already falls through to `Moderate` for this band, so it needs no
+  change. I read that, and the test suite covers it; I did not render the page.
+  It checks `STRONG_GUSTS` before `CALM_WIND`, so a hazard hour labels the grid
+  "Strong for this beach" regardless of the caveat — consistent with the
+  suppression. On the `CALM_WIND` + `MARGINAL_WIND` hour the grid reads "Light
+  for this beach" beside the reworded caveat; the qualifier describes the
+  sustained figure the grid is displaying, so I judged that consistent rather
+  than contradictory. That is a reading of the rendered markup, not a rendering
+  of it.
+- **`detail` is never displayed.** `components/report-view.tsx` renders
+  `entry.text` and nothing else, and no other component reads `.detail` — I
+  grepped `app/` and `components/` for it and got no hits outside the engine.
+  This is why the copy had to carry the fix rather than the detail string: the
+  numbers that distinguish "30 mph sustained" from "gusts to 39 mph" do not
+  reach the reader. Established by reading and grepping the components, not by
+  rendering them.
+- `watchdog`'s second, narrower finding — cross-shore hours taking the onshore
+  limits with no `ONSHORE_WIND` negative — is untouched here. `MARGINAL_WIND`
+  does now fire on that path when a cross-shore hour lands in the onshore
+  marginal band (swept above), which makes the branch less silent but does not
+  resolve it. It is a separate finding and needs its own decision.
+
+**Rationale:** `caveat` is the severity that does exactly what option B asked
+for and nothing more — `resolveVerdict` ignores caveats, `resolveConfidence`
+reads them as medium, and `mergeReasons` sorts them ahead of positives so the
+line survives into the verdict bullets on an otherwise all-green hour. The two
+measures collapse into one reason rather than two because the copy would
+otherwise repeat verbatim inside a single hour.
+
+The suppression rule does not weaken that. A caveat is by construction the
+weakest thing the engine can say, and the only hours it is now withheld from are
+hours already carrying a `negative` that says something stronger and more
+specific about the same wind. Nothing is silenced that was not already spoken
+for. What it does cost is the sustained figure on a hazard hour — an hour at
+28 mph with 45 mph gusts now reports only the gusts — and since `detail` is not
+rendered anyway, that costs the reader nothing today. It would start to matter
+if `detail` were ever surfaced, which is worth knowing before it is.
+
+**What argues against it.** The reassurance clause and the suppression rule are
+now coupled: the clause is only true because the suppression exists, and nothing
+in the type system enforces that. Two tests state the coupling in words and a
+third enforces the behaviour, but a future edit that drops the clause and the
+suppression in opposite directions would pass the first and fail nothing
+obvious. A `negative` severity would make the whole problem disappear — and
+would move verdicts, which is option A, which Sal did not choose.
+
+What argues against it: a `caveat` under a `Great window` headline is a quieter
+signal than 39 mph gusts may warrant, and this change makes the wrong-ceiling
+case *harder* to spot, not easier — the page now looks like it has considered the
+wind. That is the tradeoff the card names, and it is Sal's to accept.
+
 ## 2026-09-23 · main · PROPOSE-ONLY · AWAITING APPROVAL
 
 **Found:** nothing — Sal asked for this. Logged because it changes §2 and
