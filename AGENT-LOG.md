@@ -22,6 +22,124 @@ Record what was verified separately from what was inferred. Leave
 
 ---
 
+## 2026-09-22 · watchdog · ESCALATE · ESCALATED
+
+**The live site is showing `great` for hours whose wind and gusts are above this
+beach's own `great` ceilings, with no wind caveat shown to the user at all.**
+
+**Found.** Scheduled health check, 2026-09-22 21:00 HST (`2026-09-23T07:00Z`).
+`https://www.covecheck.com/` returned HTTP 200 in 2.0 s and rendered a real
+verdict — `Great window`, best window today 6 – 9 AM — so this is not an
+availability fault. The fault is in what the verdict says.
+
+`lib/engine/assess.ts:384-393` classifies wind into two branches and leaves the
+middle empty:
+
+```ts
+if (hour.windSpeedMph <= windLimits.great) {
+  reasons.push(reason('CALM_WIND', ...))          // positive
+} else if (hour.windSpeedMph > windLimits.caution) {
+  reasons.push(reason('STRONG_GUSTS', ...))       // negative
+}
+
+if (hour.windGustMph !== null && hour.windGustMph > gustLimits.caution) {
+  reasons.push(reason('STRONG_GUSTS', ...))       // negative
+}
+```
+
+An hour between `great` and `caution` on *either* measure emits **no wind reason
+of any kind**. `resolveVerdict` (`assess.ts:211-218`) reads only reason
+severities, so with nothing negative present the hour resolves to `great`.
+
+Compare the two metrics that do it properly. Swell, `assess.ts:296-303`, is a
+clean three-way — `EXCESSIVE_SWELL` (blocker) / `MARGINAL_SWELL` (negative) /
+`LOW_WAVE_ENERGY` (positive). Tide, `assess.ts:402-408`, carries a negative at
+each end of the band. Wind is the only metric with a silent middle, and the
+consequence is that `windSpeedMph.great` and `windGustMph.great` in
+`lib/beach/cromwells.ts:107-117` do not gate anything. Only the `caution`
+ceilings do.
+
+**Verified — measured from the live page's own payload, not inferred.** Parsing
+the RSC payload served by production (168 hours, `evaluatedAtUtc`
+`2026-09-23T07:00:36.048Z`, `engineVersion 2026-08-02.1`, `configVersion
+2026-08-03.1`):
+
+| observation | value |
+| --- | --- |
+| hours in the marginal offshore wind or gust band | 68 / 168 |
+| of those, carrying verdict `great` | **39** |
+| worst case | `2026-09-24T18:00` — **30.0 mph sustained, 38.7 mph gusts, verdict `great`** |
+| that hour's wind reasons | `FAVORABLE_WIND_DIRECTION` only |
+| hour shown live as "conditions now" at time of check | `2026-09-22T21:00` — 25.9 mph, gusts 34.0 mph, verdict `great` |
+
+Against the profile's offshore ceilings (`great` 25 mph / 31 mph gusts, `caution`
+32 mph / 40 mph gusts), the worst case sits 5.0 mph over the sustained `great`
+ceiling and 7.7 mph over the gust `great` ceiling and still renders green. It
+falls at 6 PM, inside the 6a–7p strip the page draws, so it is on screen.
+
+The user-visible effect is not only the colour. Because no wind reason is
+emitted, the reason list carries no wind line at all — a parent reading that hour
+sees `LOW_WAVE_ENERGY`, `FAVORABLE_WIND_DIRECTION`, `FAVORABLE_TIDE` and is told
+nothing about 38.7 mph gusts.
+
+**Verified — what is NOT wrong.** All four upstream providers are healthy:
+every one of the 168 hours carries `sourceFreshness` `status: "ok"` with
+`ageSeconds: 0` for `marine`, `weather`, `tides` and `alerts` (672 status fields,
+zero non-`ok`). `activeHazards` is `[]` — an empty alert list from a *successful*
+fetch, which is the healthy reading, not a failed one. `npm run diagnose` ran
+clean (1 passed) and its `great days: 4 / 7` matches the four green days the live
+page shows, so production and a fresh local engine run agree. `npm test` passes
+266/266. Freshness is fine: "Updated just now". Today's headline window (6 – 9 AM,
+16.1–19.1 mph sustained, 21.7–24.6 mph gusts) is genuinely below every ceiling
+and is **not** affected by this bug — the headline verdict is sound; the hourly
+strip and the "conditions now" chip are where it shows.
+
+**Verified — the test suite does not cover this.** The only wind-magnitude cases
+in `lib/engine/assess.test.ts` are `windSpeedMph: 40, windGustMph: 55` (lines 184
+and 194, both well above `caution`) and `null`. Nothing exercises 25–32 mph or
+31–40 mph gusts. 266 passing tests are consistent with this bug, which is why it
+survived.
+
+**Inferred, not verified.** (1) Origin: the two-branch wind block arrived with
+`78cdc8a` ("direction-dependent wind, tide as a band, reachable surf
+thresholds"), the commit that introduced `windLimits`/`gustLimits`; I read the
+diff but did not execute that revision. (2) A second and narrower path exists
+that I did not observe firing today: `windExposureFor` (`lib/geo.ts:73-81`) can
+return `'cross'`, and `assess.ts:359-363` pushes a reason only for `'offshore'`
+or `'onshore'`, so a cross-shore hour gets the *onshore* limits (8/12 mph) with
+no `ONSHORE_WIND` negative to catch it — the same silent middle, on a much lower
+ceiling. 14 of today's 168 hours carry neither wind-direction reason, so the
+branch is live; I did not confirm any of them landed in the marginal band.
+(3) I did not establish whether the empty middle was intended. `DECISIONS.md`
+has no entry on it, and the calibration note in `cromwells.ts:108-117` reads the
+other way — it anchors the offshore `great` ceiling above an observed 23 mph
+specifically so a 23 mph reading passes as `great`, which only matters if
+exceeding `great` does something.
+
+**Why ESCALATE and not PROPOSE-ONLY.** Charter §2: "any finding suggesting the
+live site is currently showing an incorrect safety verdict — too permissive
+especially". It is live, it is too permissive, and it is on screen now. Per §2 I
+have stopped here: no fix attempted, no fix drafted as a diff, no code touched.
+The only file this branch changes is this one.
+
+**Options are recorded and deliberately carry no recommendation** — see the
+`**Options**` block appended below, and charter §2 "Automatic selection": a card
+with no recommended option is the one remaining way to leave the choice with Sal.
+That is the honest answer here rather than a stalling tactic. The obvious fix —
+mirror `MARGINAL_SWELL` with a `negative` marginal-wind reason — would flip 39 of
+168 hours from `great` to `caution` in today's forecast, and this project has
+twice talked itself out of exactly that kind of blanket tightening (`DECISIONS.md`
+#15, "the same wall twice"; the `exposedSwellFt` note in `cromwells.ts:57-68`
+about 55% of a calm week reading marginal). Choosing between a verdict flip and a
+visible-caveat-only fix is a judgement about what a parent reads before putting a
+child in the water, which §2 says is Sal's, not mine.
+
+**Alert sent.** One Telegram message, per the ESCALATE rule. No earlier watchdog
+pull request covers this — `gh pr list --state open --search "watchdog in:title"`
+returned empty at 21:03 HST.
+
+---
+
 ## 2026-09-22 · main · PROPOSE-ONLY · AWAITING APPROVAL
 
 **Merged on Sal's direct authorisation, with no reviewer `verdict: safe`.**
