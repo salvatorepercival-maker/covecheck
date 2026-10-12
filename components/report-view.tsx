@@ -1,290 +1,160 @@
-'use client'
-
-import { useState } from 'react'
 import type { BeachReport } from '@/lib/forecast'
-import { DEFAULT_USABLE_HOURS, SHORELINE_REMINDER, VERDICT_LABEL, type HourAssessment } from '@/lib/engine'
-import { formatDayLabel, formatDayShort, formatWindowRange } from '@/lib/format'
-import { honoluluDateOf } from '@/lib/time'
-import type { BeachProfile, HourlyBeachConditions } from '@/lib/types'
-import { ConditionsGrid } from './conditions-grid'
-import { NowStrip } from './now-strip'
-import { NearbySurfCard } from './nearby-surf-card'
-import { TideCard } from './tide-card'
-import { HourlyTimeline, toTimelineDays } from './hourly-timeline'
-import { ConfidenceNote, VerdictIcon, VerdictPill, VERDICT_STYLE } from './verdict'
+import { SHORELINE_REMINDER } from '@/lib/engine'
+import { formatClockTime, formatHour } from '@/lib/format'
+import {
+  dayTide,
+  factorRows,
+  focusDay,
+  heroSentence,
+  heroState,
+  heroWindow,
+  HERO_TITLE,
+  hourBlocks,
+  hourlyCaption,
+  nextGoodDay,
+  representativeHour,
+  weekdayLong,
+  weekRows,
+} from '@/lib/presentation'
+import { honoluluDateOf, honoluluHourOf, utcToHonoluluLocal } from '@/lib/time'
+import type { BeachProfile } from '@/lib/types'
+import { AlertsSignup } from './alerts-signup'
+import { DayChart } from './day-chart'
+import { DecidingFactors } from './deciding-factors'
+import { HeadDownChecklist } from './head-down-checklist'
+import { HeroCard } from './hero-card'
+import { MoonIcon } from './icons'
+import { WeekList } from './week-list'
 
 /**
- * The beach screen.
+ * The beach screen, decision first.
  *
- * Ordering follows the product's first principle — decision first, data second.
- * A glanceable "right now" strip leads, then the verdict and its window, then the
- * supporting condition cards.
- *
- * The "Forecast detail" disclosure that used to close the page was removed on
- * request. Note what went with it: the offshore-versus-exposed comparison table
- * that let a sceptical local check the swell filter's work, the per-provider
- * freshness list, and the Known Limitations panel. The provisional tide band is
- * still surfaced twice — in the verdict bullets and on the tide card — so that
- * framing did not go with it.
+ * Order: the verdict and its window, what's deciding it, the day hour by hour,
+ * a packing list on go days, the week, alerts, then the shoreline reminder. All
+ * judgement comes from the engine; `lib/presentation.ts` only reads it.
  */
 
-export function ReportView({
-  report,
-  profile,
-  conditionsByTimestamp,
-  nowIso,
-}: {
-  report: BeachReport
-  profile: BeachProfile
-  /** Normalized inputs keyed by local timestamp, for the detail panels. */
-  conditionsByTimestamp: Record<string, HourlyBeachConditions>
-  nowIso: string
-}) {
-  const { evaluation } = report
-  const today = honoluluDateOf(evaluation.current?.timestamp ?? evaluation.days[0]?.date ?? '')
-  const [selectedDate, setSelectedDate] = useState(evaluation.days[0]?.date ?? '')
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
 
-  const day = evaluation.days.find((entry) => entry.date === selectedDate) ?? evaluation.days[0]
-  if (!day) {
+export function ReportView({ report, profile }: { report: BeachReport; profile: BeachProfile }) {
+  const { evaluation, conditionsByTimestamp } = report
+  const nowUtc = new Date(evaluation.evaluatedAtUtc)
+  const todayDate = honoluluDateOf(utcToHonoluluLocal(nowUtc))
+
+  const focus = focusDay(evaluation, profile, nowUtc)
+  if (!focus) {
     return (
-      <p className="rounded-xl border border-border bg-surface p-4 text-sm">
-        No forecast is available for this beach right now.
-      </p>
+      <p className="rounded-2xl bg-surface p-4 text-sm">No forecast is available for this beach right now.</p>
     )
   }
 
-  const isToday = day.date === today
-  // On today, lead with the current hour; on a future day, lead with its window.
-  const headline: HourAssessment | undefined =
-    (isToday ? evaluation.current : undefined) ??
-    day.recommendedWindow?.hours[0] ??
-    day.hours[0]
+  const { day, isToday } = focus
+  const { verdict, window } = heroState(focus, evaluation, nowUtc)
+  const dayExtremes = report.tideExtremesByDate[day.date] ?? []
 
-  const verdict = isToday && evaluation.current ? evaluation.current.verdict : day.verdict
-  const style = VERDICT_STYLE[verdict]
-  const window = day.recommendedWindow
+  // On today with no window ahead, the conditions shown are the current hour's.
+  const hour =
+    (isToday && !window && evaluation.current && honoluluDateOf(evaluation.current.timestamp) === day.date
+      ? evaluation.current
+      : undefined) ?? representativeHour(day, window)
 
-  // Lead with the problems, then the supporting positives.
-  const explanation = (window ?? day.bestWindow)?.reasons ?? headline?.reasons ?? []
-  const leadReasons = explanation.slice(0, 3)
+  const rows = hour
+    ? factorRows({ hour, conditionsByTimestamp, profile, dayHours: day.hours, dayExtremes })
+    : []
+  const week = weekRows(evaluation, profile, conditionsByTimestamp, todayDate)
+
+  const [, month, dayOfMonth] = day.date.split('-').map(Number)
+  const dayName = weekdayLong(day.date)
+  const eyebrow = `${isToday ? 'Today' : `${dayName.slice(0, 3)}, ${MONTHS[month - 1]} ${dayOfMonth}`} · Kids snorkeling`
+  const heroWin = window ? heroWindow(window, nowUtc, isToday) : null
+  const showNextGood = verdict !== 'great'
+
+  const shareText = `CoveCheck: ${HERO_TITLE[verdict]} at ${profile.name} ${isToday ? 'today' : `on ${dayName}`}${
+    heroWin ? ` — best window ${heroWin.range}` : ''
+  }. Always look at the water first.`
+
+  const tideBandProvisional = profile.calibration.some(
+    (gap) => gap.status === 'provisional' && gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
+  )
+  const tideBandUnset = profile.calibration.some(
+    (gap) => gap.status === 'unresolved' && gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
+  )
+
+  const checklist = [
+    'Rashguards and reef-safe sunscreen',
+    ...(profile.entryNotes.some((note) => /rock|reef/i.test(note)) ? ['Water shoes for the rocky entry'] : []),
+    'Look at the water before anyone goes in',
+  ]
+
+  const updated = formatClockTime(utcToHonoluluLocal(new Date(report.updatedAtUtc)))
 
   return (
-    <div className="space-y-4">
-      {/* ---------- Right now: measured facts, before any reasoning ---------- */}
-      {headline ? (
-        <NowStrip assessment={headline} conditions={conditionsByTimestamp[headline.timestamp]} />
+    <div className="space-y-6">
+      {focus.evening ? (
+        <p className="flex items-center gap-2.5 rounded-2xl bg-surface-sunk px-4 py-3 text-sm">
+          <MoonIcon className="h-4 w-4 shrink-0 text-muted" />
+          <span>
+            {focus.evening.dark ? 'It’s dark out.' : 'The day’s nearly done.'} Showing{' '}
+            <strong className="font-semibold">tomorrow</strong>
+            {focus.evening.firstLight ? ` — first light ${focus.evening.firstLight}.` : '.'}
+          </span>
+        </p>
       ) : null}
 
-      {/*
-        ---------- Verdict: the centrepiece ----------
-        Carries more weight than everything below it on three channels at once —
-        elevation (shadow), a heavier border, and more generous padding — so the
-        hierarchy is legible before a word is read.
-      */}
-      <section
-        aria-labelledby="verdict-heading"
-        className={`rounded-2xl border-2 p-6 shadow-lg shadow-black/[0.06] dark:shadow-black/25 ${style.bg} ${style.border}`}
-      >
-        <div className={`flex items-center gap-2.5 ${style.text}`}>
-          <VerdictIcon verdict={verdict} className="h-7 w-7" />
-          <h2 id="verdict-heading" className="text-[1.65rem] font-semibold leading-none tracking-tight">
-            {VERDICT_LABEL[verdict]}
-          </h2>
-        </div>
+      <HeroCard
+        verdict={verdict}
+        eyebrow={eyebrow}
+        confidence={window?.confidence ?? hour?.confidence ?? null}
+        sentence={heroSentence(verdict, rows, day.verdict === 'not_recommended')}
+        window={heroWin}
+        nextGood={showNextGood ? nextGoodDay(week, day.date) : null}
+        shareText={shareText}
+      />
 
-        {window ? (
-          <p className="mt-3 text-lg">
-            <span className="text-muted">{isToday ? 'Best window today' : 'Best window'}: </span>
-            <span className="font-semibold">
-              {formatWindowRange(window.startTimestamp, window.endTimestamp)}
-            </span>
-          </p>
-        ) : (
-          <p className="mt-3 text-lg text-muted">No recommended window on this day.</p>
-        )}
+      {rows.length > 0 ? (
+        <DecidingFactors rows={rows} atLabel={hour ? `At ${formatHour(honoluluHourOf(hour.timestamp))}` : null} />
+      ) : null}
 
-        {leadReasons.length > 0 ? (
-          <ul className="mt-3 space-y-1.5 text-[15px] leading-snug">
-            {leadReasons.map((entry) => (
-              <li key={entry.code} className="flex gap-2">
-                <span aria-hidden className={entry.severity === 'positive' ? style.text : 'text-muted'}>
-                  •
-                </span>
-                <span>{entry.text}</span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+      <DayChart
+        title={`${isToday ? 'Today' : dayName}, hour by hour`}
+        blocks={hourBlocks(day)}
+        tide={dayTide(day, conditionsByTimestamp, dayExtremes)}
+        band={tideBandUnset ? null : profile.thresholds.favorableTideFt}
+        bandProvisional={tideBandProvisional}
+        caption={hourlyCaption(day, window)}
+      />
 
-        {headline ? <div className="mt-3"><ConfidenceNote confidence={headline.confidence} /></div> : null}
-      </section>
+      {verdict === 'great' || verdict === 'caution' ? <HeadDownChecklist items={checklist} /> : null}
 
-      {/* ---------- Day selector ---------- */}
-      <section aria-labelledby="days-heading">
-        <h3 id="days-heading" className="text-xs font-medium uppercase tracking-wide text-muted">
-          Next {evaluation.days.length} days
-        </h3>
-        <div role="tablist" aria-label="Choose a day" className="mt-2 flex gap-2 overflow-x-auto pb-1">
-          {evaluation.days.map((entry) => {
-            const selected = entry.date === day.date
-            const entryStyle = VERDICT_STYLE[entry.verdict]
-            return (
-              <button
-                key={entry.date}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => setSelectedDate(entry.date)}
-                className={`flex min-w-[3.5rem] flex-1 flex-col items-center gap-1.5 rounded-xl border px-1.5 py-2.5 text-center transition-colors ${
-                  selected
-                    ? 'border-sea bg-surface ring-1 ring-sea'
-                    : 'border-border bg-surface hover:bg-surface-sunk'
-                }`}
-              >
-                <span className="text-xs font-medium">{formatDayShort(entry.date, today)}</span>
-                <VerdictIcon verdict={entry.verdict} className={`h-4 w-4 ${entryStyle.text}`} />
-                {/* Word as well as icon and colour, so nothing depends on hue. */}
-                <span className={`text-[10px] leading-tight ${entryStyle.text}`}>
-                  {SHORT_VERDICT[entry.verdict]}
-                </span>
-              </button>
-            )
-          })}
-        </div>
-      </section>
+      <WeekList rows={week} />
 
-      {/* ---------- Selected day ---------- */}
-      <section aria-labelledby="conditions-heading" className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 id="conditions-heading" className="text-base font-semibold">
-            {formatDayLabel(day.date, today)}
-            {isToday && evaluation.current ? (
-              <span className="ml-2 text-sm font-normal text-muted">conditions now</span>
-            ) : window ? (
-              <span className="ml-2 text-sm font-normal text-muted">
-                during {formatWindowRange(window.startTimestamp, window.endTimestamp)}
-              </span>
-            ) : null}
-          </h3>
-          {/*
-            Same `verdict` the hero uses, so the pill matches the scope the heading
-            above claims: the current hour on today, the day's own verdict otherwise.
+      <AlertsSignup />
 
-            This is not a one-way move toward caution. `day.verdict` is the best
-            *window's* verdict, not the best *hour's* (`lib/engine/index.ts:140`),
-            and two things break the ordering — both reproduced by executing the
-            real `groupWindows`/`bestWindowForDate`, not inferred:
-
-              - A run of `great` hours shorter than `minWindowHours` is downgraded
-                to `caution` (`lib/engine/windows.ts:109`, `:127`). Cromwells sets
-                `minWindowHours: 2` (`lib/beach/cromwells.ts:135`), so an isolated
-                `great` hour gives `day: caution` while `current` is `great`.
-              - Only hours 6-18 are eligible for windows
-                (`lib/engine/windows.ts:19`, `:71-73`, `:152-154`), but `current`
-                is picked with no such filter (`lib/engine/index.ts:152-157`). A
-                favourable 19:00 hour gives `day: caution` with `current: great`.
-
-            In both, this pill now reads more permissive than it did. It is still
-            the right scope for the heading it sits under, and the hero at `:89-91`
-            has rendered this same `verdict` all along — so where that happens the
-            page's largest element already said it, and this removes a
-            contradiction rather than introducing the reading. Whether the net
-            safety effect is negative is not established: that needs frequency
-            data on how often each shape occurs, which nobody has measured.
-          */}
-          <VerdictPill verdict={verdict} label={VERDICT_LABEL[verdict]} />
-        </div>
-
-        {headline ? (
-          <ConditionsGrid
-            assessment={headline}
-            conditions={conditionsByTimestamp[headline.timestamp]}
-          />
-        ) : null}
-
-        {/* Full width, because the curve needs the room the 2-up grid cannot give it. */}
-        {headline ? (
-          <TideCard
-            assessment={headline}
-            conditions={conditionsByTimestamp[headline.timestamp]}
-            conditionsByTimestamp={conditionsByTimestamp}
-            tideExtremes={report.tideExtremes}
-            nowIso={nowIso}
-            latitude={profile.latitude}
-            longitude={profile.longitude}
-            date={day.date}
-            tideBand={profile.thresholds.favorableTideFt}
-            bandStatus={
-              profile.calibration.find((gap) =>
-                gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
-              )?.status ?? 'resolved'
-            }
-          />
-        ) : null}
-
-        {/*
-          Spans several days rather than just the selected one: the point is to see
-          at a glance which day this week holds the best window.
-        */}
-        <HourlyTimeline
-          days={toTimelineDays(evaluation.days)}
-          usableHours={DEFAULT_USABLE_HOURS}
-          todayDate={today}
-        />
-      </section>
-
-      {/* ---------- Supplementary, clearly separated from CoveCheck's own reading ---------- */}
-      <NearbySurfCard report={report.nearbySurf} date={day.date} />
-
-      {/* ---------- Primary action ---------- */}
-      <section
-        aria-labelledby="alerts-heading"
-        className="rounded-xl border border-border/60 bg-surface/60 p-3.5"
-      >
-        <h3 id="alerts-heading" className="text-sm font-semibold">
-          Alert me on great days
-        </h3>
-        <p className="mt-1 text-sm text-muted">
-          Get a message the evening before conditions look favourable here.
+      <footer className="space-y-3 px-1 pb-10 text-sm">
+        <p className="leading-relaxed text-muted">
+          <strong className="font-semibold text-foreground">Always look at the water first.</strong> CoveCheck is a
+          forecast, not a lifeguard. Follow posted signs and closures.
         </p>
-        <button
-          type="button"
-          disabled
-          aria-describedby="alerts-unavailable"
-          className="mt-3 w-full rounded-lg bg-sea px-4 py-2.5 text-sm font-medium text-on-sea opacity-45"
-        >
-          Set up alerts
-        </button>
-        <p id="alerts-unavailable" className="mt-2 text-xs text-muted">
-          Not built yet — alerts are the next piece of work, so this button does nothing today.
-        </p>
-      </section>
-
-      {/*
-        The "Forecast detail" disclosure was removed on request.
-        `report` still carries `warnings`, `failures` and `surfZoneIssuedUtc` — they
-        remain part of the report model for logging, they simply have no UI now.
-      */}
-
-      {/* ---------- Reminder and freshness ---------- */}
-      <section className="rounded-xl border border-border/60 bg-surface-sunk/70 p-3.5">
-        <h3 className="text-sm font-semibold">Check the water yourself</h3>
-        <p className="mt-1 text-sm leading-relaxed text-muted">{SHORELINE_REMINDER}</p>
-        <p className="mt-3 text-xs text-muted">
-          CoveCheck is a forecast, not a safety assessment. It cannot see the shoreline entry, surge,
-          water clarity, or every local hazard. Children and weaker swimmers need a more cautious
-          choice than the forecast alone suggests.
-        </p>
-      </section>
-
-      <div className="pb-8" />
+        <details className="group">
+          <summary className="cursor-pointer list-none font-medium underline underline-offset-2">
+            How CoveCheck decides
+          </summary>
+          <div className="mt-2 space-y-2 leading-relaxed text-muted">
+            <p>
+              Every hour is checked against this beach&rsquo;s own limits for swell reaching the cove, wind (which
+              matters less when it blows offshore), tide over the reef, and official advisories. A good window needs
+              at least {profile.thresholds.minWindowHours} good hours in a row, and uncertain or missing data never
+              produces a go.
+            </p>
+            <p>{SHORELINE_REMINDER}</p>
+            <p>
+              It cannot see the shoreline entry, surge, water clarity, or every local hazard. Children and weaker
+              swimmers need a more cautious choice than the forecast alone suggests.
+            </p>
+          </div>
+        </details>
+        <p className="text-xs text-muted">Updated {updated} · Black Point, Honolulu</p>
+      </footer>
     </div>
   )
-}
-
-const SHORT_VERDICT: Record<string, string> = {
-  great: 'Great',
-  caution: 'Caution',
-  not_recommended: 'No',
-  insufficient_data: 'Unsure',
 }
