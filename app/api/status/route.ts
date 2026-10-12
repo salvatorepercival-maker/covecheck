@@ -4,10 +4,8 @@ import { getBeachReport } from '@/lib/forecast'
 import { utcToHonoluluLocal } from '@/lib/time'
 
 /**
- * Machine-readable health and alert state, for the watchdog.
- *
- * Public: nothing here is private. `sources` says which inputs failed this
- * request; `waterQuality` and `jellyfish` carry the two ESCALATE triggers.
+ * Machine-readable source health, for the site's "Where this data comes from"
+ * panel. Public: nothing here is private. Feeds no alerts or escalation.
  */
 export async function GET() {
   const report = await getBeachReport(CROMWELLS)

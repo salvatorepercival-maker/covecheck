@@ -12,7 +12,7 @@ export function hourFacts(overrides: Partial<HourFacts> = {}): HourFacts {
     windMph: 6,
     gustMph: 9,
     windFromDeg: 20,
-    windExposure: 'offshore',
+    windClass: 'offshore',
     tideFt: 0.8,
     tideStage: 'rising',
     tideVsBand: 'in',

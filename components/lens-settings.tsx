@@ -21,7 +21,7 @@ const FACTOR_LABEL: Record<FactorId, { label: string; unit: string }> = {
   waterTemp: { label: 'Water temp', unit: '°F' },
   waterQuality: { label: 'Health Dept. advisory', unit: '' },
   jellyfish: { label: 'Box jellyfish expected', unit: '' },
-  advisories: { label: 'Weather Service hazard', unit: '' },
+  advisories: { label: 'Weather Service advisory / warning', unit: '' },
 }
 
 function NumberField({
@@ -89,13 +89,33 @@ function RuleEditor({ rule, unit, onChange }: { rule: FactorRule; unit: string; 
           <NumberField label={`Mixed to${u}`} value={rule.mixed[1]} onChange={(v) => onChange({ ...rule, mixed: [rule.mixed[0], v ?? rule.mixed[1]] })} />
         </div>
       )
-    case 'wind':
+    case 'wind': {
+      const classes = [
+        ['offshore', 'gustOffshore', 'Offshore'],
+        ['cross', 'gustCross', 'Cross-shore'],
+        ['onshore', 'gustOnshore', 'Onshore'],
+      ] as const
       return (
-        <div className="grid grid-cols-2 gap-2">
-          <NumberField label="Onshore good up to (mph)" value={rule.onshore.good} onChange={(v) => onChange({ ...rule, onshore: { ...rule.onshore, good: v ?? rule.onshore.good } })} />
-          <NumberField label="Onshore mixed up to" value={rule.onshore.mixed} onChange={(v) => onChange({ ...rule, onshore: { ...rule.onshore, mixed: v } })} />
-          <NumberField label="Offshore good up to (mph)" value={rule.offshore.good} onChange={(v) => onChange({ ...rule, offshore: { ...rule.offshore, good: v ?? rule.offshore.good } })} />
-          <NumberField label="Offshore mixed up to" value={rule.offshore.mixed} onChange={(v) => onChange({ ...rule, offshore: { ...rule.offshore, mixed: v } })} />
+        <div className="space-y-3">
+          {classes.map(([key, gustKey, name]) => (
+            <div key={key} className="grid grid-cols-4 gap-2">
+              <NumberField label={`${name} good`} value={rule[key].good} onChange={(v) => onChange({ ...rule, [key]: { ...rule[key], good: v ?? rule[key].good } })} />
+              <NumberField label="mixed" value={rule[key].mixed} onChange={(v) => onChange({ ...rule, [key]: { ...rule[key], mixed: v } })} />
+              <NumberField label="gust good" value={rule[gustKey].good} onChange={(v) => onChange({ ...rule, [gustKey]: { ...rule[gustKey], good: v ?? rule[gustKey].good } })} />
+              <NumberField label="gust mixed" value={rule[gustKey].mixed} onChange={(v) => onChange({ ...rule, [gustKey]: { ...rule[gustKey], mixed: v } })} />
+            </div>
+          ))}
+          {rule.offshoreNoLooserThanCross ? (
+            <p className="text-[11px] text-muted">Offshore is never judged more loosely than cross-shore: it pushes swimmers out to sea.</p>
+          ) : null}
+        </div>
+      )
+    }
+    case 'hazard':
+      return (
+        <div className="grid grid-cols-2 gap-2 text-[11px] text-muted">
+          <label className="flex flex-col gap-1">Advisory<FitSelect value={rule.advisory} onChange={(fit) => onChange({ ...rule, advisory: fit })} /></label>
+          <label className="flex flex-col gap-1">Warning<FitSelect value={rule.warning} onChange={(fit) => onChange({ ...rule, warning: fit })} /></label>
         </div>
       )
     case 'tideBand':

@@ -7,7 +7,7 @@ import type { DayFacts, HourFacts } from '@/lib/facts'
 import { formatWindowRange } from '@/lib/format'
 import { DEFAULT_LENSES, LENS_ORDER } from '@/lib/lenses/defaults'
 import { evaluateDay, settingsSummary, withOverrides, type DayFit } from '@/lib/lenses/evaluate'
-import type { LensId, LensOverrides } from '@/lib/lenses/schema'
+import { affectsFit, type LensId, type LensOverrides } from '@/lib/lenses/schema'
 import { formatSunTime } from '@/lib/sun'
 import { DaySection } from './day-section'
 import { FitChip, TAG_LABEL, FIT_CHIP } from './fit'
@@ -250,16 +250,24 @@ export function ConditionsApp({
                 <p className="mt-1 text-[1.35rem] font-bold leading-tight tracking-tight">{tile.value}</p>
                 <p className="mt-1 text-xs leading-snug text-muted">{tile.detail}</p>
                 {tag ? (
-                  <span className={`mt-auto inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${FIT_CHIP[tag]}`}>
-                    {TAG_LABEL[tag]}
+                  <span className="mt-auto flex flex-wrap items-center gap-1.5 pt-2">
+                    <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${FIT_CHIP[tag]}`}>
+                      {TAG_LABEL[tag]}
+                    </span>
+                    {lens && !affectsFit(lens.factors[tile.factor]) ? (
+                      <span className="text-[10px] text-muted">Not yet calibrated</span>
+                    ) : null}
                   </span>
+                ) : tile.factor === 'clarity' ? (
+                  <span className="mt-auto pt-2 text-[10px] text-muted">Not yet calibrated</span>
                 ) : null}
               </li>
             )
           })}
         </ul>
         <p className="mt-2 px-1 text-xs text-muted">
-          Clarity is an estimate from swell, wind and recent rain until enough visits are logged.
+          Clarity is an estimate from swell, wind and recent rain. It doesn&rsquo;t count toward any fit until 10 visit reports
+          have calibrated it.
         </p>
       </section>
 

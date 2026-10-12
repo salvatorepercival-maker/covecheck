@@ -2,7 +2,7 @@ import { estimateClarity, type ClarityEstimate } from './conditions/clarity'
 import { jellyOutlook, type JellyWindow } from './conditions/jellyfish'
 import { skyOf, type SkyKind } from './conditions/sky'
 import type { BeachReport } from './forecast'
-import { windExposureFor, type WindExposure } from './geo'
+import { hazardLevel, windClassFor, type WindClass } from './conditions/wind'
 import type { TideExtreme } from './providers/tides'
 import { honoluluDateOf, honoluluHourOf, honoluluLocalToUtc } from './time'
 import type { BeachProfile } from './types'
@@ -31,7 +31,8 @@ export type HourFacts = {
   windMph: number | null
   gustMph: number | null
   windFromDeg: number | null
-  windExposure: WindExposure | null
+  /** Three-way class from the beach config, for the lenses. */
+  windClass: WindClass | null
 
   tideFt: number | null
   tideStage: 'rising' | 'falling' | 'near-high' | 'near-low' | 'unknown'
@@ -47,7 +48,7 @@ export type HourFacts = {
   rain48hIn: number | null
   uv: number | null
 
-  nwsHazards: { event: string; blocking: boolean }[]
+  nwsHazards: { event: string; blocking: boolean; level: 'warning' | 'advisory' }[]
   nwsHazardsKnown: boolean
 
   /** Same for every hour of a day; carried per hour so a lens needs one input. */
@@ -140,7 +141,7 @@ export function buildDayFacts(
         windMph: assessment.metrics.windSpeedMph,
         gustMph: assessment.metrics.windGustMph,
         windFromDeg,
-        windExposure: windFromDeg === null ? null : windExposureFor(windFromDeg, profile.shoreAspect),
+        windClass: windFromDeg === null ? null : windClassFor(windFromDeg, profile.shoreAspect, profile.windClasses),
         tideFt,
         tideStage: c?.tideStage ?? 'unknown',
         tideVsBand:
@@ -155,7 +156,7 @@ export function buildDayFacts(
         rainPct: c?.precipProbabilityPct ?? null,
         rain48hIn,
         uv: c?.uvIndex ?? null,
-        nwsHazards: (c?.activeHazards ?? []).map((h) => ({ event: h.event, blocking: h.isBlocking })),
+        nwsHazards: (c?.activeHazards ?? []).map((h) => ({ event: h.event, blocking: h.isBlocking, level: hazardLevel(h.event) })),
         nwsHazardsKnown: c?.sourceFreshness.alerts?.status === 'ok',
         waterQuality: water,
         jelly,

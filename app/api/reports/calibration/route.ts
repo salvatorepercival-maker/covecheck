@@ -3,8 +3,8 @@ import type { StoredReport } from '@/lib/reports/schema'
 import { getReportStore } from '@/lib/reports/store'
 
 /**
- * Calibration findings for the watchdog. Reports include free-text notes from the
- * public, so this needs `Authorization: Bearer $CALIBRATION_TOKEN`.
+ * Calibration findings from Sal's visit reports. Private (reports include free
+ * text), so this needs `Authorization: Bearer $CALIBRATION_TOKEN`.
  */
 export async function GET(request: Request) {
   const token = process.env.CALIBRATION_TOKEN

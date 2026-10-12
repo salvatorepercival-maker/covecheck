@@ -298,6 +298,13 @@ export type BeachProfile = {
   srfIsland: string
   /** Shore aspect this beach faces, selecting the SRF row. */
   shoreAspect: ShoreAspect
+  /**
+   * Wind direction classes for the activity lenses, as half-arcs either side of
+   * straight offshore (blowing from land, along the beach's landward normal)
+   * and straight onshore. Anything between is cross-shore. The engine keeps its
+   * own two-way split (lib/geo.ts); this is the lenses' three-way one.
+   */
+  windClasses: { offshoreHalfArcDeg: number; onshoreHalfArcDeg: number }
   /** Swell arcs with a direct path to this beach. Energy outside these is discounted. */
   exposedSwellDirections: readonly DirectionRange[]
   /** Explicitly pinned provider sample points. */

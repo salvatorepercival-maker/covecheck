@@ -4,12 +4,12 @@ import { fetchWaterQuality } from './providers/doh'
 import { fetchRainHistory, fetchWeather } from './providers/open-meteo'
 
 /**
- * Health checks for the conditions-report sources, run by the watchdog
- * (`npm run spike` runs every *.live.ts; `npx vitest run --config
- * vitest.live.config.mts lib/sources.live.ts` runs just these).
+ * Live health checks for the conditions-report sources (`npm run spike` runs
+ * every *.live.ts; `npx vitest run --config vitest.live.config.mts
+ * lib/sources.live.ts` runs just these).
  *
  * Each source fails LOUDLY here. On the site they degrade to "Couldn't check" /
- * "—" so a page still renders; that is exactly why the watchdog must look.
+ * "—" so a page still renders, which is why a failure needs to be visible here.
  */
 describe('conditions sources', () => {
   it('Health Dept. water-quality advisories are reachable and parse', async () => {

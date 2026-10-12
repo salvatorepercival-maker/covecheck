@@ -14,37 +14,57 @@ export type Fit = 'good' | 'mixed' | 'poor'
 /** A factor's judgement for one hour. `off` = not a factor for this lens; `unknown` = no data. */
 export type FactorTag = Fit | 'off' | 'unknown'
 
+/**
+ * Shared by every rule. `affectsFit: false` keeps the factor's tag on its tile
+ * but leaves it out of the hour and day fit — for factors not yet trustworthy
+ * enough to decide anything (the uncalibrated clarity estimate). Default true.
+ */
+type RuleBase = { affectsFit?: boolean }
+
 /** Lower is better: value ≤ good → good, ≤ mixed → mixed, else poor. `mixed: null` → never poor. */
-export type CeilingRule = { kind: 'ceiling'; good: number; mixed: number | null }
+export type CeilingRule = RuleBase & { kind: 'ceiling'; good: number; mixed: number | null }
 
 /** Higher is better: value ≥ good → good, ≥ mixed → mixed, else poor. `mixed: null` → never poor. */
-export type FloorRule = { kind: 'floor'; good: number; mixed: number | null }
+export type FloorRule = RuleBase & { kind: 'floor'; good: number; mixed: number | null }
 
 /** Good inside a band; mixed inside a wider band; poor outside both. Inclusive. */
-export type RangeRule = { kind: 'range'; good: [number, number]; mixed: [number, number] }
+export type RangeRule = RuleBase & { kind: 'range'; good: [number, number]; mixed: [number, number] }
+
+export type Limits = { good: number; mixed: number | null }
 
 /**
- * Wind, by direction, because fetch decides what wind does to the water.
- * Offshore wind flattens a lee-side cove; onshore (and cross-shore, treated as
- * onshore) roughens it. Gusts are judged on their own ceilings; the worse wins.
+ * Wind, by the beach's three direction classes (lib/conditions/wind.ts).
+ * Sustained and gusts are judged on their own ceilings; the worse wins.
+ *
+ * `offshoreNoLooserThanCross`: offshore wind smooths the surface but pushes
+ * swimmers and floating gear out to sea, so for in-water lenses the offshore
+ * limits are capped at the cross-shore ones — even if an override loosens them.
  */
-export type WindRule = {
+export type WindRule = RuleBase & {
   kind: 'wind'
-  offshore: { good: number; mixed: number | null }
-  onshore: { good: number; mixed: number | null }
-  gustOffshore: { good: number; mixed: number | null }
-  gustOnshore: { good: number; mixed: number | null }
+  offshore: Limits
+  cross: Limits
+  onshore: Limits
+  gustOffshore: Limits
+  gustCross: Limits
+  gustOnshore: Limits
+  offshoreNoLooserThanCross: boolean
 }
 
+/** NWS products, split by severity: anything named a Warning vs everything else. */
+export type HazardRule = RuleBase & { kind: 'hazard'; advisory: Fit; warning: Fit }
+
 /** Uses the beach's own calibrated tide band (lib/beach). Out of band gives `outside`. */
-export type TideBandRule = { kind: 'tideBand'; outside: Fit }
+export type TideBandRule = RuleBase & { kind: 'tideBand'; outside: Fit }
 
 /** Present → `whenPresent`; absent → good. For advisories, jellyfish, storms. */
-export type FlagRule = { kind: 'flag'; whenPresent: Fit }
+export type FlagRule = RuleBase & { kind: 'flag'; whenPresent: Fit }
 
 export type OffRule = { kind: 'off' }
 
-export type FactorRule = CeilingRule | FloorRule | RangeRule | WindRule | TideBandRule | FlagRule | OffRule
+export type FactorRule = CeilingRule | FloorRule | RangeRule | WindRule | HazardRule | TideBandRule | FlagRule | OffRule
+
+export const affectsFit = (rule: FactorRule) => rule.kind !== 'off' && rule.affectsFit !== false
 
 /**
  * Every factor a lens can weigh.

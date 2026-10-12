@@ -1,9 +1,10 @@
 import type { DayFacts, HourFacts } from '../facts'
-import { formatClockTime, formatHour } from '../format'
+import { formatClockTime, formatCompass, formatHour } from '../format'
 import type { FactorId } from '../lenses/schema'
 import { formatCompassWord } from '../lenses/words'
 import { formatSunTime } from '../sun'
 import { dominantSky, SKY_WORDS } from './sky'
+import { WIND_CLASS_WORDS } from './wind'
 
 /**
  * The neutral view: what the day is like, in words and tiles, with no judgement.
@@ -125,15 +126,16 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string): Tile
 
   // Wind
   const pickup = h.windMph === null ? undefined : later.find((x) => x.windMph !== null && x.windMph >= h.windMph! + 5)
-  const windDir = formatCompassWord(h.windFromDeg)
   const name = windName(h.windFromDeg)
   tiles.push({
     id: 'wind',
     factor: 'wind',
     label: 'Wind',
-    value: h.windMph === null ? '—' : `${Math.round(h.windMph)} mph`,
+    // "13 mph E" — the compass point sits with the number; the class leads the detail.
+    value: h.windMph === null ? '—' : `${Math.round(h.windMph)} mph${h.windFromDeg !== null ? ` ${formatCompass(h.windFromDeg)}` : ''}`,
     detail: [
-      windDir ? `${windDir.charAt(0).toUpperCase()}${windDir.slice(1)} ${name === 'winds' ? 'wind' : name}` : null,
+      h.windClass ? `${WIND_CLASS_WORDS[h.windClass].charAt(0).toUpperCase()}${WIND_CLASS_WORDS[h.windClass].slice(1)}` : null,
+      name !== 'winds' ? name : null,
       pickup ? `stronger after ${pickup.hour === 12 ? 'noon' : formatHour(pickup.hour)}` : null,
       h.gustMph !== null && h.windMph !== null && h.gustMph - h.windMph >= 8 ? `gusts ${Math.round(h.gustMph)}` : null,
     ]

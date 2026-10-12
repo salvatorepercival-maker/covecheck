@@ -127,12 +127,6 @@ Do not continue the task. Do not attempt a fix first. Log it, mark it, and stop.
 
 - Any finding suggesting the live site is currently showing an incorrect safety
   verdict — too permissive especially, but too restrictive also counts.
-- Water quality at the beach going from clear to a Hawaiʻi Department of
-  Health advisory — brown water, bacteria, or a sewage spill
-  (`/api/status` → `waterQuality.status` becomes `advisory`). Added 2026-10-11
-  at Sal's request.
-- A box jellyfish window starting tomorrow (`/api/status` →
-  `jellyfish.windowStartsTomorrow` is `true`). Added 2026-10-11 at Sal's request.
 - Any credential, auth, or security issue, including a secret found in the repo
   or in history.
 - Any irreversible action: force-push, history rewrite, deleting data or

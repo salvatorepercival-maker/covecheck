@@ -1,7 +1,8 @@
 import type { DayFacts, HourFacts } from '../facts'
 import { formatCompassWord, formatRange } from './words'
 import type { FactorId, FactorRule, FactorTag, Fit, Lens, LensOverrides } from './schema'
-import { FACTOR_IDS } from './schema'
+import { FACTOR_IDS, affectsFit, type Limits, type WindRule } from './schema'
+import { WIND_CLASS_WORDS, type WindClass } from '../conditions/wind'
 
 /**
  * Runs a lens over hourly facts.
@@ -27,6 +28,19 @@ export function withOverrides(lens: Lens, overrides: LensOverrides | undefined):
 
 const RANK: Record<Fit, number> = { good: 0, mixed: 1, poor: 2 }
 const worse = (a: Fit, b: Fit): Fit => (RANK[a] >= RANK[b] ? a : b)
+
+/** The sustained and gust limits that apply to a wind class, with the offshore cap applied. */
+export function windLimitsFor(rule: WindRule, windClass: WindClass): { sustained: Limits; gust: Limits } {
+  const tighter = (a: Limits, b: Limits): Limits => ({
+    good: Math.min(a.good, b.good),
+    mixed: a.mixed === null ? b.mixed : b.mixed === null ? a.mixed : Math.min(a.mixed, b.mixed),
+  })
+  if (windClass === 'cross') return { sustained: rule.cross, gust: rule.gustCross }
+  if (windClass === 'onshore') return { sustained: rule.onshore, gust: rule.gustOnshore }
+  return rule.offshoreNoLooserThanCross
+    ? { sustained: tighter(rule.offshore, rule.cross), gust: tighter(rule.gustOffshore, rule.gustCross) }
+    : { sustained: rule.offshore, gust: rule.gustOffshore }
+}
 
 function ceiling(value: number, t: { good: number; mixed: number | null }): Fit {
   if (value <= t.good) return 'good'
@@ -65,10 +79,14 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
     case 'wind': {
       if (rule.kind !== 'wind') return numeric(f.windMph)
       if (f.windMph === null) return 'unknown'
-      // Cross-shore uses the onshore limits, as the engine does.
-      const offshore = f.windExposure === 'offshore'
-      let fit = ceiling(f.windMph, offshore ? rule.offshore : rule.onshore)
-      if (f.gustMph !== null) fit = worse(fit, ceiling(f.gustMph, offshore ? rule.gustOffshore : rule.gustOnshore))
+      // Unknown direction: judge on the strictest class rather than guess.
+      const limits = f.windClass
+        ? windLimitsFor(rule, f.windClass)
+        : (['offshore', 'cross', 'onshore'] as const)
+            .map((c) => windLimitsFor(rule, c))
+            .sort((a, b) => a.sustained.good - b.sustained.good)[0]
+      let fit = ceiling(f.windMph, limits.sustained)
+      if (f.gustMph !== null) fit = worse(fit, ceiling(f.gustMph, limits.gust))
       return fit
     }
     case 'tide': {
@@ -96,12 +114,11 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
       if (rule.kind !== 'flag') return 'off'
       return f.jelly.expected ? rule.whenPresent : 'good'
     case 'advisories': {
-      if (rule.kind !== 'flag') return 'off'
       if (!f.nwsHazardsKnown) return 'unknown'
-      if (f.nwsHazards.some((h) => h.blocking)) return rule.whenPresent
-      // A non-blocking statement is worth noticing, never worse than mixed.
-      if (f.nwsHazards.length > 0) return worse('mixed', rule.whenPresent === 'good' ? 'good' : 'mixed')
-      return 'good'
+      if (f.nwsHazards.length === 0) return 'good'
+      if (rule.kind === 'flag') return rule.whenPresent
+      if (rule.kind !== 'hazard') return 'off'
+      return f.nwsHazards.some((h) => h.level === 'warning') ? rule.warning : rule.advisory
     }
   }
 }
@@ -124,12 +141,14 @@ export function evaluateHour(lens: Lens, f: HourFacts): HourFit {
   >
   let fit: Fit = 'good'
   for (const id of FACTOR_IDS) {
+    // Tagged for display, but not trusted to decide anything yet.
+    if (!affectsFit(lens.factors[id])) continue
     const tag = tags[id]
     if (tag === 'good' || tag === 'mixed' || tag === 'poor') fit = worse(fit, tag)
   }
   // A known poor stands even with gaps elsewhere; anything better needs the
   // critical inputs and trustworthy data.
-  const missingCritical = CRITICAL.some((id) => tags[id] === 'unknown')
+  const missingCritical = CRITICAL.some((id) => affectsFit(lens.factors[id]) && tags[id] === 'unknown')
   const unknown = fit !== 'poor' && (f.dataIssue !== null || missingCritical)
   return { timestamp: f.timestamp, hour: f.hour, fit: unknown ? 'unknown' : fit, tags }
 }
@@ -241,10 +260,10 @@ function problemClause(id: FactorId, f: HourFacts, lens: Lens): string | null {
     }
     case 'wind': {
       if (f.windMph === null) return null
-      // Cross-shore is judged on the onshore limits, but named for what it is.
-      const side = f.windExposure === 'offshore' ? 'offshore' : f.windExposure === 'cross' ? 'cross-shore' : 'onshore'
+      const side = f.windClass ? WIND_CLASS_WORDS[f.windClass] : ''
       const gust = f.gustMph !== null && f.gustMph - f.windMph >= 5 ? `, gusting ${Math.round(f.gustMph)}` : ''
-      return `${Math.round(f.windMph)} mph ${side} wind${gust} is chopping the surface`
+      if (f.windClass === 'offshore') return `${Math.round(f.windMph)} mph offshore wind${gust} is pushing out to sea`
+      return `${Math.round(f.windMph)} mph ${side ? `${side} ` : ''}wind${gust} is chopping the surface`
     }
     case 'tide':
       return f.tideVsBand === 'low' ? 'the tide is low over the reef' : f.tideVsBand === 'high' ? 'the tide is high for the entry' : null
@@ -270,11 +289,11 @@ function problemClause(id: FactorId, f: HourFacts, lens: Lens): string | null {
 }
 
 /** What is going well, as a short list. */
-function goodClause(f: HourFacts, tags: Record<FactorId, FactorTag>): string {
+function goodClause(lens: Lens, f: HourFacts, tags: Record<FactorId, FactorTag>): string {
   const parts: string[] = []
   if (tags.waves === 'good' && f.swellFt !== null) parts.push(`${num(f.swellFt)} ft swell`)
   if (tags.wind === 'good' && f.windMph !== null) parts.push(`${Math.round(f.windMph)} mph wind`)
-  if (tags.clarity === 'good' && f.clarity) parts.push(`an estimated ${f.clarity.ft} ft of visibility`)
+  if (tags.clarity === 'good' && f.clarity && affectsFit(lens.factors.clarity)) parts.push(`an estimated ${f.clarity.ft} ft of visibility`)
   if (tags.tide === 'good') parts.push('a good tide')
   if (parts.length === 0) return 'Conditions line up with your settings.'
   const list = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
@@ -302,9 +321,9 @@ export function lensReason(lens: Lens, f: HourFacts, hourFit: HourFit, dayFit: F
       ? 'The forecast data is older than CoveCheck will rely on.'
       : "Some conditions couldn't be retrieved, so CoveCheck won't call it."
   }
-  if (dayFit === 'good') return goodClause(f, hourFit.tags)
+  if (dayFit === 'good') return goodClause(lens, f, hourFit.tags)
   const severity = dayFit === 'poor' ? ['poor'] : ['poor', 'mixed']
-  const clauses = PROBLEM_ORDER.filter((id) => severity.includes(hourFit.tags[id]))
+  const clauses = PROBLEM_ORDER.filter((id) => affectsFit(lens.factors[id]) && severity.includes(hourFit.tags[id]))
     .map((id) => problemClause(id, f, lens))
     .filter((clause): clause is string => clause !== null)
     .slice(0, 2)
@@ -323,9 +342,20 @@ export function settingsSummary(lens: Lens): string {
   if (w.kind === 'ceiling') parts.push(`waves under ${num(w.good)} ft`)
   if (w.kind === 'range') parts.push(`waves ${formatRange(w.good)} ft`)
   const wind = lens.factors.wind
-  if (wind.kind === 'wind') parts.push(`wind under ${wind.onshore.good} mph onshore or cross-shore, ${wind.offshore.good} offshore`)
+  if (wind.kind === 'wind') {
+    const off = windLimitsFor(wind, 'offshore').sustained.good
+    const cross = wind.cross.good
+    const on = wind.onshore.good
+    parts.push(
+      off === cross && cross === on
+        ? `wind under ${on} mph`
+        : off === cross
+          ? `wind under ${on} mph onshore, ${cross} otherwise`
+          : `wind under ${on} mph onshore, ${cross} cross-shore, ${off} offshore`,
+    )
+  }
   const c = lens.factors.clarity
-  if (c.kind === 'floor') parts.push(`clarity over ${c.good} ft`)
+  if (c.kind === 'floor' && affectsFit(c)) parts.push(`clarity over ${c.good} ft`)
   const uv = lens.factors.uv
   if (uv.kind === 'ceiling') parts.push(`UV under ${uv.good}`)
   const rain = lens.factors.rain

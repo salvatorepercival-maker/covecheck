@@ -4,9 +4,9 @@ import { VISIBILITY_FT, type StoredReport } from './schema'
 /**
  * Where a visit report disagrees with the forecast for its hour.
  *
- * The watchdog reads these and logs each as a calibration finding in
- * AGENT-LOG.md, with decision-ready options. Findings never change anything by
- * themselves — one report is an anecdote; the options say how many agree.
+ * Read by Sal through /api/reports/calibration and the private /calibration
+ * page. Findings never change anything by themselves — one report is an
+ * anecdote; suggestions say how many agree.
  */
 
 export type FindingKind = 'clarity' | 'surge' | 'fit' | 'tide'
