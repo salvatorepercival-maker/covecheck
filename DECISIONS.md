@@ -11,6 +11,34 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 22. Calibration from Sal's visit reports: suggestions, never automatic
+
+**Decided:** 2026-10-12 (Sal asked) · **Status:** active
+
+One user, private data. `/api/reports/calibration` (Bearer `CALIBRATION_TOKEN`)
+and the private `/calibration` page (token typed once, kept in session storage,
+never in the URL; `noindex`) compare each report with the forecast snapshot
+stored with it:
+
+- **Disagreements** — clarity outside the reported bucket by more than 5 ft,
+  surge vs the snorkel wave tag, "would go again" vs the activity's lens fit,
+  good sessions outside the tide band.
+- **Lens agreement** — per lens: fit matched "would go again" (yes=good,
+  maybe=mixed, no=poor), was too strict, or too loose.
+- **Threshold suggestions** — once a lens has ≥ 8 reports: the cut on swell
+  energy, wind and chop that best separates "yes" (and "yes or maybe") from the
+  rest. Recommended only at ≥ 80 % agreement over ≥ 12 reports.
+- **Clarity** — at ≥ 10 reports, least-squares coefficients on the model's own
+  inputs (losses constrained ≥ 0; inputs that never vary are left at zero).
+  Recommends `affectsFit: true` only if the fitted average miss is ≤ 5 ft and
+  beats the current model.
+- **Tide band** — at ≥ 5 good sessions, the range they happened in.
+
+Every suggestion is decision-ready options with one recommended default.
+Nothing is ever applied automatically; adopting one is a normal code change.
+
+---
+
 ## 21. Spot guide: Sal's photo, markers as config, rule-driven live notes
 
 **Decided:** 2026-10-12 (Sal asked) · **Status:** active · **display only**
