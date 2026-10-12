@@ -11,79 +11,77 @@
  * colour never carries meaning on its own.
  */
 :root {
-  /*
-   * Cool, quiet ground with white cards, so the one coloured element on the
-   * page — the verdict card — carries the decision.
-   */
-  --background: #f2f4f6;
+  /* Warm paper ground, white cards, one dark hero. */
+  --background: #ecebe6;
   --surface: #ffffff;
-  --surface-sunk: #eceff2;
-  --foreground: #15232d;
-  --muted: #66717b;
-  --border: #e3e7eb;
+  --surface-sunk: #e4e1d8;
+  --foreground: #13222b;
+  --muted: #6b7175;
+  --border: #e2ded4;
 
-  /* Brand colours, sampled from the CoveCheck mark. */
   --brand-navy: #042b75;
   --brand-teal: #03a6b3;
-
-  /* Accent for focus rings and links. */
-  --sea: #15232d;
+  --sea: #13222b;
   --on-sea: #ffffff;
 
-  /* Verdict cards. Each pairs with an icon and a word — colour never stands alone. */
-  --hero-go: #2d6a4f;
-  --hero-close: #8a5a10;
-  --hero-skip: #15232d;
-  --hero-unknown: #4d5964;
+  /* The hero card. */
+  --hero: #13222b;
+  --hero-raised: #1f3039;
+  --hero-ink: #f3f1ea;
+  --now: #f4c752;
 
-  /* Go / Close / Skip marks: bars, chips, hourly blocks. */
-  --go: #2d6a4f;
-  --go-tint: #e2efe7;
-  --close: #dca46a;
-  --close-ink: #8a5a10;
-  --close-tint: #f8ecd9;
-  --skip: #c4553f;
-  --skip-ink: #a33f2b;
-  --skip-tint: #f8e2dc;
-  --unknown: #d5dade;
-  --unknown-tint: #eceff2;
+  /* Fit colours. Each sits with a word and a dot — never colour alone. */
+  --go: #2f8a6b;
+  --go-strong: #8fd6c0;
+  --go-tint: #d3efe4;
+  --go-ink: #1f6b52;
+  --close: #f4c752;
+  --close-ink: #7a5a00;
+  --close-tint: #fbe8a8;
+  --skip: #ee6c4d;
+  --skip-ink: #a23a22;
+  --skip-tint: #f8d6cc;
+  --unknown: #d9d5ca;
+  --unknown-tint: #e7e3d8;
 
-  --track: #e9ecef;
-  --tide-band: #dfeee5;
+  --track: #ecebe6;
+  --tide-band: #d3efe4;
   --cream: #fbf1e3;
+  --outlook: #cdebe0;
+  --report: #ef6a48;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #101619;
-    --surface: #1a2227;
-    --surface-sunk: #222b31;
-    --foreground: #e9ece9;
-    --muted: #9aa4a8;
-    --border: #2b353b;
+    --background: #0e1519;
+    --surface: #18222a;
+    --surface-sunk: #222d35;
+    --foreground: #ece9e1;
+    --muted: #9aa3a7;
+    --border: #2a353d;
+    --sea: #ece9e1;
+    --on-sea: #0e1519;
 
-    --sea: #e9ece9;
-    --on-sea: #101619;
+    --hero: #0a1014;
+    --hero-raised: #17232b;
+    --hero-ink: #f3f1ea;
 
-    --hero-go: #24563f;
-    --hero-close: #6e4a12;
-    --hero-skip: #0b1216;
-    --hero-unknown: #3a444c;
-
-    --go: #7cc29b;
-    --go-tint: #1f3329;
-    --close: #d9a066;
-    --close-ink: #e6b97f;
-    --close-tint: #33281a;
-    --skip: #e07a63;
-    --skip-ink: #ec9a86;
-    --skip-tint: #3a221d;
+    --go: #8fd6c0;
+    --go-strong: #6cc3a8;
+    --go-tint: #1d3a31;
+    --go-ink: #a8e3d0;
+    --close-ink: #f4d27a;
+    --close-tint: #3b3115;
+    --skip-ink: #f3a08a;
+    --skip-tint: #3d221b;
     --unknown: #3a444b;
-    --unknown-tint: #222b31;
+    --unknown-tint: #273038;
 
-    --track: #2b353b;
-    --tide-band: #1f3329;
+    --track: #222d35;
+    --tide-band: #1d3a31;
     --cream: #2a2419;
+    --outlook: #1d3a31;
+    --report: #c4553a;
   }
 }
 
@@ -99,12 +97,15 @@
   --color-brand-navy: var(--brand-navy);
   --color-brand-teal: var(--brand-teal);
 
-  --color-hero-go: var(--hero-go);
-  --color-hero-close: var(--hero-close);
-  --color-hero-skip: var(--hero-skip);
-  --color-hero-unknown: var(--hero-unknown);
+  --color-hero: var(--hero);
+  --color-hero-raised: var(--hero-raised);
+  --color-hero-ink: var(--hero-ink);
+  --color-now: var(--now);
+  --color-hero-skip: var(--hero);
   --color-go: var(--go);
   --color-go-tint: var(--go-tint);
+  --color-go-strong: var(--go-strong);
+  --color-go-ink: var(--go-ink);
   --color-close: var(--close);
   --color-close-ink: var(--close-ink);
   --color-close-tint: var(--close-tint);
@@ -116,9 +117,12 @@
   --color-track: var(--track);
   --color-tide-band: var(--tide-band);
   --color-cream: var(--cream);
+  --color-outlook: var(--outlook);
+  --color-report: var(--report);
 
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-mono: var(--font-mono-face);
+  --font-display: var(--font-display-face);
 }
 
 body {
