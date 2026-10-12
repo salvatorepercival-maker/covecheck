@@ -1,8 +1,11 @@
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 import Image from 'next/image'
 import { Suspense } from 'react'
 import { ConditionsApp } from '@/components/conditions-app'
 import { CROMWELLS } from '@/lib/beach/cromwells'
 import { getBeachReport } from '@/lib/forecast'
+import { SPOT_GUIDE } from '@/lib/beach/spot-guide'
 import { buoyComparisonFor } from '@/lib/facts'
 import { longRangeDays } from '@/lib/planning/long-range'
 import { swellTrains } from '@/lib/planning/swell-trains'
@@ -35,6 +38,7 @@ async function Report() {
       shore={CROMWELLS.shoreAspect}
       tideBand={tideBandUnset ? null : CROMWELLS.thresholds.favorableTideFt}
       buoy={buoyComparisonFor(report, CROMWELLS)}
+      hasSpotImage={existsSync(join(process.cwd(), 'public', SPOT_GUIDE.image.src))}
       // The timeline shows 10 days; choose its swells from those 10 days only.
       trains={lr ? swellTrains(lr.times.slice(0, 240), lr.partitions.slice(0, 240), CROMWELLS.exposedSwellDirections) : []}
       longRange={lr ? longRangeDays(lr, CROMWELLS.exposedSwellDirections).filter((d) => d.date > (days[days.length - 1]?.date ?? '')) : []}

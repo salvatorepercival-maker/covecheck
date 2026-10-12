@@ -15,6 +15,7 @@ import type { LongRangeDay } from '@/lib/planning/long-range'
 import { weekOutlook } from '@/lib/planning/outlook'
 import type { SwellTrain } from '@/lib/planning/swell-trains'
 import { DataPanel } from './data-panel'
+import { SpotGuide } from './spot-guide'
 import { LongRangeList, Outlook, SwellTimeline } from './planning'
 import { DaySection } from './day-section'
 import { FitChip, TAG_LABEL, FIT_CHIP } from './fit'
@@ -70,7 +71,10 @@ export function ConditionsApp({
   buoy,
   trains,
   longRange,
+  hasSpotImage,
 }: {
+  /** Whether Sal's aerial photo is in public/spot/. */
+  hasSpotImage: boolean
   /** Swell trains over the next 10+ days (GFS-Wave). */
   trains: SwellTrain[]
   /** Days 8-16 as trends. */
@@ -328,6 +332,8 @@ export function ConditionsApp({
         activity={lens?.activity ?? null}
         sunLine={sunLine(day)}
       />
+
+      <SpotGuide day={day} hasImage={hasSpotImage} />
 
       {/* ---------- The week ---------- */}
       <section id="week" aria-labelledby="week-heading" className="scroll-mt-4">
