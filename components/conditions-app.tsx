@@ -24,6 +24,7 @@ import { LensSettings } from './lens-settings'
 import { LensTabs } from './lens-tabs'
 import { LongRangeList, Outlook, SwellTimeline } from './planning'
 import { SpotGuide } from './spot-guide'
+import { TidePanel } from './tide-panel'
 import { WeekList } from './week-list'
 
 /**
@@ -180,6 +181,16 @@ export function ConditionsApp({
     return tags.length ? tags.reduce((a, b) => (TAG_RANK[b] > TAG_RANK[a] ? b : a)) : null
   }
 
+  // The bands the tide-first lenses use; the snorkel rule's when no lens is on.
+  const tideRule = (lens ?? DEFAULT_LENSES.snorkel).factors.waves
+  const snorkelRule = DEFAULT_LENSES.snorkel.factors.waves
+  const tideBands =
+    tideRule.kind === 'tideSwell'
+      ? { lowFt: tideRule.lowTideFt, highFt: tideRule.risenTideFt }
+      : snorkelRule.kind === 'tideSwell'
+        ? { lowFt: snorkelRule.lowTideFt, highFt: snorkelRule.risenTideFt }
+        : { lowFt: 0.6, highFt: 1.4 }
+
   const [, month, dom] = day.date.split('-').map(Number)
   const nwsHazards = focusHour?.nwsHazards ?? []
   const outlook = weekOutlook(
@@ -308,6 +319,15 @@ export function ConditionsApp({
           until 10 visit reports have calibrated it.
         </p>
       </section>
+
+      <TidePanel
+        day={day}
+        nextMidnightFt={days[days.indexOf(day) + 1]?.hours.find((h) => h.hour === 0)?.tideFt ?? null}
+        week={days}
+        nowMinutes={isToday ? minutesNow : null}
+        bands={tideBands}
+        best={lens ? (aheadFit?.bestHours ?? null) : null}
+      />
 
       {raw ? (
         <DaySection
