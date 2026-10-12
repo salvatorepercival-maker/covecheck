@@ -11,61 +11,79 @@
  * colour never carries meaning on its own.
  */
 :root {
-  --background: #faf7f2;
-  --surface: #ffffff;
-  --surface-sunk: #f4f0e9;
-  --foreground: #1b1f1e;
-  --muted: #646a67;
-  --border: #e4ded4;
-
   /*
-   * Brand colours, sampled from the CoveCheck mark.
-   * navy #042b75 · teal #03a6b3 · sun #f9764f
+   * Cool, quiet ground with white cards, so the one coloured element on the
+   * page — the verdict card — carries the decision.
    */
+  --background: #f2f4f6;
+  --surface: #ffffff;
+  --surface-sunk: #eceff2;
+  --foreground: #15232d;
+  --muted: #66717b;
+  --border: #e3e7eb;
+
+  /* Brand colours, sampled from the CoveCheck mark. */
   --brand-navy: #042b75;
   --brand-teal: #03a6b3;
 
-  /*
-   * The single UI accent: focus rings, the selected day, the primary button.
-   * Navy in light mode because it carries white button text at full contrast —
-   * the brand teal only reaches about 2.5:1 against white.
-   */
-  --sea: var(--brand-navy);
-  /* Text that sits on top of --sea. Paired so the button never loses contrast. */
+  /* Accent for focus rings and links. */
+  --sea: #15232d;
   --on-sea: #ffffff;
 
-  --verdict-great: #3a6b49;
-  --verdict-great-bg: #eaf2ec;
-  --verdict-caution: #8a5a10;
-  --verdict-caution-bg: #fbf2e2;
-  --verdict-nogo: #96463a;
-  --verdict-nogo-bg: #f9eae6;
-  --verdict-unknown: #4d5964;
-  --verdict-unknown-bg: #eef1f3;
+  /* Verdict cards. Each pairs with an icon and a word — colour never stands alone. */
+  --hero-go: #2d6a4f;
+  --hero-close: #8a5a10;
+  --hero-skip: #15232d;
+  --hero-unknown: #4d5964;
+
+  /* Go / Close / Skip marks: bars, chips, hourly blocks. */
+  --go: #2d6a4f;
+  --go-tint: #e2efe7;
+  --close: #dca46a;
+  --close-ink: #8a5a10;
+  --close-tint: #f8ecd9;
+  --skip: #c4553f;
+  --skip-ink: #a33f2b;
+  --skip-tint: #f8e2dc;
+  --unknown: #d5dade;
+  --unknown-tint: #eceff2;
+
+  --track: #e9ecef;
+  --tide-band: #dfeee5;
+  --cream: #fbf1e3;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #14171a;
-    --surface: #1c2023;
-    --surface-sunk: #23282b;
-    --foreground: #ecebe6;
-    --muted: #9aa2a0;
-    --border: #303639;
+    --background: #101619;
+    --surface: #1a2227;
+    --surface-sunk: #222b31;
+    --foreground: #e9ece9;
+    --muted: #9aa4a8;
+    --border: #2b353b;
 
-    /* Navy is unreadable on a dark ground, so the accent becomes the brand teal, lifted for contrast. */
-    --sea: #3fbecb;
-    /* Bright teal needs dark text on top, not white. */
-    --on-sea: #05222a;
+    --sea: #e9ece9;
+    --on-sea: #101619;
 
-    --verdict-great: #8fc39d;
-    --verdict-great-bg: #1e2a22;
-    --verdict-caution: #e0b268;
-    --verdict-caution-bg: #2b2317;
-    --verdict-nogo: #dd9384;
-    --verdict-nogo-bg: #2c1e1b;
-    --verdict-unknown: #a8b4bf;
-    --verdict-unknown-bg: #22282c;
+    --hero-go: #24563f;
+    --hero-close: #6e4a12;
+    --hero-skip: #0b1216;
+    --hero-unknown: #3a444c;
+
+    --go: #7cc29b;
+    --go-tint: #1f3329;
+    --close: #d9a066;
+    --close-ink: #e6b97f;
+    --close-tint: #33281a;
+    --skip: #e07a63;
+    --skip-ink: #ec9a86;
+    --skip-tint: #3a221d;
+    --unknown: #3a444b;
+    --unknown-tint: #222b31;
+
+    --track: #2b353b;
+    --tide-band: #1f3329;
+    --cream: #2a2419;
   }
 }
 
@@ -81,29 +99,30 @@
   --color-brand-navy: var(--brand-navy);
   --color-brand-teal: var(--brand-teal);
 
-  --color-great: var(--verdict-great);
-  --color-great-bg: var(--verdict-great-bg);
-  --color-caution: var(--verdict-caution);
-  --color-caution-bg: var(--verdict-caution-bg);
-  --color-nogo: var(--verdict-nogo);
-  --color-nogo-bg: var(--verdict-nogo-bg);
-  --color-unknown: var(--verdict-unknown);
-  --color-unknown-bg: var(--verdict-unknown-bg);
+  --color-hero-go: var(--hero-go);
+  --color-hero-close: var(--hero-close);
+  --color-hero-skip: var(--hero-skip);
+  --color-hero-unknown: var(--hero-unknown);
+  --color-go: var(--go);
+  --color-go-tint: var(--go-tint);
+  --color-close: var(--close);
+  --color-close-ink: var(--close-ink);
+  --color-close-tint: var(--close-tint);
+  --color-skip: var(--skip);
+  --color-skip-ink: var(--skip-ink);
+  --color-skip-tint: var(--skip-tint);
+  --color-unknown: var(--unknown);
+  --color-unknown-tint: var(--unknown-tint);
+  --color-track: var(--track);
+  --color-tide-band: var(--tide-band);
+  --color-cream: var(--cream);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-/*
- * A very soft vertical wash rather than a flat fill. Keeps the single narrow
- * column from looking like a phone screenshot pasted onto dead space, without
- * framing it in a device-like border.
- */
 body {
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--sea) 4%, var(--background)) 0%, var(--background) 32%),
-    var(--background);
-  background-attachment: fixed;
+  background: var(--background);
   color: var(--foreground);
 }
 

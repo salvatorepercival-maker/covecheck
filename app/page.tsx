@@ -1,6 +1,5 @@
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { Freshness } from '@/components/freshness'
 import { ReportView } from '@/components/report-view'
 import { CROMWELLS } from '@/lib/beach/cromwells'
 import { getBeachReport } from '@/lib/forecast'
@@ -14,86 +13,34 @@ import { getBeachReport } from '@/lib/forecast'
  * blocking on six provider calls.
  */
 
-/**
- * Freshness lives in the header, which is otherwise static.
- *
- * Given its own Suspense boundary so the branding and beach name still prerender
- * into the shell — only this stamp waits on the providers. `getBeachReport` is
- * request-memoized, so this shares one result with the report body below rather
- * than fetching again.
- */
-async function HeaderFreshness() {
-  const report = await getBeachReport(CROMWELLS)
-  return (
-    <Freshness
-      updatedAtUtc={report.updatedAtUtc}
-      nowIso={report.evaluation.evaluatedAtUtc}
-      className="whitespace-nowrap"
-    />
-  )
-}
-
 async function Report() {
   const report = await getBeachReport(CROMWELLS)
-
-  return (
-    <ReportView
-      report={report}
-      profile={CROMWELLS}
-      conditionsByTimestamp={report.conditionsByTimestamp}
-      nowIso={report.evaluation.evaluatedAtUtc}
-    />
-  )
+  return <ReportView report={report} profile={CROMWELLS} />
 }
 
 function ReportSkeleton() {
   return (
-    <div className="space-y-5" aria-busy="true" aria-live="polite">
+    <div className="space-y-6" aria-busy="true" aria-live="polite">
       <p className="sr-only">Loading the forecast for Cromwell&rsquo;s Beach</p>
-      <div className="h-44 rounded-2xl border border-border bg-surface-sunk" />
-      <div className="flex gap-2">
-        {Array.from({ length: 5 }, (_, index) => (
-          <div key={index} className="h-[5.25rem] min-w-[3.5rem] flex-1 rounded-xl border border-border/60 bg-surface-sunk/70" />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        {Array.from({ length: 4 }, (_, index) => (
-          <div key={index} className="h-[6.5rem] rounded-xl border border-border bg-surface-sunk" />
-        ))}
-      </div>
+      <div className="h-64 rounded-3xl bg-surface-sunk" />
+      <div className="h-72 rounded-2xl bg-surface" />
+      <div className="h-48 rounded-2xl bg-surface" />
     </div>
   )
 }
 
 export default function Page() {
   return (
-    <main className="mx-auto w-full max-w-lg px-4 pt-7">
-      <header className="mb-4">
-        {/*
-         * The wordmark is deep navy, which all but disappears on the dark
-         * background. Rather than recolour someone else's artwork, the lockup
-         * sits on a light plaque in dark mode so the brand renders exactly as
-         * supplied and stays legible in both themes.
-         */}
-        <span className="inline-flex rounded-lg dark:bg-white/95 dark:px-2.5 dark:py-1.5">
-          <Image
-            src="/brand/covecheck-logo.png"
-            alt="CoveCheck"
-            width={687}
-            height={176}
-            priority
-            className="h-9 w-auto"
-          />
+    <main className="mx-auto w-full max-w-md px-4 pt-5">
+      <header className="mb-5 flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2">
+          <Image src="/brand/covecheck-mark.png" alt="" width={256} height={256} priority className="h-7 w-7" />
+          <span className="text-[17px] font-bold tracking-tight">CoveCheck</span>
         </span>
-        {/* Beach name and freshness share a baseline row; the stamp is right-aligned
-            and never wraps, so the name keeps the visual weight. */}
-        <div className="mt-3 flex items-baseline justify-between gap-3">
-          <h1 className="text-xl font-semibold tracking-tight">{CROMWELLS.name}</h1>
-          <Suspense fallback={null}>
-            <HeaderFreshness />
-          </Suspense>
-        </div>
-        <p className="mt-0.5 text-sm text-muted">Black Point, Honolulu · Know when the water is right</p>
+        {/* One beach today. A picker replaces this pill once there are more. */}
+        <h1 className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium">
+          Cromwell&rsquo;s
+        </h1>
       </header>
 
       <Suspense fallback={<ReportSkeleton />}>
