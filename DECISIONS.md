@@ -11,6 +11,25 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 25. Closures are checked by hand, and a check lasts three days
+
+**Decided:** 2026-10-12 (Sal) · **Status:** active · **number is a starting guess**
+
+No permitted live feed covers closures at Black Point, so the only source is Sal
+saying "I checked today — no closures" (the button in the opened Closures row,
+`POST /api/closures` with the calibration token). A check counts for the day it
+was made and the two after (`CHECK_VALID_DAYS`, `lib/beach/closure-coverage.ts`),
+then that day reads "Unknown" again rather than quietly staying clear.
+
+The opened Advisories row also shows the last 30 days (NWS past alerts for the
+point, plus Health Dept. events within 5 km). If either source fails the history
+says "Couldn't load", never an empty, clear-looking grid.
+
+**Would reverse this:** a closures feed covering Black Point, or Sal finding three
+days too long or too short in practice.
+
+---
+
 ## 24. Snorkel and Beach are tide-first: swell limits depend on the tide
 
 **Decided:** 2026-10-12 (Sal, from his own sessions) · **Status:** active · **lens rule; numbers are starting guesses**

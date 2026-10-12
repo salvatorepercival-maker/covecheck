@@ -7,6 +7,7 @@ import { fetchAlerts } from './providers/alerts'
 import { fetchBuoy, type BuoyObservation } from './providers/buoy'
 import { fetchNwsThunder, type NwsThunder } from './providers/nws-grid'
 import { fetchLongRange, type LongRange } from './providers/long-range'
+import { fetchAdvisoryHistory, type HistoryDay } from './providers/advisory-history'
 import { fetchWaterQuality, type WaterQualityReport } from './providers/doh'
 import {
   fetchMarine,
@@ -58,6 +59,8 @@ export type ForecastBundle = {
   thunder: Slice<NwsThunder>
   /** 16-day GFS-Wave partitions and wind, for the planning views only. */
   longRange: Slice<LongRange>
+  /** Last 30 days of NWS and Health Dept. advisories near the beach. Display only. */
+  advisoryHistory: Slice<HistoryDay[]>
 }
 
 const toSlice = <T,>(
@@ -94,7 +97,7 @@ async function getForecastBundle(
   })
   cacheTag(`forecast:${profile.id}`)
 
-  const [marine, weather, tideHourly, tideExtremes, alerts, srf, rainHistory, waterQuality, buoy, thunder, longRange] = await Promise.all([
+  const [marine, weather, tideHourly, tideExtremes, alerts, srf, rainHistory, waterQuality, buoy, thunder, longRange, advisoryHistory] = await Promise.all([
     fetchMarine(profile.cells.marine, profile.timezone),
     fetchWeather(profile.cells.weather, profile.timezone),
     fetchTideHourly(profile.tideStationId, beginDate, endDate),
@@ -107,6 +110,7 @@ async function getForecastBundle(
     fetchBuoy(),
     fetchNwsThunder(profile.nwsGrid),
     fetchLongRange(profile.cells, profile.timezone),
+    fetchAdvisoryHistory({ latitude: profile.latitude, longitude: profile.longitude }),
   ])
 
   return {
@@ -122,6 +126,7 @@ async function getForecastBundle(
     buoy: toSlice(buoy),
     thunder: toSlice(thunder),
     longRange: toSlice(longRange),
+    advisoryHistory: toSlice(advisoryHistory),
   }
 }
 
@@ -166,6 +171,8 @@ export type BeachReport = {
   thunder: { status: 'ok'; data: NwsThunder; fetchedAtUtc: string } | { status: 'failed'; error: string; fetchedAtUtc: string }
   /** 16-day planning data, or the failure (planning views then hide). */
   longRange: { status: 'ok'; data: LongRange; fetchedAtUtc: string } | { status: 'failed'; error: string; fetchedAtUtc: string }
+  /** Last 30 days of advisories near the beach, or null when either source failed. */
+  advisoryHistory: HistoryDay[] | null
   /** Per-provider fetch status, for the "Where this data comes from" panel. */
   sourceStatus: { id: string; name: string; status: 'ok' | 'failed'; fetchedAtUtc: string }[]
 }
@@ -270,6 +277,7 @@ export const getBeachReport = cache(async function getBeachReport(
     buoy: bundle.buoy,
     thunder: bundle.thunder,
     longRange: bundle.longRange,
+    advisoryHistory: bundle.advisoryHistory.status === 'ok' ? bundle.advisoryHistory.data : null,
     sourceStatus: [
       ['marine', 'Open-Meteo Marine, default model — swell for the day tiles, lenses and week', bundle.marine],
       ['weather', 'Open-Meteo (wind, sky, UV, rain)', bundle.weather],

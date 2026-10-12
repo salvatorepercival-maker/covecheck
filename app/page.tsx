@@ -6,6 +6,7 @@ import { ConditionsApp } from '@/components/conditions-app'
 import { CROMWELLS } from '@/lib/beach/cromwells'
 import { getBeachReport } from '@/lib/forecast'
 import { SPOT_GUIDE } from '@/lib/beach/spot-guide'
+import { readLastChecked } from '@/lib/beach/closure-checks'
 import { buoyComparisonFor } from '@/lib/facts'
 import { longRangeDays } from '@/lib/planning/long-range'
 import { swellTrains } from '@/lib/planning/swell-trains'
@@ -26,6 +27,7 @@ async function Report() {
   const report = await getBeachReport(CROMWELLS)
   const days = dayFactsFor(report, CROMWELLS)
   const lr = report.longRange.status === 'ok' ? report.longRange.data : null
+  const closuresLastChecked = await readLastChecked()
   const lrDays = lr ? longRangeDays(lr, CROMWELLS.exposedSwellDirections) : []
   // Same day, two models: list the days where they disagree enough to notice.
   const modelGaps = days.flatMap((d) => {
@@ -52,6 +54,8 @@ async function Report() {
       trains={lr ? swellTrains(lr.times.slice(0, 240), lr.partitions.slice(0, 240), CROMWELLS.exposedSwellDirections) : []}
       longRange={lrDays.filter((d) => d.date > (days[days.length - 1]?.date ?? ''))}
       modelGaps={modelGaps}
+      advisoryHistory={report.advisoryHistory}
+      closuresLastChecked={closuresLastChecked}
     />
   )
 }

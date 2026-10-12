@@ -1,12 +1,17 @@
-import { CLOSURES_LAST_CHECKED } from '@/lib/beach/closures'
+'use client'
+
+import { useState } from 'react'
+import { coveredByCheck } from '@/lib/beach/closure-coverage'
 import type { BuoyComparison } from '@/lib/conditions/buoy'
 import { waveGauge, wavesNote, windGauge, windNote, type Gauge } from '@/lib/conditions/deciding'
 import { uvPeakWindow, wearFor } from '@/lib/conditions/describe'
 import { SKY_WORDS } from '@/lib/conditions/sky'
 import { WIND_CLASS_WORDS } from '@/lib/conditions/wind'
 import type { DayFacts, HourFacts } from '@/lib/facts'
-import { formatCompass } from '@/lib/format'
+import { formatCompass, formatHour } from '@/lib/format'
 import { affectsFit, type FactorId, type FactorTag, type Lens } from '@/lib/lenses/schema'
+import type { HistoryDay } from '@/lib/providers/advisory-history'
+import { AdvisoriesDetail, ClarityDetail, ClosuresDetail, HourlyDetail, JellyDetail, SwellDetail, UvDetail, WaterTempDetail, WeatherDetail } from './metric-details'
 
 /**
  * "What's deciding it": the two factors that decide most days (waves, wind) as
@@ -45,6 +50,14 @@ function Mark({ status }: { status: Status }) {
       </svg>
     )
   return <Chip status={status} />
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className={`h-4 w-4 shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
 }
 
 const ICONS: Record<string, React.ReactNode> = {
@@ -131,7 +144,11 @@ function BigCard({
   status,
   gauge,
   note,
+  open,
+  onToggle,
 }: {
+  open: boolean
+  onToggle: () => void
   id: string
   label: string
   value: string
@@ -142,10 +159,20 @@ function BigCard({
   note: string
 }) {
   return (
-    <li className="flex flex-col rounded-[20px] bg-surface p-4">
+    <li>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={`detail-${id}`}
+        className={`flex h-full w-full flex-col rounded-[20px] bg-surface p-4 text-left transition-shadow ${open ? 'ring-2 ring-foreground/70' : ''}`}
+      >
       <div className="flex items-start justify-between gap-2">
         <Icon id={id} />
-        <Chip status={status} />
+        <span className="flex items-center gap-1.5">
+          <Chip status={status} />
+          <Chevron open={open} />
+        </span>
       </div>
       <p className="mt-3 font-mono text-[10px] uppercase tracking-[0.14em] text-muted">{label}</p>
       <p className="mt-1 font-mono leading-none">
@@ -160,6 +187,7 @@ function BigCard({
         </>
       ) : null}
       <p className="mt-3 border-t border-border pt-2.5 text-[12px] leading-snug text-foreground/80">{note}</p>
+      </button>
     </li>
   )
 }
@@ -175,7 +203,17 @@ export function DecidingPanel({
   buoy,
   shore,
   label,
+  days,
+  todayDate,
+  advisoryHistory,
+  closuresLastChecked,
 }: {
+  /** The forecast week, for the opened details. */
+  days: DayFacts[]
+  todayDate: string
+  advisoryHistory: HistoryDay[] | null
+  /** The last date closures were checked by hand. */
+  closuresLastChecked: string | null
   /** Null in raw mode: readings only. */
   lens: Lens | null
   day: DayFacts
@@ -187,6 +225,8 @@ export function DecidingPanel({
   /** "Now" or "At 9 AM". */
   label: string
 }) {
+  const [open, setOpen] = useState<string | null>(null)
+  const toggle = (id: string) => setOpen((o) => (o === id ? null : id))
   const tag = (...ids: FactorId[]): Status => (lens && tags ? worst(ids.map((id) => tags[id])) : null)
   const num = (v: number) => String(Number(v.toFixed(1)))
 
@@ -196,7 +236,8 @@ export function DecidingPanel({
   const advisoryUnknown = !h.nwsHazardsKnown || wq.status === 'unknown'
   const uv = uvPeakWindow(day)
   const clarityStatus: Status = lens && tags?.clarity && tags.clarity !== 'off' ? (affectsFit(lens.factors.clarity) ? tag('clarity') : 'info') : null
-  const closureStatus: Status = lens ? (h.closures.length ? 'poor' : CLOSURES_LAST_CHECKED ? 'good' : 'unknown') : null
+  const checkedNow = coveredByCheck(closuresLastChecked, day.date)
+  const closureStatus: Status = lens ? (h.closures.length ? 'poor' : checkedNow ? 'good' : 'unknown') : null
 
   const rows: { id: string; title: string; sub: string; value: string; status: Status }[] = [
     {
@@ -248,13 +289,42 @@ export function DecidingPanel({
       title: 'Closures',
       sub: h.closures.length
         ? h.closures.map((c) => c.title).join(' · ')
-        : `Not monitored · ${CLOSURES_LAST_CHECKED ? `checked by hand ${shortDate(CLOSURES_LAST_CHECKED)}` : 'not checked by hand yet'}`,
-      value: h.closures.length ? 'Closed' : CLOSURES_LAST_CHECKED ? 'None' : '—',
+        : `Not monitored · ${closuresLastChecked ? `checked by hand ${shortDate(closuresLastChecked)}` : 'not checked by hand yet'}`,
+      value: h.closures.length ? 'Closed' : checkedNow ? 'None' : '—',
       status: closureStatus,
     },
   ]
   const clear = rows.filter((r) => r.status === 'good').length
   const note = rows.filter((r) => r.status !== null && r.status !== 'good').length
+
+  const advisoryNow: 'clear' | 'in effect' | 'unknown' = advisoryItems.length ? 'in effect' : advisoryUnknown ? 'unknown' : 'clear'
+  const week = days.filter((d) => d.date >= todayDate).slice(0, 7)
+  const detail = (id: string): React.ReactNode => {
+    switch (id) {
+      case 'clarity':
+        return <ClarityDetail days={week} today={todayDate} lens={lens} />
+      case 'weather':
+        return <WeatherDetail days={week} today={todayDate} />
+      case 'uv':
+        return <UvDetail days={week} today={todayDate} />
+      case 'water':
+        return <WaterTempDetail days={week} today={todayDate} />
+      case 'advisories':
+        return <AdvisoriesDetail days={week} today={todayDate} current={advisoryNow} history={advisoryHistory} />
+      case 'jelly':
+        return <JellyDetail today={todayDate} />
+      case 'closures':
+        return <ClosuresDetail days={week} today={todayDate} lastChecked={closuresLastChecked} />
+      case 'waves':
+        return <SwellDetail days={week} today={todayDate} />
+      case 'wind':
+        return <HourlyDetail title="Wind through the day" day={day} value={(x) => x.windMph} unit="mph" digits={0} note={hourlyNote(day, (x) => x.windMph, 'mph', 'Lightest', 'strongest')} />
+      case 'chop':
+        return <HourlyDetail title="Chop through the day" day={day} value={(x) => x.chopFt} unit="ft, inside the cove" note={hourlyNote(day, (x) => x.chopFt, 'ft', 'Calmest', 'choppiest')} />
+      default:
+        return null
+    }
+  }
 
   const waveStatus = tag('waves')
   const windStatus = tag('wind')
@@ -277,6 +347,8 @@ export function DecidingPanel({
           unit="ft"
           sub={[h.swellPeriodSec ? `${Math.round(h.swellPeriodSec)} s` : null, h.swellFromDeg !== null ? `from ${formatCompass(h.swellFromDeg)}` : null].filter(Boolean).join(' · ') || '—'}
           status={waveStatus}
+          open={open === 'waves'}
+          onToggle={() => toggle('waves')}
           gauge={lens ? waveGauge(lens, h) : null}
           note={wavesNote(h, buoy, shore)}
         />
@@ -287,12 +359,21 @@ export function DecidingPanel({
           unit="mph"
           sub={[h.windFromDeg !== null ? formatCompass(h.windFromDeg) : null, h.windClass ? WIND_CLASS_WORDS[h.windClass] : null].filter(Boolean).join(' · ') || '—'}
           status={windStatus}
+          open={open === 'wind'}
+          onToggle={() => toggle('wind')}
           gauge={lens ? windGauge(lens, h) : null}
           note={windNote(day, h)}
         />
       </ul>
+      {open === 'waves' || open === 'wind' ? <div id={`detail-${open}`}>{detail(open)}</div> : null}
 
-      <div className="flex items-center gap-3 rounded-[20px] bg-surface p-3.5">
+      <button
+        type="button"
+        onClick={() => toggle('chop')}
+        aria-expanded={open === 'chop'}
+        aria-controls="detail-chop"
+        className={`flex w-full items-center gap-3 rounded-[20px] bg-surface p-3.5 text-left ${open === 'chop' ? 'ring-2 ring-foreground/70' : ''}`}
+      >
         <Icon id="chop" />
         <span className="min-w-0 flex-1">
           <span className="block font-mono text-[10px] uppercase tracking-[0.14em] text-muted">Chop</span>
@@ -302,7 +383,9 @@ export function DecidingPanel({
         </span>
         <span className="font-mono text-[1.35rem] font-bold">{h.chopFt === null ? '—' : `${num(h.chopFt)} ft`}</span>
         <Chip status={chopStatus} />
-      </div>
+        <Chevron open={open === 'chop'} />
+      </button>
+      {open === 'chop' ? <div id="detail-chop">{detail('chop')}</div> : null}
 
       <div className="rounded-[20px] bg-surface p-4">
         <div className="flex items-baseline justify-between gap-3 border-b border-border pb-2.5">
@@ -315,18 +398,43 @@ export function DecidingPanel({
         </div>
         <ul className="divide-y divide-border">
           {rows.map((r) => (
-            <li key={r.id} className="flex items-center gap-3 py-3">
-              <Icon id={r.id} />
-              <span className="min-w-0 flex-1">
-                <span className="block text-[15px] font-semibold leading-tight">{r.title}</span>
-                <span className="block text-[12px] leading-snug text-muted">{r.sub}</span>
-              </span>
-              <span className="shrink-0 font-mono text-[1.05rem] font-bold">{r.value}</span>
-              <Mark status={r.status} />
+            <li key={r.id}>
+              <button
+                type="button"
+                onClick={() => toggle(r.id)}
+                aria-expanded={open === r.id}
+                aria-controls={`detail-${r.id}`}
+                className="flex w-full items-center gap-3 py-3 text-left"
+              >
+                <Icon id={r.id} />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[15px] font-semibold leading-tight">{r.title}</span>
+                  <span className="block text-[12px] leading-snug text-muted">{r.sub}</span>
+                </span>
+                <span className="shrink-0 font-mono text-[1.05rem] font-bold">{r.value}</span>
+                <Mark status={r.status} />
+                <Chevron open={open === r.id} />
+              </button>
+              {open === r.id ? (
+                <div id={`detail-${r.id}`} className="pb-3">
+                  {detail(r.id)}
+                </div>
+              ) : null}
             </li>
           ))}
         </ul>
       </div>
     </section>
   )
+}
+
+/** "Lightest 8 mph at 7 AM, strongest 19 mph at 2 PM." */
+export function hourlyNote(day: DayFacts, value: (h: HourFacts) => number | null, unit: string, low: string, high: string): string {
+  const hrs = day.hours.filter((x) => x.hour >= 6 && x.hour <= 18 && value(x) !== null)
+  if (!hrs.length) return 'No hourly readings for this day.'
+  const lo = hrs.reduce((a, b) => (value(b)! < value(a)! ? b : a))
+  const hi = hrs.reduce((a, b) => (value(b)! > value(a)! ? b : a))
+  const v = (x: HourFacts) => Number(value(x)!.toFixed(unit === 'mph' ? 0 : 1))
+  if (v(lo) === v(hi)) return `Holds at ${v(lo)} ${unit} all day.`
+  return `${low} ${v(lo)} ${unit} at ${formatHour(lo.hour)}, ${high} ${v(hi)} ${unit} at ${formatHour(hi.hour)}.`
 }
