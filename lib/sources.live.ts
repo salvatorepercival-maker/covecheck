@@ -62,3 +62,13 @@ describe('NWS thunder grid', () => {
     }
   })
 })
+
+describe('long range (planning)', () => {
+  it('GFS-Wave returns 16 days of partitions', async () => {
+    const { fetchLongRange } = await import('./providers/long-range')
+    const { CROMWELLS: beach } = await import('./beach/cromwells')
+    const r = await fetchLongRange(beach.cells, beach.timezone)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.data.times.length).toBeGreaterThanOrEqual(15 * 24)
+  })
+})

@@ -11,7 +11,11 @@ import { affectsFit, type LensId, type LensOverrides } from '@/lib/lenses/schema
 import { formatSunTime } from '@/lib/sun'
 import type { BuoyComparison } from '@/lib/conditions/buoy'
 import { CONFIDENCE_WORDS } from '@/lib/conditions/confidence'
+import type { LongRangeDay } from '@/lib/planning/long-range'
+import { weekOutlook } from '@/lib/planning/outlook'
+import type { SwellTrain } from '@/lib/planning/swell-trains'
 import { DataPanel } from './data-panel'
+import { LongRangeList, Outlook, SwellTimeline } from './planning'
 import { DaySection } from './day-section'
 import { FitChip, TAG_LABEL, FIT_CHIP } from './fit'
 import { MoonIcon } from './icons'
@@ -64,7 +68,13 @@ export function ConditionsApp({
   shore,
   tideBand,
   buoy,
+  trains,
+  longRange,
 }: {
+  /** Swell trains over the next 10+ days (GFS-Wave). */
+  trains: SwellTrain[]
+  /** Days 8-16 as trends. */
+  longRange: LongRangeDay[]
   days: DayFacts[]
   /** The buoy against the forecast right now, or null without a reading. */
   buoy: BuoyComparison | null
@@ -247,6 +257,19 @@ export function ConditionsApp({
         </section>
       ) : null}
 
+      <Outlook
+        lines={weekOutlook(
+          days,
+          trains,
+          todayDate,
+          lens ? days.flatMap((d) => {
+            const f = evaluateDay(lens, d, d.date === todayDate ? { fromHour: hourNow } : {})
+            return f.bestHours ? [{ date: d.date, ...f.bestHours }] : []
+          }) : null,
+          lens?.activity ?? null,
+        )}
+      />
+
       {nwsHazards.length > 0 ? (
         <p className="rounded-2xl bg-close-tint px-4 py-3 text-sm text-close-ink">
           <strong className="font-semibold">{nwsHazards.map((h) => h.event).join(', ')}</strong> in effect from the National Weather
@@ -336,6 +359,10 @@ export function ConditionsApp({
           })}
         </ul>
       </section>
+
+      <SwellTimeline trains={trains} startDate={todayDate} />
+
+      <LongRangeList days={longRange} />
 
       <DataPanel />
 
