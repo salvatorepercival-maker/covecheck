@@ -7,22 +7,37 @@ const snorkel = DEFAULT_LENSES.snorkel
 const surf = DEFAULT_LENSES.surf
 
 describe('factor tags', () => {
-  it('snorkel waves use the engine ceilings: 3 good, 4 mixed', () => {
-    expect(tagFactor('waves', snorkel.factors.waves, hourFacts({ swellFt: 3 }))).toBe('good')
-    expect(tagFactor('waves', snorkel.factors.waves, hourFacts({ swellFt: 3.5 }))).toBe('mixed')
-    expect(tagFactor('waves', snorkel.factors.waves, hourFacts({ swellFt: 4.5 }))).toBe('poor')
+  it('snorkel judges swell energy: the engine height ceilings converted at 10 s (90 / 160)', () => {
+    const at = (ft: number, s: number) => hourFacts({ swellFt: ft, swellEnergy: ft * ft * s, swellPeriodSec: s })
+    expect(tagFactor('waves', snorkel.factors.waves, at(3, 10))).toBe('good')
+    expect(tagFactor('waves', snorkel.factors.waves, at(3.5, 10))).toBe('mixed')
+    expect(tagFactor('waves', snorkel.factors.waves, at(4.5, 10))).toBe('poor')
+  })
+
+  it('period matters: the same height is judged harder as a long-period groundswell', () => {
+    const at = (ft: number, s: number) => hourFacts({ swellFt: ft, swellEnergy: ft * ft * s, swellPeriodSec: s })
+    expect(tagFactor('waves', snorkel.factors.waves, at(3, 7))).toBe('good')
+    expect(tagFactor('waves', snorkel.factors.waves, at(3, 16))).toBe('mixed')
+    expect(tagFactor('waves', snorkel.factors.waves, at(3.5, 7))).toBe('good')
+    expect(tagFactor('waves', snorkel.factors.waves, at(3.5, 15))).toBe('poor')
+  })
+
+  it('chop is its own factor', () => {
+    expect(tagFactor('chop', snorkel.factors.chop, hourFacts({ chopFt: 0.5 }))).toBe('good')
+    expect(tagFactor('chop', snorkel.factors.chop, hourFacts({ chopFt: 1.5 }))).toBe('mixed')
+    expect(tagFactor('chop', snorkel.factors.chop, hourFacts({ chopFt: 2.5 }))).toBe('poor')
   })
 
   it('extreme NWS surf makes calm-water lenses poor, but not surf', () => {
-    const h = hourFacts({ swellFt: 1, nwsSurfMaxFt: 7 })
+    const h = hourFacts({ swellFt: 1, swellEnergy: 10, nwsSurfMaxFt: 7 })
     expect(tagFactor('waves', snorkel.factors.waves, h)).toBe('poor')
-    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 3, nwsSurfMaxFt: 7 }))).toBe('good')
+    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 3, swellEnergy: 90, nwsSurfMaxFt: 7 }))).toBe('good')
   })
 
   it('surf wants swell inside a range', () => {
-    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 0.5 }))).toBe('poor')
-    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 1.5 }))).toBe('mixed')
-    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 4 }))).toBe('good')
+    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 0.5, swellEnergy: 2.5 }))).toBe('poor')
+    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 1.5, swellEnergy: 22.5 }))).toBe('mixed')
+    expect(tagFactor('waves', surf.factors.waves, hourFacts({ swellFt: 4, swellEnergy: 160 }))).toBe('good')
   })
 
   it('wind is judged by three classes: offshore, cross-shore, onshore', () => {
@@ -89,7 +104,7 @@ describe('factor tags', () => {
   })
 
   it('clarity is tagged but does not affect fit while uncalibrated', () => {
-    const murky = hourFacts({ clarity: { ft: 5, confidence: 'low', mainCause: 'swell', inputs: { exposedSwellFt: 1, windMph: 6, windDirectionDeg: 0, rain48hIn: 0 }, modelVersion: 't' } })
+    const murky = hourFacts({ clarity: { ft: 5, confidence: 'low', mainCause: 'swell', inputs: { swellEnergy: 10, windMph: 6, windDirectionDeg: 0, rain48hIn: 0 }, modelVersion: 't' } })
     const result = evaluateHour(snorkel, murky)
     expect(result.tags.clarity).toBe('poor')
     expect(result.fit).toBe('good')
@@ -124,7 +139,7 @@ describe('hour fit', () => {
   })
 
   it('a known poor still stands when other data is missing', () => {
-    expect(evaluateHour(snorkel, hourFacts({ swellFt: 6, nwsHazardsKnown: false })).fit).toBe('poor')
+    expect(evaluateHour(snorkel, hourFacts({ swellFt: 6, swellEnergy: 360, nwsHazardsKnown: false })).fit).toBe('poor')
   })
 })
 
@@ -137,22 +152,29 @@ describe('day fit', () => {
     expect(fit.headline).toBe('Good for snorkeling')
   })
 
+  it('explains a day with only short good stretches', () => {
+    const day = dayOf([8, 9, 10, 11].map((hour) => ({ hour, chopFt: hour % 2 ? 0 : 1.5 })))
+    const fit = evaluateDay(snorkel, day)
+    expect(fit.fit).toBe('mixed')
+    expect(fit.reason).toBe('Some hours fit, but none for 2 hours in a row.')
+  })
+
   it('a lone good hour is not a best stretch', () => {
     expect(bestRun([{ timestamp: 'a', hour: 8, fit: 'good', tags: {} as never }], 2)).toBeNull()
   })
 
   it('names the problem on a rough day', () => {
-    const day = dayOf([8, 9, 10].map((hour) => ({ hour, swellFt: 5, swellFromDeg: 180 })))
+    const day = dayOf([8, 9, 10].map((hour) => ({ hour, swellFt: 5, swellEnergy: 375, swellPeriodSec: 15, swellFromDeg: 180 })))
     const fit = evaluateDay(snorkel, day)
     expect(fit.fit).toBe('poor')
     expect(fit.headline).toBe('Rough for snorkeling')
-    expect(fit.reason).toMatch(/^A 5 ft south swell/)
+    expect(fit.reason).toMatch(/^A 5 ft south swell at 15 s/)
   })
 
   it('overrides replace a factor rule', () => {
-    const strict = withOverrides(snorkel, { waves: { kind: 'ceiling', good: 0.5, mixed: 0.8 } })
+    const strict = withOverrides(snorkel, { waves: { kind: 'ceiling', good: 2.5, mixed: 5 } })
     expect(evaluateDay(strict, calmDay()).fit).toBe('poor')
-    expect(settingsSummary(strict)).toMatch(/waves under 0.5 ft/)
+    expect(settingsSummary(strict)).toMatch(/swell energy under 2.5 \(≈ 0.5 ft at 10 s\)/)
   })
 })
 
@@ -161,7 +183,7 @@ describe('fit language', () => {
   it('no lens output speaks in safety terms', () => {
     const variants = [
       calmDay(),
-      dayOf([8, 9, 10].map((hour) => ({ hour, swellFt: 6, windMph: 30, gustMph: 45, windClass: 'onshore' as const, uv: 12, rainPct: 90, sky: 'storms' as const, jelly: { expected: true, window: null }, nwsHazards: [{ event: 'High Surf Warning', blocking: true, level: 'warning' as const }] }))),
+      dayOf([8, 9, 10].map((hour) => ({ hour, swellFt: 6, swellEnergy: 540, chopFt: 3, windMph: 30, gustMph: 45, windClass: 'onshore' as const, uv: 12, rainPct: 90, sky: 'storms' as const, jelly: { expected: true, window: null }, nwsHazards: [{ event: 'High Surf Warning', blocking: true, level: 'warning' as const }] }))),
     ]
     for (const id of LENS_ORDER) {
       for (const day of variants) {

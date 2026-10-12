@@ -15,6 +15,15 @@ import type { FactorRule, Lens, LensId } from './schema'
 const off: FactorRule = { kind: 'off' }
 
 /**
+ * Swell is judged on energy, Σ H²T (ft²·s). Defaults are v2's height rules
+ * converted at T = 10 s — the energy-weighted mean exposed period over
+ * 2025-04-14 → 2026-10-11 (lib/backtest/swell-energy.live.ts), where the
+ * conversion is balanced: about as many hours judged stricter as looser.
+ * A 3 ft swell at 10 s = 90; at 15 s = 135.
+ */
+const E = (ft: number) => Math.round(ft * ft * 10)
+
+/**
  * In-water wind, set by Sal 2026-10-11. Offshore is held to the cross-shore
  * limits — it flattens the surface but pushes swimmers out to sea. Onshore is
  * the engine's original onshore ceilings.
@@ -43,7 +52,8 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
     activity: 'snorkeling',
     minGoodHours: 2,
     factors: {
-      waves: { kind: 'ceiling', good: 3, mixed: 4 },
+      waves: { kind: 'ceiling', good: E(3), mixed: E(4) },
+      chop: { kind: 'ceiling', good: 1, mixed: 2 },
       wind: IN_WATER_WIND,
       tide: { kind: 'tideBand', outside: 'mixed' },
       clarity: clarity(15, 10),
@@ -64,7 +74,8 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
     activity: 'diving',
     minGoodHours: 2,
     factors: {
-      waves: { kind: 'ceiling', good: 2, mixed: 3 },
+      waves: { kind: 'ceiling', good: E(2), mixed: E(3) },
+      chop: { kind: 'ceiling', good: 1, mixed: 2 },
       wind: IN_WATER_WIND,
       tide: { kind: 'tideBand', outside: 'mixed' },
       clarity: clarity(25, 15),
@@ -85,7 +96,8 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
     activity: 'surfing',
     minGoodHours: 2,
     factors: {
-      waves: { kind: 'range', good: [2, 6], mixed: [1, 8] },
+      waves: { kind: 'range', good: [E(2), E(6)], mixed: [E(1), E(8)] },
+      chop: { kind: 'ceiling', good: 1.5, mixed: 3 },
       // Unchanged from v2's first cut; cross-shore takes the old onshore
       // limits, which is what cross-shore was judged on before.
       wind: {
@@ -118,7 +130,8 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
     activity: 'a beach day',
     minGoodHours: 2,
     factors: {
-      waves: { kind: 'ceiling', good: 2, mixed: 4 },
+      waves: { kind: 'ceiling', good: E(2), mixed: E(4) },
+      chop: { kind: 'ceiling', good: 2, mixed: 3 },
       // Sustained limits set by Sal 2026-10-11. Gusts are a starting guess,
       // kept offshore ≤ cross-shore like the sustained limits.
       wind: {

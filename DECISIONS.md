@@ -11,6 +11,39 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 17. Swell is judged on energy (H² × T), not height alone
+
+**Decided:** 2026-10-12 (Sal asked; thresholds pending his review) · **Status:** active · **engine input change**
+
+Height alone treats a 3 ft 7 s trade windswell and a 3 ft 16 s south groundswell
+as the same water. They are not: deep-water energy flux scales with H²T, and the
+long-period swell carries more than twice the energy into the reef — more surge,
+more stirred sand.
+
+**Engine change (normalize, the engine's input layer):** each exposed partition
+now carries its period, and `HourlyBeachConditions` gains `exposedSwellEnergy`
+(Σ H²T over the exposed **swell** partitions, ft²·s), `exposedSwellPeriodSec`
+(the most energetic one's period) and `exposedChopFt` (the exposed wind-wave
+partition, its own factor). The direction filter (135°–225°, #1, #14) is
+unchanged and runs first. Energy is `null`, never a partial sum, when any exposed
+swell partition lacks a period. `exposedSwellHeightFt` is unchanged and remains
+the readable label. **The engine's own verdict still uses height** — the lenses
+are what judge swell now, and they read energy.
+
+**Defaults:** v2's height rules converted at T = 10 s, the energy-weighted mean
+exposed period over 2025-04-14 → 2026-10-11 (7,098 daylight hours; backtest in
+`lib/backtest/swell-energy.live.ts`). At 10 s the conversion is balanced — for
+Snorkel 484 hours judged stricter, 357 looser — so the change is the physics,
+not a net loosening. At 12 s or 14 s almost every disagreement is looser.
+
+**Clarity** now subtracts for swell energy (0.2 ft per ft²·s above 2.5), set so a
+3 ft 10 s swell costs the same 17.5 ft the height model took.
+
+**Would reverse it:** visit reports showing surge at the entry tracks height
+better than energy at this cove.
+
+---
+
 ## 16. A neutral conditions report, with activity lenses on top
 
 **Decided:** 2026-10-11 (Sal) · **Status:** active · **reframes the single kid-snorkel verdict**

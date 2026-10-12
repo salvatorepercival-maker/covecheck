@@ -11,7 +11,8 @@ import type { FactorId, FactorRule, Fit, Lens, LensOverrides } from '@/lib/lense
  */
 
 const FACTOR_LABEL: Record<FactorId, { label: string; unit: string }> = {
-  waves: { label: 'Waves', unit: 'ft' },
+  waves: { label: 'Swell energy (H² × T; 3 ft at 10 s = 90)', unit: 'ft²·s' },
+  chop: { label: 'Chop (wind waves)', unit: 'ft' },
   wind: { label: 'Wind', unit: 'mph' },
   tide: { label: 'Tide outside the reef band', unit: '' },
   clarity: { label: 'Water clarity', unit: 'ft' },

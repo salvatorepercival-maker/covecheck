@@ -69,7 +69,8 @@ export const affectsFit = (rule: FactorRule) => rule.kind !== 'off' && rule.affe
 /**
  * Every factor a lens can weigh.
  *
- * waves       — swell reaching the beach (ft, direction-filtered), plus NWS extreme surf
+ * waves       — swell ENERGY reaching the beach (Σ H²T, ft²·s, direction-filtered), plus NWS extreme surf
+ * chop        — wind waves reaching the beach (ft)
  * wind        — sustained and gust mph, by direction
  * tide        — against the beach's tide band
  * clarity     — estimated underwater visibility (ft)
@@ -83,6 +84,7 @@ export const affectsFit = (rule: FactorRule) => rule.kind !== 'off' && rule.affe
  */
 export type FactorId =
   | 'waves'
+  | 'chop'
   | 'wind'
   | 'tide'
   | 'clarity'
@@ -96,6 +98,7 @@ export type FactorId =
 
 export const FACTOR_IDS: readonly FactorId[] = [
   'waves',
+  'chop',
   'wind',
   'tide',
   'clarity',

@@ -118,10 +118,23 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string): Tile
     id: 'waves',
     factor: 'waves',
     label: 'Waves',
-    value: h.swellFt === null ? '—' : `${num(h.swellFt)} ft`,
-    detail: [dir ? `From the ${dir}` : 'Swell reaching the cove', h.nwsSurfMaxFt !== null ? `NWS up to ${h.nwsSurfMaxFt} ft on ${shore} shores` : null]
+    value: h.swellFt === null ? '—' : `${num(h.swellFt)} ft${h.swellPeriodSec !== null && h.swellFt > 0 ? ` at ${Math.round(h.swellPeriodSec)} s` : ''}`,
+    detail: [
+      dir ? `From the ${dir}` : 'Swell reaching the cove',
+      h.swellEnergy !== null ? `energy ${Math.round(h.swellEnergy)}` : null,
+      h.nwsSurfMaxFt !== null ? `NWS up to ${h.nwsSurfMaxFt} ft on ${shore} shores` : null,
+    ]
       .filter(Boolean)
       .join(' · '),
+  })
+
+  // Chop
+  tiles.push({
+    id: 'chop',
+    factor: 'chop',
+    label: 'Chop',
+    value: h.chopFt === null ? '—' : `${num(h.chopFt)} ft`,
+    detail: h.chopFt === null ? 'Wind waves unavailable' : h.chopFt === 0 ? 'Wind waves aren’t reaching the cove' : 'Wind waves reaching the cove',
   })
 
   // Wind

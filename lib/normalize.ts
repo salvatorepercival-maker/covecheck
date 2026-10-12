@@ -107,20 +107,33 @@ function freshnessFor(input: NormalizeInput): SourceFreshness {
  * Returns null when no partition has both a height and a direction — that is
  * missing data, not calm water, and must not become 0.
  */
+export type ExposedSwell = {
+  /** Unchanged: quadrature height of every exposed partition, wind waves included. */
+  heightFt: number | null
+  counted: ExposedPartition[]
+  /** Σ H²T over exposed swell partitions (not wind waves), ft²·s. */
+  energy: number | null
+  /** Period of the most energetic exposed swell partition. */
+  periodSec: number | null
+  /** Exposed wind-wave height, ft. */
+  chopFt: number | null
+}
+
 export function exposedSwell(
   partitions: readonly {
     partition: SwellPartitionName
     heightFt: number | null
     directionDeg: number | null
+    periodSec?: number | null
   }[],
   profile: BeachProfile,
-): { heightFt: number | null; counted: ExposedPartition[] } {
+): ExposedSwell {
   const usable = partitions.filter(
-    (p): p is { partition: SwellPartitionName; heightFt: number; directionDeg: number } =>
+    (p): p is { partition: SwellPartitionName; heightFt: number; directionDeg: number; periodSec?: number | null } =>
       p.heightFt !== null && p.directionDeg !== null,
   )
 
-  if (usable.length === 0) return { heightFt: null, counted: [] }
+  if (usable.length === 0) return { heightFt: null, counted: [], energy: null, periodSec: null, chopFt: null }
 
   const counted = usable
     .filter((p) => isDirectionInAnyRange(p.directionDeg, profile.exposedSwellDirections))
@@ -128,16 +141,36 @@ export function exposedSwell(
       partition: p.partition,
       heightFt: p.heightFt,
       directionDeg: p.directionDeg,
+      periodSec: p.periodSec ?? null,
     }))
 
+  const windWaveMeasured = usable.some((p) => p.partition === 'wind_wave')
+  const chop = counted.find((p) => p.partition === 'wind_wave')
+  const chopFt = chop ? chop.heightFt : windWaveMeasured ? 0 : null
+
   // Every partition was measured and every one points away from this beach:
-  // genuinely 0 ft of exposed energy, which is a real answer.
-  if (counted.length === 0) return { heightFt: 0, counted: [] }
+  // genuinely 0 ft and zero energy, which is a real answer.
+  if (counted.length === 0) return { heightFt: 0, counted: [], energy: 0, periodSec: null, chopFt }
+
+  const swells = counted.filter((p) => p.partition !== 'wind_wave')
+  const withPeriod = swells.filter((p): p is ExposedPartition & { periodSec: number } => p.periodSec !== null)
+  // Energy needs every exposed swell's period; a partial sum would read low.
+  const energy =
+    swells.length === 0 ? 0 : withPeriod.length === swells.length ? swellEnergy(withPeriod) : null
+  const strongest = [...withPeriod].sort((a, b) => b.heightFt ** 2 * b.periodSec - a.heightFt ** 2 * a.periodSec)[0]
 
   return {
     heightFt: combineWaveHeightsFt(...counted.map((p) => p.heightFt)),
     counted,
+    energy,
+    periodSec: strongest?.periodSec ?? null,
+    chopFt,
   }
+}
+
+/** Σ H² × T, rounded to 0.1. Proportional to deep-water wave energy flux. */
+export function swellEnergy(parts: readonly { heightFt: number; periodSec: number }[]): number {
+  return Math.round(parts.reduce((sum, p) => sum + p.heightFt ** 2 * p.periodSec, 0) * 10) / 10
 }
 
 /** Index an Open-Meteo hourly block by canonical local timestamp. */
@@ -251,10 +284,10 @@ export function normalizeConditions(input: NormalizeInput): NormalizeResult {
     // dominant easterly windswell.
     const exposed = exposedSwell(
       [
-        { partition: 'swell', heightFt: modelSwellHeightFt, directionDeg: modelSwellDirectionDeg },
-        { partition: 'secondary_swell', heightFt: secondaryHeightFt, directionDeg: secondaryDirectionDeg },
-        { partition: 'tertiary_swell', heightFt: tertiaryHeightFt, directionDeg: tertiaryDirectionDeg },
-        { partition: 'wind_wave', heightFt: modelWindWaveHeightFt, directionDeg: modelWindWaveDirectionDeg },
+        { partition: 'swell', heightFt: modelSwellHeightFt, directionDeg: modelSwellDirectionDeg, periodSec: marineHourly ? at(marineHourly.swell_wave_period, m) : null },
+        { partition: 'secondary_swell', heightFt: secondaryHeightFt, directionDeg: secondaryDirectionDeg, periodSec: marineHourly ? at(marineHourly.secondary_swell_wave_period ?? [], m) : null },
+        { partition: 'tertiary_swell', heightFt: tertiaryHeightFt, directionDeg: tertiaryDirectionDeg, periodSec: marineHourly ? at(marineHourly.tertiary_swell_wave_period ?? [], m) : null },
+        { partition: 'wind_wave', heightFt: modelWindWaveHeightFt, directionDeg: modelWindWaveDirectionDeg, periodSec: marineHourly ? at(marineHourly.wind_wave_period, m) : null },
       ],
       profile,
     )
@@ -283,6 +316,9 @@ export function normalizeConditions(input: NormalizeInput): NormalizeResult {
 
       exposedSwellHeightFt: exposed.heightFt,
       exposedPartitions: exposed.counted,
+      exposedSwellEnergy: exposed.energy,
+      exposedSwellPeriodSec: exposed.periodSec,
+      exposedChopFt: exposed.chopFt,
 
       seaSurfaceTempF: marineHourly ? at(marineHourly.sea_surface_temperature, m) : null,
       airTempF: weatherHourly ? at(weatherHourly.temperature_2m, w) : null,
