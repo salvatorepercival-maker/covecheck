@@ -269,6 +269,15 @@ export function ConditionsApp({
 
       <Outlook lines={outlook} />
 
+      <TidePanel
+        day={day}
+        nextMidnightFt={days[days.indexOf(day) + 1]?.hours.find((h) => h.hour === 0)?.tideFt ?? null}
+        week={days}
+        nowMinutes={isToday ? minutesNow : null}
+        bands={tideBands}
+        best={lens ? (aheadFit?.bestHours ?? null) : null}
+      />
+
       {nwsHazards.length > 0 ? (
         <p className="rounded-2xl bg-close-tint px-4 py-3 text-sm text-close-ink">
           <strong className="font-semibold">{nwsHazards.map((h) => h.event).join(', ')}</strong> in effect from the National Weather
@@ -319,14 +328,6 @@ export function ConditionsApp({
         </p>
       </section>
 
-      <TidePanel
-        day={day}
-        nextMidnightFt={days[days.indexOf(day) + 1]?.hours.find((h) => h.hour === 0)?.tideFt ?? null}
-        week={days}
-        nowMinutes={isToday ? minutesNow : null}
-        bands={tideBands}
-        best={lens ? (aheadFit?.bestHours ?? null) : null}
-      />
 
       {raw ? (
         <DaySection
