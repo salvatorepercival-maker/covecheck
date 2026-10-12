@@ -20,6 +20,9 @@ export type Finding = {
   summary: string
 }
 
+const r1 = (v: number | null) => (v === null ? '?' : String(Math.round(v * 10) / 10))
+const r0 = (v: number | null) => (v === null ? '?' : String(Math.round(v)))
+
 const lensFor = (activity: StoredReport['report']['activity']) => (activity === 'swim' ? 'beach' : activity)
 
 export function findingsFor(r: StoredReport): Finding[] {
@@ -36,7 +39,7 @@ export function findingsFor(r: StoredReport): Finding[] {
       out.push({
         ...base,
         kind: 'clarity',
-        summary: `Clarity estimate ~${est} ft, reported ${r.report.visibility} ft (swell ${facts.swellFt ?? '?'} ft, wind ${facts.windMph ?? '?'} mph, 48h rain ${facts.rain48hIn ?? '?'} in)`,
+        summary: `Clarity estimate ~${est} ft, reported ${r.report.visibility} ft (swell ${r1(facts.swellFt)} ft, energy ${r0(facts.swellEnergy)}, wind ${r0(facts.windMph)} mph, 48h rain ${facts.rain48hIn ?? '?'} in)`,
       })
     }
   }
@@ -45,10 +48,10 @@ export function findingsFor(r: StoredReport): Finding[] {
   const snorkel = r.forecast.lenses.find((l) => l.lens === 'snorkel')
   if (snorkel) {
     if (r.report.surge === 'strong' && snorkel.tags.waves === 'good') {
-      out.push({ ...base, kind: 'surge', summary: `Strong surge reported with ${facts.swellFt} ft swell — snorkel lens called waves good` })
+      out.push({ ...base, kind: 'surge', summary: `Strong surge reported with ${r1(facts.swellFt)} ft swell (energy ${r0(facts.swellEnergy)}) — snorkel lens called waves good` })
     }
     if (r.report.surge === 'calm' && snorkel.tags.waves === 'poor') {
-      out.push({ ...base, kind: 'surge', summary: `Calm entry reported with ${facts.swellFt} ft swell — snorkel lens called waves poor` })
+      out.push({ ...base, kind: 'surge', summary: `Calm entry reported with ${r1(facts.swellFt)} ft swell (energy ${r0(facts.swellEnergy)}) — snorkel lens called waves poor` })
     }
   }
 
@@ -68,7 +71,7 @@ export function findingsFor(r: StoredReport): Finding[] {
     out.push({
       ...base,
       kind: 'tide',
-      summary: `Good session at ${facts.tideFt} ft tide (${facts.tideVsBand} of the provisional band)`,
+      summary: `Good session at ${r1(facts.tideFt)} ft tide (${facts.tideVsBand} of the provisional band)`,
     })
   }
 
