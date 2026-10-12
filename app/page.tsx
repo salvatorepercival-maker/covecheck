@@ -77,8 +77,12 @@ export default function Page() {
           </span>
           <span className="font-display text-[1.6rem] font-extrabold leading-none">CoveCheck</span>
         </span>
-        {/* One beach today. A picker replaces this pill once there are more. */}
-        <span className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold">Cromwell&rsquo;s</span>
+        <span className="flex items-center gap-3">
+          {/* The Raw switch is rendered here by the conditions view. */}
+          <span id="header-actions" />
+          {/* One beach today. A picker replaces this pill once there are more. */}
+          <span className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold">Cromwell&rsquo;s</span>
+        </span>
       </header>
 
       <Suspense fallback={<ReportSkeleton />}>

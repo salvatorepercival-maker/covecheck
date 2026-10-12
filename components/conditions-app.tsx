@@ -21,7 +21,8 @@ import { FIT_CHIP, TAG_LABEL } from './fit'
 import { Hero } from './hero'
 import { MoonIcon } from './icons'
 import { LensSettings } from './lens-settings'
-import { LensTabs } from './lens-tabs'
+import { createPortal } from 'react-dom'
+import { LensTabs, RawSwitch } from './lens-tabs'
 import { LongRangeList, Outlook, SwellTimeline } from './planning'
 import { SpotGuide } from './spot-guide'
 import { TidePanel } from './tide-panel'
@@ -107,6 +108,8 @@ export function ConditionsApp({
   const [raw, setRaw] = useState(false)
   const [overrides, setOverrides] = useState<Partial<Record<LensId, LensOverrides>>>({})
   const [editing, setEditing] = useState(false)
+  // The Raw switch renders into the page header (app/page.tsx, #header-actions).
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
 
   // Remembered choices load after mount, so server and first client render agree.
   useEffect(() => {
@@ -121,6 +124,7 @@ export function ConditionsApp({
     setLensId(nextLens)
     setRaw(nextRaw)
     setOverrides(readStorage<Partial<Record<LensId, LensOverrides>>>(OVERRIDES_KEY, {}))
+    setHeaderSlot(document.getElementById('header-actions'))
   }, [])
 
   const chooseLens = (id: LensId) => {
@@ -223,8 +227,8 @@ export function ConditionsApp({
         active={lensId}
         onChoose={chooseLens}
         raw={raw}
-        onRaw={chooseRaw}
       />
+      {headerSlot ? createPortal(<RawSwitch raw={raw} onRaw={chooseRaw} />, headerSlot) : null}
 
       {lens && aheadFit && dayFit ? (
         <Hero
