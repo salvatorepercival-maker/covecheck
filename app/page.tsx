@@ -69,16 +69,16 @@ function ReportSkeleton() {
 
 export default function Page() {
   return (
-    <main className="mx-auto w-full max-w-md px-4 pt-5">
-      <header className="mb-5 flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2">
-          <Image src="/brand/covecheck-mark.png" alt="" width={256} height={256} priority className="h-7 w-7" />
-          <span className="text-[17px] font-bold tracking-tight">CoveCheck</span>
+    <main className="mx-auto w-full max-w-md px-3.5 pt-5">
+      <header className="mb-4 flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-hero">
+            <Image src="/brand/covecheck-mark.png" alt="" width={256} height={256} priority className="h-6 w-6" />
+          </span>
+          <span className="font-display text-[1.6rem] font-extrabold leading-none">CoveCheck</span>
         </span>
         {/* One beach today. A picker replaces this pill once there are more. */}
-        <span className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium">
-          Cromwell&rsquo;s
-        </span>
+        <span className="rounded-full border border-border bg-surface px-4 py-2 text-sm font-semibold">Cromwell&rsquo;s</span>
       </header>
 
       <Suspense fallback={<ReportSkeleton />}>

@@ -133,7 +133,7 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string, buoy:
     id: 'waves',
     factor: 'waves',
     label: 'Waves',
-    value: h.swellFt === null ? '—' : `${num(h.swellFt)} ft${h.swellPeriodSec !== null && h.swellFt > 0 ? ` at ${Math.round(h.swellPeriodSec)} s` : ''}`,
+    value: h.swellFt === null ? '—' : `${num(h.swellFt)} ft${h.swellPeriodSec !== null && h.swellFt > 0 ? ` · ${Math.round(h.swellPeriodSec)} s` : ''}`,
     detail: [
       dir ? `From the ${dir}` : 'Swell reaching the cove',
       h.swellEnergy !== null ? `energy ${Math.round(h.swellEnergy)}` : null,
@@ -180,10 +180,11 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string, buoy:
     factor: 'tide',
     alsoFactors: ['tideFlow'],
     label: 'Tide',
-    value: h.tideFt === null ? '—' : `${num(h.tideFt)} ft${t.direction ? ` ${t.direction}` : ''}`,
+    value: h.tideFt === null ? '—' : `${num(h.tideFt)} ft${t.direction === 'rising' ? ' ↑' : t.direction === 'falling' ? ' ↓' : ''}`,
     detail:
       [
-        t.nextTurn ? `${t.nextTurn.kind === 'low' ? 'Low' : 'High'} at ${formatClockTime(t.nextTurn.timestamp)}, in ${turnIn(t.nextTurn.minutesAway)}` : null,
+        t.direction && t.direction !== 'slack' ? `${t.direction === 'rising' ? 'Rising' : 'Falling'}` : null,
+        t.nextTurn ? `${t.nextTurn.kind === 'low' ? 'low' : 'high'} ${formatClockTime(t.nextTurn.timestamp)}, in ${turnIn(t.nextTurn.minutesAway)}` : null,
         t.rateFtPerHr !== null && t.direction !== 'slack' ? `${t.rateFtPerHr > 0 ? '+' : '−'}${Math.abs(t.rateFtPerHr).toFixed(2)} ft/h` : null,
       ]
         .filter(Boolean)
