@@ -35,3 +35,16 @@ describe('conditions sources', () => {
     expect(result.data.hourly.precipitation.filter((v) => v !== null).length).toBeGreaterThanOrEqual(48)
   })
 })
+
+describe('buoy', () => {
+  it('NDBC 51211 is reporting', async () => {
+    const { fetchBuoy, BUOY_STALE_MINUTES } = await import('./providers/buoy')
+    const result = await fetchBuoy()
+    if (!result.ok) console.error('Buoy FAILED:', result.error)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const age = (Date.now() - Date.parse(result.data.observedUtc)) / 60_000
+    console.log(`Buoy 51211: ${result.data.swellHeightFt} ft at ${result.data.swellPeriodSec} s from ${result.data.swellFromText}, ${Math.round(age)} min old`)
+    expect(age).toBeLessThan(BUOY_STALE_MINUTES)
+  })
+})

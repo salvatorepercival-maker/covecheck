@@ -1,7 +1,7 @@
 import { CROMWELLS } from '@/lib/beach/cromwells'
-import { jellyOutlook } from '@/lib/conditions/jellyfish'
+import { buoyComparisonFor } from '@/lib/facts'
 import { getBeachReport } from '@/lib/forecast'
-import { utcToHonoluluLocal } from '@/lib/time'
+import { BUOY_STALE_MINUTES } from '@/lib/providers/buoy'
 
 /**
  * Machine-readable source health, for the site's "Where this data comes from"
@@ -9,29 +9,38 @@ import { utcToHonoluluLocal } from '@/lib/time'
  */
 export async function GET() {
   const report = await getBeachReport(CROMWELLS)
-  const now = new Date()
-  const today = utcToHonoluluLocal(now).slice(0, 10)
-  const [y, m, d] = today.split('-').map(Number)
-  const tomorrow = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10)
   const hours = Object.values(report.conditionsByTimestamp)
-  const wq = report.waterQuality
+  const buoy = buoyComparisonFor(report, CROMWELLS)
 
-  return Response.json({
-    ok: true,
-    checkedUtc: now.toISOString(),
-    sources: {
-      failures: report.failures,
-      uv: hours.some((h) => h.uvIndex !== null) ? 'ok' : 'missing',
-      rainHistory: Object.keys(report.rainHistoryByTimestamp).length >= 24 ? 'ok' : 'missing',
-      waterQuality: wq.status === 'ok' ? 'ok' : 'failed',
-    },
-    waterQuality:
-      wq.status === 'ok'
-        ? { status: wq.data.nearby.length ? 'advisory' : 'clear', radiusKm: wq.data.radiusKm, nearby: wq.data.nearby }
-        : { status: 'unknown', error: wq.error },
-    jellyfish: {
-      today: jellyOutlook(today),
-      windowStartsTomorrow: jellyOutlook(tomorrow).expected && !jellyOutlook(today).expected,
-    },
+  type Source = { id: string; name: string; status: 'ok' | 'failed' | 'stale'; updatedUtc: string | null; detail?: string }
+  const sources: Source[] = report.sourceStatus.map((s) => {
+    let status: 'ok' | 'failed' | 'stale' = s.status
+    let updatedUtc: string | null = s.fetchedAtUtc
+    let detail: string | undefined
+    if (s.id === 'weather' && s.status === 'ok' && !hours.some((h) => h.uvIndex !== null)) {
+      status = 'failed'
+      detail = 'UV missing'
+    }
+    if (s.id === 'rain' && Object.keys(report.rainHistoryByTimestamp).length < 24) status = 'failed'
+    if (s.id === 'buoy' && report.buoy.status === 'ok') {
+      updatedUtc = report.buoy.data.observedUtc
+      if (buoy?.stale) {
+        status = 'stale'
+        detail = `no report for over ${BUOY_STALE_MINUTES} min`
+      }
+    }
+    if (s.id === 'doh' && report.waterQuality.status === 'ok') {
+      detail = report.waterQuality.data.nearby.length ? `${report.waterQuality.data.nearby.length} advisory nearby` : 'none within 5 km'
+    }
+    return { id: s.id, name: s.name, status, updatedUtc, detail }
   })
+  sources.push({
+    id: 'srf',
+    name: 'NWS surf zone forecast (south shore)',
+    status: report.surfZoneIssuedUtc ? 'ok' : 'failed',
+    updatedUtc: report.surfZoneIssuedUtc,
+    detail: report.surfZoneIssuedUtc ? 'issued time' : undefined,
+  })
+
+  return Response.json({ ok: true, checkedUtc: new Date().toISOString(), sources, buoy })
 }

@@ -10,6 +10,8 @@ export function hourFacts(overrides: Partial<HourFacts> = {}): HourFacts {
     swellEnergy: 10,
     swellPeriodSec: 10,
     chopFt: 0,
+    buoyCorrection: null,
+    confidence: { level: 'high', reasons: [] },
     swellFromDeg: 180,
     nwsSurfMaxFt: 3,
     windMph: 6,

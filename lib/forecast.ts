@@ -4,6 +4,7 @@ import { connection } from 'next/server'
 import { evaluateForecast, type ForecastEvaluation } from './engine'
 import { normalizeConditions, type ProviderSlice } from './normalize'
 import { fetchAlerts } from './providers/alerts'
+import { fetchBuoy, type BuoyObservation } from './providers/buoy'
 import { fetchWaterQuality, type WaterQualityReport } from './providers/doh'
 import {
   fetchMarine,
@@ -49,6 +50,8 @@ export type ForecastBundle = {
   rainHistory: Slice<RainHistoryResponse>
   /** Health Dept. water-quality advisories near the beach. Lens input only. */
   waterQuality: Slice<WaterQualityReport>
+  /** Latest real-time buoy observation (NDBC 51211). Corrects near-term swell in the facts layer only. */
+  buoy: Slice<BuoyObservation>
 }
 
 const toSlice = <T,>(
@@ -85,7 +88,7 @@ async function getForecastBundle(
   })
   cacheTag(`forecast:${profile.id}`)
 
-  const [marine, weather, tideHourly, tideExtremes, alerts, srf, rainHistory, waterQuality] = await Promise.all([
+  const [marine, weather, tideHourly, tideExtremes, alerts, srf, rainHistory, waterQuality, buoy] = await Promise.all([
     fetchMarine(profile.cells.marine, profile.timezone),
     fetchWeather(profile.cells.weather, profile.timezone),
     fetchTideHourly(profile.tideStationId, beginDate, endDate),
@@ -95,6 +98,7 @@ async function getForecastBundle(
     fetchSurfZoneForecast(profile.srfIsland),
     fetchRainHistory(profile.cells.weather, profile.timezone),
     fetchWaterQuality({ latitude: profile.latitude, longitude: profile.longitude }),
+    fetchBuoy(),
   ])
 
   return {
@@ -107,6 +111,7 @@ async function getForecastBundle(
     srfWarnings: srf.ok ? srf.data.warnings : [`srf unavailable: ${srf.error.kind}`],
     rainHistory: toSlice(rainHistory),
     waterQuality: toSlice(waterQuality),
+    buoy: toSlice(buoy),
   }
 }
 
@@ -145,6 +150,10 @@ export type BeachReport = {
    * shown as "no advisories".
    */
   waterQuality: { status: 'ok'; data: WaterQualityReport; fetchedAtUtc: string } | { status: 'failed'; error: string; fetchedAtUtc: string }
+  /** Latest buoy observation, or the failure. */
+  buoy: { status: 'ok'; data: BuoyObservation; fetchedAtUtc: string } | { status: 'failed'; error: string; fetchedAtUtc: string }
+  /** Per-provider fetch status, for the "Where this data comes from" panel. */
+  sourceStatus: { id: string; name: string; status: 'ok' | 'failed'; fetchedAtUtc: string }[]
 }
 
 /** Group extremes by the local calendar day they fall on, each sorted by time. */
@@ -244,6 +253,19 @@ export const getBeachReport = cache(async function getBeachReport(
           )
         : {},
     waterQuality: bundle.waterQuality,
+    buoy: bundle.buoy,
+    sourceStatus: [
+      ['marine', 'Open-Meteo Marine (swell)', bundle.marine],
+      ['weather', 'Open-Meteo (wind, sky, UV, rain)', bundle.weather],
+      ['rain', 'Open-Meteo (last 48 h rain)', bundle.rainHistory],
+      ['tides', 'NOAA tides, Honolulu 1612340', bundle.tideHourly],
+      ['alerts', 'National Weather Service alerts', bundle.alerts],
+      ['doh', 'Hawaiʻi Dept. of Health water quality', bundle.waterQuality],
+      ['buoy', 'Buoy: Pearl Harbor Entrance (NDBC 51211)', bundle.buoy],
+    ].map(([id, name, slice]) => {
+      const s = slice as Slice<unknown>
+      return { id: id as string, name: name as string, status: s.status, fetchedAtUtc: s.fetchedAtUtc }
+    }),
     failures: slices
       .filter(([, slice]) => slice.status === 'failed')
       .map(([provider, slice]) => ({

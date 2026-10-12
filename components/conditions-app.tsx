@@ -9,6 +9,9 @@ import { DEFAULT_LENSES, LENS_ORDER } from '@/lib/lenses/defaults'
 import { evaluateDay, settingsSummary, withOverrides, type DayFit } from '@/lib/lenses/evaluate'
 import { affectsFit, type LensId, type LensOverrides } from '@/lib/lenses/schema'
 import { formatSunTime } from '@/lib/sun'
+import type { BuoyComparison } from '@/lib/conditions/buoy'
+import { CONFIDENCE_WORDS } from '@/lib/conditions/confidence'
+import { DataPanel } from './data-panel'
 import { DaySection } from './day-section'
 import { FitChip, TAG_LABEL, FIT_CHIP } from './fit'
 import { MoonIcon } from './icons'
@@ -60,8 +63,11 @@ export function ConditionsApp({
   place,
   shore,
   tideBand,
+  buoy,
 }: {
   days: DayFacts[]
+  /** The buoy against the forecast right now, or null without a reading. */
+  buoy: BuoyComparison | null
   nowIso: string
   /** "10:05 PM" */
   updatedLabel: string
@@ -124,7 +130,9 @@ export function ConditionsApp({
     day.hours.find((h) => h.hour === (isToday ? clampHour(hourNow) : 9)) ??
     day.hours[0]
 
-  const tiles = focusHour ? conditionTiles(day, focusHour, shore) : []
+  // The buoy line says "now", so it belongs on the tile whichever day is shown.
+  const tiles = focusHour ? conditionTiles(day, focusHour, shore, buoy) : []
+  const confidence = focusHour?.confidence
   const tagFor = (factor: (typeof tiles)[number]['factor']) => {
     if (!lens || !focusHour) return null
     const hourFit = (aheadFit ?? dayFit)?.hours.find((h) => h.timestamp === focusHour.timestamp)
@@ -156,7 +164,21 @@ export function ConditionsApp({
         <h1 id="day-headline" className="mt-1 text-[1.75rem] font-bold leading-[1.1] tracking-tight">
           {dayHeadline(day)}
         </h1>
-        <p className="mt-1.5 text-xs text-muted">Forecast for daylight hours · updated {updatedLabel}</p>
+        <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
+          <span>Forecast for daylight hours · updated {updatedLabel}</span>
+          {confidence ? (
+            <span
+              className={`rounded-full px-2 py-0.5 font-semibold ${
+                confidence.level === 'high' ? 'bg-surface text-foreground' : confidence.level === 'medium' ? 'bg-close-tint text-close-ink' : 'bg-skip-tint text-skip-ink'
+              }`}
+            >
+              {CONFIDENCE_WORDS[confidence.level]}
+            </span>
+          ) : null}
+        </p>
+        {confidence && confidence.reasons.length ? (
+          <p className="mt-1 text-xs text-muted">Because {confidence.reasons.join('; ')}.</p>
+        ) : null}
       </section>
 
       {/* ---------- Activity picker ---------- */}
@@ -249,6 +271,7 @@ export function ConditionsApp({
                 <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{tile.label}</p>
                 <p className="mt-1 text-[1.35rem] font-bold leading-tight tracking-tight">{tile.value}</p>
                 <p className="mt-1 text-xs leading-snug text-muted">{tile.detail}</p>
+                {tile.note ? <p className="mt-1 text-[11px] font-medium leading-snug text-foreground/70">{tile.note}</p> : null}
                 {tag ? (
                   <span className="mt-auto flex flex-wrap items-center gap-1.5 pt-2">
                     <span className={`inline-flex w-fit rounded-full px-2 py-0.5 text-[11px] font-semibold ${FIT_CHIP[tag]}`}>
@@ -296,7 +319,13 @@ export function ConditionsApp({
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold leading-tight">{summary.title}</p>
-                  {summary.detail ? <p className="mt-0.5 truncate text-xs text-muted">{summary.detail}</p> : null}
+                  {summary.detail || d.hours.find((h) => h.hour === 9)?.confidence.level === 'low' ? (
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {[summary.detail, d.hours.find((h) => h.hour === 9)?.confidence.level === 'low' ? 'low confidence' : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </p>
+                  ) : null}
                 </div>
                 {fit ? <FitChip fit={fit} short /> : null}
               </li>
@@ -304,6 +333,8 @@ export function ConditionsApp({
           })}
         </ul>
       </section>
+
+      <DataPanel />
 
       {/* ---------- Ground truth ---------- */}
       <section aria-labelledby="report-cta-heading" className="rounded-2xl bg-surface p-5">
