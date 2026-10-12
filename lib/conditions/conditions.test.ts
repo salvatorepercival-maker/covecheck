@@ -66,6 +66,17 @@ describe('neutral description', () => {
     for (const t of tiles) expect(`${t.value} ${t.detail}`).not.toMatch(/\b(good|poor|safe)\b/i)
   })
 
+  it('merges NWS, Health Dept. and closures into one Advisories tile', () => {
+    const day = calmDay()
+    const h = { ...day.hours[3], nwsHazards: [{ event: 'High Surf Advisory', blocking: true, level: 'advisory' as const }], closures: [{ kind: 'shark' as const, title: 'Shark sighting — beach closed', startsUtc: '', endsUtc: null, source: 'signs' }] }
+    const tile = conditionTiles(day, h, 'south').find((t) => t.id === 'advisories')!
+    expect(tile.value).toBe('2 in effect')
+    expect(tile.detail).toMatch(/Shark sighting.*High Surf Advisory/)
+    expect(tile.alsoFactors).toEqual(['waterQuality', 'closures'])
+    const unchecked = conditionTiles(day, { ...day.hours[3], waterQuality: { status: 'unknown' } }, 'south').find((t) => t.id === 'advisories')!
+    expect(unchecked.value).toBe("Couldn't check")
+  })
+
   it('finds the UV peak window and summarises the week row', () => {
     const day = dayOf([10, 11, 12, 13, 14].map((hour) => ({ hour, uv: hour === 12 || hour === 13 ? 10 : 6 })))
     expect(uvPeakWindow(day)).toEqual({ peak: 10, range: '12 PM – 2 PM' })

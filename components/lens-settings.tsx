@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { ENABLE_TEMPLATES } from '@/lib/lenses/defaults'
 import type { FactorId, FactorRule, Fit, Lens, LensOverrides } from '@/lib/lenses/schema'
 
 /**
@@ -23,6 +24,8 @@ const FACTOR_LABEL: Record<FactorId, { label: string; unit: string }> = {
   waterQuality: { label: 'Health Dept. advisory', unit: '' },
   jellyfish: { label: 'Box jellyfish expected', unit: '' },
   advisories: { label: 'Weather Service advisory / warning', unit: '' },
+  closures: { label: 'Beach or shark-sighting closure', unit: '' },
+  tideFlow: { label: 'Tide mid-change (strongest flow)', unit: '' },
 }
 
 function NumberField({
@@ -142,6 +145,7 @@ export function LensSettings({
 }) {
   const [draft, setDraft] = useState(lens.factors)
   const factors = (Object.keys(draft) as FactorId[]).filter((id) => draft[id].kind !== 'off')
+  const offFactors = (Object.keys(draft) as FactorId[]).filter((id) => draft[id].kind === 'off' && ENABLE_TEMPLATES[id])
 
   function save() {
     const overrides: LensOverrides = {}
@@ -169,11 +173,34 @@ export function LensSettings({
         <ul className="mt-4 space-y-4">
           {factors.map((id) => (
             <li key={id} className="rounded-2xl bg-surface p-3.5">
-              <p className="mb-2 text-sm font-semibold">{FACTOR_LABEL[id].label}</p>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="text-sm font-semibold">{FACTOR_LABEL[id].label}</p>
+                {ENABLE_TEMPLATES[id] ? (
+                  <button type="button" onClick={() => setDraft({ ...draft, [id]: { kind: 'off' } })} className="text-xs text-muted underline">
+                    Turn off
+                  </button>
+                ) : null}
+              </div>
               <RuleEditor rule={draft[id]} unit={FACTOR_LABEL[id].unit} onChange={(rule) => setDraft({ ...draft, [id]: rule })} />
             </li>
           ))}
         </ul>
+
+        {offFactors.length ? (
+          <div className="mt-4">
+            <p className="text-xs font-semibold text-muted">Not a factor for {lens.activity}</p>
+            <ul className="mt-2 space-y-2">
+              {offFactors.map((id) => (
+                <li key={id} className="flex items-center justify-between gap-2 rounded-xl bg-surface px-3.5 py-2.5 text-sm">
+                  {FACTOR_LABEL[id].label}
+                  <button type="button" onClick={() => setDraft({ ...draft, [id]: ENABLE_TEMPLATES[id]! })} className="text-xs font-semibold underline">
+                    Turn on
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         <div className="sticky bottom-0 mt-4 flex gap-2 bg-background pt-2">
           <button

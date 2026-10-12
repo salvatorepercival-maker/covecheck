@@ -38,6 +38,8 @@ export const STALENESS_LIMITS_SECONDS: Record<ProviderId, number> = {
   doh: 30 * 60,
   // The buoy reports every 30 min; 90 min means transmissions have dropped.
   buoy: 90 * 60,
+  // NWS grid forecast updates a few times a day.
+  nwsgrid: 12 * 3600,
 }
 
 export type ProviderSlice<T> =

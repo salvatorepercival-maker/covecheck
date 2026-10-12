@@ -64,6 +64,8 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
       waterQuality: { kind: 'flag', whenPresent: 'poor' },
       jellyfish: { kind: 'flag', whenPresent: 'mixed' },
       advisories: HAZARD_POOR,
+      closures: { kind: 'flag', whenPresent: 'poor' },
+      tideFlow: off,
     },
   },
 
@@ -86,6 +88,8 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
       waterQuality: { kind: 'flag', whenPresent: 'poor' },
       jellyfish: { kind: 'flag', whenPresent: 'mixed' },
       advisories: HAZARD_POOR,
+      closures: { kind: 'flag', whenPresent: 'poor' },
+      tideFlow: off,
     },
   },
 
@@ -120,6 +124,8 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
       jellyfish: off,
       // A High Surf Advisory is a big day, not an empty one; a warning is not.
       advisories: { kind: 'hazard', advisory: 'mixed', warning: 'poor' },
+      closures: { kind: 'flag', whenPresent: 'poor' },
+      tideFlow: off,
     },
   },
 
@@ -153,8 +159,24 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
       waterQuality: { kind: 'flag', whenPresent: 'poor' },
       jellyfish: { kind: 'flag', whenPresent: 'mixed' },
       advisories: HAZARD_POOR,
+      closures: { kind: 'flag', whenPresent: 'poor' },
+      tideFlow: off,
     },
   },
 }
 
 export const LENS_ORDER: readonly LensId[] = ['snorkel', 'dive', 'surf', 'beach']
+
+/**
+ * The rule a factor gets when a viewer turns it on from "not a factor" in the
+ * settings editor. Only tideFlow is off everywhere by default; the rest are
+ * here so any off factor can be turned on.
+ */
+export const ENABLE_TEMPLATES: Partial<Record<import('./schema').FactorId, FactorRule>> = {
+  tideFlow: { kind: 'flag', whenPresent: 'mixed' },
+  tide: { kind: 'tideBand', outside: 'mixed' },
+  clarity: { kind: 'floor', good: 15, mixed: 10, affectsFit: false },
+  uv: { kind: 'ceiling', good: 8, mixed: null },
+  waterTemp: { kind: 'floor', good: 74, mixed: 68 },
+  jellyfish: { kind: 'flag', whenPresent: 'mixed' },
+}

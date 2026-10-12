@@ -71,6 +71,8 @@ export type Tile = {
   note?: string
   /** The lens factor this tile shows a fit tag for. */
   factor: FactorId
+  /** More factors folded into the same tile; the tag shows the worst of them. */
+  alsoFactors?: FactorId[]
 }
 
 /** What to wear, from sea temperature. At these temperatures a rashguard is sun and reef cover, not warmth. */
@@ -169,16 +171,30 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string, buoy:
       .join(' · ') || '—',
   })
 
-  // Tide
-  const nextTurn = day.tideExtremes.find((e) => e.timestamp.slice(11, 13) >= String(h.hour).padStart(2, '0'))
-  const stageWord =
-    h.tideStage === 'near-low' ? 'low' : h.tideStage === 'near-high' ? 'high' : h.tideStage === 'unknown' ? '' : h.tideStage
+  // Tide: height and direction, rate, next turn, spring/neap, mid-change
+  const t = h.tide
+  const turnIn = (min: number) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} m`)
   tiles.push({
     id: 'tide',
     factor: 'tide',
+    alsoFactors: ['tideFlow'],
     label: 'Tide',
-    value: h.tideFt === null ? '—' : `${num(h.tideFt)} ft${stageWord ? ` ${stageWord}` : ''}`,
-    detail: nextTurn ? `${nextTurn.kind === 'low' ? 'Low' : 'High'} at ${formatClockTime(nextTurn.timestamp)}` : 'Tide times unavailable',
+    value: h.tideFt === null ? '—' : `${num(h.tideFt)} ft${t.direction ? ` ${t.direction}` : ''}`,
+    detail:
+      [
+        t.nextTurn ? `${t.nextTurn.kind === 'low' ? 'Low' : 'High'} at ${formatClockTime(t.nextTurn.timestamp)}, in ${turnIn(t.nextTurn.minutesAway)}` : null,
+        t.rateFtPerHr !== null && t.direction !== 'slack' ? `${t.rateFtPerHr > 0 ? '+' : '−'}${Math.abs(t.rateFtPerHr).toFixed(2)} ft/h` : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || 'Tide times unavailable',
+    note:
+      [
+        day.springNeap ? `${day.springNeap === 'spring' ? 'Spring' : 'Neap'} tides` : null,
+        day.tideRangeFt !== null ? `${num(day.tideRangeFt)} ft range today` : null,
+        t.midChange ? 'Mid-change: strongest flow' : null,
+      ]
+        .filter(Boolean)
+        .join(' · ') || undefined,
   })
 
   // Clarity (estimate)
@@ -235,26 +251,27 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string, buoy:
     detail: h.seaF === null ? '—' : wearFor(h.seaF),
   })
 
-  // Water quality (Health Dept.)
+  // Advisories: NWS hazards + Health Dept. water quality + closures, one tile
   const wq = h.waterQuality
+  const items = [
+    ...h.closures.map((c) => c.title),
+    ...h.nwsHazards.map((x) => x.event),
+    ...(wq.status === 'advisory' ? wq.advisories.map((a) => `${a.type} · ${a.title}, ${a.distanceKm} km`) : []),
+  ]
+  const unchecked = [!h.nwsHazardsKnown ? 'Weather Service' : null, wq.status === 'unknown' ? 'Health Dept.' : null].filter(Boolean)
   tiles.push({
-    id: 'waterQuality',
-    factor: 'waterQuality',
-    label: 'Water quality',
-    value:
-      wq.status === 'clear'
-        ? 'No advisories'
-        : wq.status === 'advisory'
-          ? wq.advisories.length === 1
-            ? wq.advisories[0].type.replace(/ Advisory$/i, ' advisory')
-            : `${wq.advisories.length} advisories`
-          : "Couldn't check",
+    id: 'advisories',
+    factor: 'advisories',
+    alsoFactors: ['waterQuality', 'closures'],
+    label: 'Advisories',
+    value: items.length === 0 ? (unchecked.length ? "Couldn't check" : 'None in effect') : items.length === 1 ? 'One in effect' : `${items.length} in effect`,
     detail:
-      wq.status === 'clear'
-        ? 'Brown water, bacteria and closures'
-        : wq.status === 'advisory'
-          ? `${wq.advisories[0].title} · ${wq.advisories[0].distanceKm} km away`
-          : 'Health Dept. source unreachable',
+      items.length > 0
+        ? items.join(' · ')
+        : unchecked.length
+          ? `Couldn't check ${unchecked.join(' or ')}`
+          : 'Weather Service, Health Dept. water quality, closures',
+    note: items.length > 0 && unchecked.length ? `Couldn't check ${unchecked.join(' or ')}` : undefined,
   })
 
   // Box jellyfish

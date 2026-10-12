@@ -1,5 +1,7 @@
 import { compareBuoy, correctionAt, type BuoyComparison } from './conditions/buoy'
+import { closuresAt, CROMWELLS_CLOSURES, type Closure } from './beach/closures'
 import { estimateClarity, type ClarityEstimate } from './conditions/clarity'
+import { dailyRangeFt, springNeap, tideDynamics, type TideDynamics } from './conditions/tide'
 import { confidenceFor, type Confidence } from './conditions/confidence'
 import { bandOf } from './engine/assess'
 import { jellyOutlook, type JellyWindow } from './conditions/jellyfish'
@@ -49,6 +51,8 @@ export type HourFacts = {
 
   tideFt: number | null
   tideStage: 'rising' | 'falling' | 'near-high' | 'near-low' | 'unknown'
+  /** Direction, rate, next turn and the mid-change flag. */
+  tide: TideDynamics
   /** Where the tide sits against this beach's band. Null while the band is unset. */
   tideVsBand: 'in' | 'low' | 'high' | null
 
@@ -62,6 +66,13 @@ export type HourFacts = {
   uv: number | null
 
   nwsHazards: { event: string; blocking: boolean; level: 'warning' | 'advisory' }[]
+  /**
+   * Thunder forecast for this hour: NWS grid first; the model's thunderstorm
+   * weather code only when NWS is unavailable. `expected: null` = no source.
+   */
+  thunder: { expected: boolean | null; source: 'nws' | 'model' | null; coverage: string | null }
+  /** Closures in effect this hour (entered by hand; see lib/beach/closures.ts). */
+  closures: Closure[]
   nwsHazardsKnown: boolean
 
   /** Same for every hour of a day; carried per hour so a lens needs one input. */
@@ -88,6 +99,10 @@ export type DayFacts = {
   date: string
   hours: HourFacts[]
   tideExtremes: { timestamp: string; heightFt: number; kind: 'high' | 'low' }[]
+  /** NOAA high-to-low range for the day, ft. */
+  tideRangeFt: number | null
+  /** From the moon: within ~2 days of new/full = spring, of a quarter = neap. */
+  springNeap: 'spring' | 'neap' | null
   /** Minutes past local midnight. */
   sunrise: number | null
   sunset: number | null
@@ -144,6 +159,19 @@ export function buildDayFacts(
   }
 
   const water = waterQualityFact(report)
+
+  // Tide dynamics across the whole run, so rates and turns work across midnight.
+  const tideSeries = Object.values(conditionsByTimestamp)
+    .sort((a, b) => a.timestamp.localeCompare(b.timestamp))
+    .map((h) => ({ timestamp: h.timestamp, ft: h.tideHeightFt }))
+  const tideAll = tideDynamics(
+    tideSeries,
+    report.tideExtremes
+      .filter((e): e is TideExtreme & { heightFt: number } => e.heightFt !== null)
+      .map((e) => ({ timestamp: e.timestamp, heightFt: e.heightFt, kind: e.kind })),
+  )
+  const tideAt = new Map(tideSeries.map((h, i) => [h.timestamp, tideAll[i]]))
+  const thunder = report.thunder.status === 'ok' ? report.thunder.data : null
   const buoy = buoyComparisonFor(report, profile)
   const obsMs = buoy ? Math.floor(new Date(buoy.observedUtc).getTime() / 3_600_000) * 3_600_000 : null
   const today = honoluluDateOf(new Date(new Date(report.evaluation.evaluatedAtUtc).getTime() - 10 * 3_600_000).toISOString().slice(0, 16))
@@ -219,6 +247,17 @@ export function buildDayFacts(
         uv: c?.uvIndex ?? null,
         nwsHazards: (c?.activeHazards ?? []).map((h) => ({ event: h.event, blocking: h.isBlocking, level: hazardLevel(h.event) })),
         nwsHazardsKnown: c?.sourceFreshness.alerts?.status === 'ok',
+        thunder: (() => {
+          const utcHour = honoluluLocalToUtc(assessment.timestamp).toISOString().slice(0, 13)
+          if (thunder && thunder.coveredUtcHours.includes(utcHour)) {
+            const t = thunder.byUtcHour[utcHour]
+            return { expected: Boolean(t), source: 'nws' as const, coverage: t?.coverage ?? null }
+          }
+          const code = c?.weatherCode ?? null
+          return code === null ? { expected: null, source: null, coverage: null } : { expected: code >= 95, source: 'model' as const, coverage: null }
+        })(),
+        closures: closuresAt(CROMWELLS_CLOSURES, honoluluLocalToUtc(assessment.timestamp).getTime()),
+        tide: tideAt.get(assessment.timestamp) ?? { direction: null, rateFtPerHr: null, nextTurn: null, midChange: false },
         waterQuality: water,
         jelly,
         dataIssue,
@@ -232,6 +271,12 @@ export function buildDayFacts(
       tideExtremes: (report.tideExtremesByDate[day.date] ?? [])
         .filter((e): e is TideExtreme & { heightFt: number } => e.heightFt !== null)
         .map((e) => ({ timestamp: e.timestamp, heightFt: e.heightFt, kind: e.kind })),
+      tideRangeFt: dailyRangeFt(
+        (report.tideExtremesByDate[day.date] ?? [])
+          .filter((e): e is TideExtreme & { heightFt: number } => e.heightFt !== null)
+          .map((e) => ({ timestamp: e.timestamp, heightFt: e.heightFt, kind: e.kind })),
+      ),
+      springNeap: springNeap(day.date),
       sunrise: sun.sunrise,
       sunset: sun.sunset,
     }

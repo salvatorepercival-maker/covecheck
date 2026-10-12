@@ -48,3 +48,17 @@ describe('buoy', () => {
     expect(age).toBeLessThan(BUOY_STALE_MINUTES)
   })
 })
+
+describe('NWS thunder grid', () => {
+  it('HFO 157,142 returns a weather grid', async () => {
+    const { fetchNwsThunder } = await import('./providers/nws-grid')
+    const { CROMWELLS: beach } = await import('./beach/cromwells')
+    const result = await fetchNwsThunder(beach.nwsGrid)
+    if (!result.ok) console.error('NWS grid FAILED:', result.error)
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      console.log(`NWS grid updated ${result.data.updatedUtc}; ${Object.keys(result.data.byUtcHour).length} thunder hours of ${result.data.coveredUtcHours.length}`)
+      expect(result.data.coveredUtcHours.length).toBeGreaterThan(48)
+    }
+  })
+})

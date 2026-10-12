@@ -11,6 +11,32 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 19. Thunder from the NWS grid; closures by hand; tide dynamics as a tag
+
+**Decided:** 2026-10-12 (Sal asked; closure source pending his choice) · **Status:** active · **facts and lenses, not the engine**
+
+**Thunder:** the NWS gridpoint forecast (HFO 157,142, from /points for the
+beach) is primary — any `weather` entry of "thunderstorms" (with its coverage
+word) or `lightningActivityLevel` ≥ 2. `probabilityOfThunder` exists but is
+empty for HFO. The model's WMO thunderstorm code (95–99) is the fallback only
+when the NWS grid doesn't cover the hour; with neither, the hour is unknown and
+lenses won't call it. Poor in every lens.
+
+**Closures:** no permitted machine-readable source exists for Black Point.
+Ocean Safety's live data sits behind safebeachday.com (personal-use terms, no
+tower at Cromwell's); DLNR's shark page lists confirmed incidents days later
+and disallows AI crawlers. Closures are therefore entered by hand in
+`lib/beach/closures.ts`, merged with NWS hazards and Health Dept. water
+quality into one Advisories tile, and Poor in every lens while in effect.
+
+**Tide dynamics:** direction, rate (central difference on NOAA's hourly
+predictions), time to the next turn, spring/neap from the moon (±2 days of
+syzygy / quarter) with the day's range. Hours moving at ≥70 % of the fastest
+rate between the surrounding turns are tagged "mid-change". That tag affects a
+fit only through the `tideFlow` rule, which is off in every lens until turned on.
+
+---
+
 ## 18. A real-time buoy checks the swell, corrects the next six hours, and sets confidence
 
 **Decided:** 2026-10-12 (Sal asked) · **Status:** active · **facts layer, not the engine**
