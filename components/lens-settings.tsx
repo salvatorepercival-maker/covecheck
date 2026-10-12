@@ -1,0 +1,172 @@
+'use client'
+
+import { useState } from 'react'
+import type { FactorId, FactorRule, Fit, Lens, LensOverrides } from '@/lib/lenses/schema'
+
+/**
+ * "Edit" for a lens: every threshold the lens uses, editable, per lens.
+ *
+ * Saved in this browser only. Overrides change how CoveCheck describes the fit
+ * for this viewer; they never change the forecast itself.
+ */
+
+const FACTOR_LABEL: Record<FactorId, { label: string; unit: string }> = {
+  waves: { label: 'Waves', unit: 'ft' },
+  wind: { label: 'Wind', unit: 'mph' },
+  tide: { label: 'Tide outside the reef band', unit: '' },
+  clarity: { label: 'Water clarity', unit: 'ft' },
+  uv: { label: 'UV index', unit: '' },
+  rain: { label: 'Rain chance', unit: '%' },
+  storms: { label: 'Thunderstorms', unit: '' },
+  waterTemp: { label: 'Water temp', unit: '°F' },
+  waterQuality: { label: 'Health Dept. advisory', unit: '' },
+  jellyfish: { label: 'Box jellyfish expected', unit: '' },
+  advisories: { label: 'Weather Service hazard', unit: '' },
+}
+
+function NumberField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: number | null
+  onChange: (value: number | null) => void
+}) {
+  return (
+    <label className="flex flex-col gap-1 text-[11px] text-muted">
+      {label}
+      <input
+        type="number"
+        inputMode="decimal"
+        step="any"
+        value={value ?? ''}
+        placeholder="none"
+        onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
+        className="w-full rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm text-foreground"
+      />
+    </label>
+  )
+}
+
+function FitSelect({ value, onChange }: { value: Fit; onChange: (fit: Fit) => void }) {
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value as Fit)}
+      className="rounded-lg border border-border bg-surface px-2.5 py-1.5 text-sm"
+    >
+      <option value="good">Doesn&rsquo;t matter</option>
+      <option value="mixed">Makes it mixed</option>
+      <option value="poor">Makes it poor</option>
+    </select>
+  )
+}
+
+function RuleEditor({ rule, unit, onChange }: { rule: FactorRule; unit: string; onChange: (rule: FactorRule) => void }) {
+  const u = unit ? ` (${unit})` : ''
+  switch (rule.kind) {
+    case 'ceiling':
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label={`Good up to${u}`} value={rule.good} onChange={(v) => onChange({ ...rule, good: v ?? rule.good })} />
+          <NumberField label={`Mixed up to${u}`} value={rule.mixed} onChange={(v) => onChange({ ...rule, mixed: v })} />
+        </div>
+      )
+    case 'floor':
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label={`Good from${u}`} value={rule.good} onChange={(v) => onChange({ ...rule, good: v ?? rule.good })} />
+          <NumberField label={`Mixed from${u}`} value={rule.mixed} onChange={(v) => onChange({ ...rule, mixed: v })} />
+        </div>
+      )
+    case 'range':
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label={`Good from${u}`} value={rule.good[0]} onChange={(v) => onChange({ ...rule, good: [v ?? rule.good[0], rule.good[1]] })} />
+          <NumberField label={`Good to${u}`} value={rule.good[1]} onChange={(v) => onChange({ ...rule, good: [rule.good[0], v ?? rule.good[1]] })} />
+          <NumberField label={`Mixed from${u}`} value={rule.mixed[0]} onChange={(v) => onChange({ ...rule, mixed: [v ?? rule.mixed[0], rule.mixed[1]] })} />
+          <NumberField label={`Mixed to${u}`} value={rule.mixed[1]} onChange={(v) => onChange({ ...rule, mixed: [rule.mixed[0], v ?? rule.mixed[1]] })} />
+        </div>
+      )
+    case 'wind':
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="Onshore good up to (mph)" value={rule.onshore.good} onChange={(v) => onChange({ ...rule, onshore: { ...rule.onshore, good: v ?? rule.onshore.good } })} />
+          <NumberField label="Onshore mixed up to" value={rule.onshore.mixed} onChange={(v) => onChange({ ...rule, onshore: { ...rule.onshore, mixed: v } })} />
+          <NumberField label="Offshore good up to (mph)" value={rule.offshore.good} onChange={(v) => onChange({ ...rule, offshore: { ...rule.offshore, good: v ?? rule.offshore.good } })} />
+          <NumberField label="Offshore mixed up to" value={rule.offshore.mixed} onChange={(v) => onChange({ ...rule, offshore: { ...rule.offshore, mixed: v } })} />
+        </div>
+      )
+    case 'tideBand':
+      return <FitSelect value={rule.outside} onChange={(fit) => onChange({ ...rule, outside: fit })} />
+    case 'flag':
+      return <FitSelect value={rule.whenPresent} onChange={(fit) => onChange({ ...rule, whenPresent: fit })} />
+    default:
+      return null
+  }
+}
+
+export function LensSettings({
+  lens,
+  defaults,
+  onSave,
+  onClose,
+}: {
+  /** The lens as currently in effect (defaults + overrides). */
+  lens: Lens
+  defaults: Lens
+  onSave: (overrides: LensOverrides | null) => void
+  onClose: () => void
+}) {
+  const [draft, setDraft] = useState(lens.factors)
+  const factors = (Object.keys(draft) as FactorId[]).filter((id) => draft[id].kind !== 'off')
+
+  function save() {
+    const overrides: LensOverrides = {}
+    for (const id of Object.keys(draft) as FactorId[]) {
+      if (JSON.stringify(draft[id]) !== JSON.stringify(defaults.factors[id])) overrides[id] = draft[id]
+    }
+    onSave(Object.keys(overrides).length ? overrides : null)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="lens-settings-heading">
+      <div className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-background p-5 sm:rounded-3xl">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 id="lens-settings-heading" className="text-lg font-semibold">
+              Your {lens.name.toLowerCase()} settings
+            </h2>
+            <p className="mt-0.5 text-xs text-muted">Saved in this browser. They change how the fit is judged, not the forecast.</p>
+          </div>
+          <button type="button" onClick={onClose} className="rounded-full px-2 py-1 text-sm text-muted hover:bg-surface-sunk" aria-label="Close">
+            ✕
+          </button>
+        </div>
+
+        <ul className="mt-4 space-y-4">
+          {factors.map((id) => (
+            <li key={id} className="rounded-2xl bg-surface p-3.5">
+              <p className="mb-2 text-sm font-semibold">{FACTOR_LABEL[id].label}</p>
+              <RuleEditor rule={draft[id]} unit={FACTOR_LABEL[id].unit} onChange={(rule) => setDraft({ ...draft, [id]: rule })} />
+            </li>
+          ))}
+        </ul>
+
+        <div className="sticky bottom-0 mt-4 flex gap-2 bg-background pt-2">
+          <button
+            type="button"
+            onClick={() => onSave(null)}
+            className="flex-1 rounded-xl border border-border bg-surface px-4 py-3 text-sm font-semibold"
+          >
+            Reset to defaults
+          </button>
+          <button type="button" onClick={save} className="flex-1 rounded-xl bg-[#15232d] px-4 py-3 text-sm font-semibold text-white dark:bg-white dark:text-[#15232d]">
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}

@@ -63,6 +63,9 @@ export type HourSpec = {
   tideHeightFt?: number | null
   tideStage?: TideStage
   hazards?: readonly BeachHazard[]
+  precipProbabilityPct?: number | null
+  weatherCode?: number | null
+  uvIndex?: number | null
   freshnessOverrides?: Partial<Record<ProviderId, SourceStatus>>
 }
 
@@ -102,6 +105,10 @@ export function buildHour(spec: HourSpec): HourlyBeachConditions {
 
     seaSurfaceTempF: 80,
     airTempF: 78,
+    precipProbabilityPct: spec.precipProbabilityPct ?? 10,
+    weatherCode: spec.weatherCode ?? 1,
+    cloudCoverPct: 20,
+    uvIndex: spec.uvIndex ?? 6,
 
     windSpeedMph: spec.windSpeedMph === undefined ? 7 : spec.windSpeedMph,
     windGustMph: spec.windGustMph === undefined ? 10 : spec.windGustMph,
