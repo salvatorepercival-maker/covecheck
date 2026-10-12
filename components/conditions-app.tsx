@@ -133,11 +133,14 @@ export function ConditionsApp({
   // The buoy line says "now", so it belongs on the tile whichever day is shown.
   const tiles = focusHour ? conditionTiles(day, focusHour, shore, buoy) : []
   const confidence = focusHour?.confidence
-  const tagFor = (factor: (typeof tiles)[number]['factor']) => {
+  const TAG_RANK = { good: 0, mixed: 1, unknown: 2, poor: 3 } as const
+  const tagFor = (tile: (typeof tiles)[number]) => {
     if (!lens || !focusHour) return null
     const hourFit = (aheadFit ?? dayFit)?.hours.find((h) => h.timestamp === focusHour.timestamp)
-    const tag = hourFit?.tags[factor]
-    return tag && tag !== 'off' ? tag : null
+    const tags = [tile.factor, ...(tile.alsoFactors ?? [])]
+      .map((f) => hourFit?.tags[f])
+      .filter((t): t is 'good' | 'mixed' | 'poor' | 'unknown' => t !== undefined && t !== 'off')
+    return tags.length ? tags.reduce((a, b) => (TAG_RANK[b] > TAG_RANK[a] ? b : a)) : null
   }
 
   const [, month, dom] = day.date.split('-').map(Number)
@@ -265,7 +268,7 @@ export function ConditionsApp({
         </div>
         <ul className="mt-2.5 grid grid-cols-2 gap-2.5">
           {tiles.map((tile) => {
-            const tag = tagFor(tile.factor)
+            const tag = tagFor(tile)
             return (
               <li key={tile.id} className="flex min-h-[8.5rem] flex-col rounded-2xl bg-surface p-3.5">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-muted">{tile.label}</p>

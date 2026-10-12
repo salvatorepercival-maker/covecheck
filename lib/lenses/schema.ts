@@ -80,6 +80,8 @@ export const affectsFit = (rule: FactorRule) => rule.kind !== 'off' && rule.affe
  * waterTemp   — sea surface temperature (°F)
  * waterQuality— Health Dept. brown water / bacteria / sewage advisory nearby
  * jellyfish   — box jellyfish window (8-10 days after full moon)
+ * closures    — beach or shark-sighting closure in effect (entered by hand)
+ * tideFlow    — mid-change tide hours, when flow over the reef is strongest (off by default)
  * advisories  — NWS hazards (high surf etc.)
  */
 export type FactorId =
@@ -95,6 +97,8 @@ export type FactorId =
   | 'waterQuality'
   | 'jellyfish'
   | 'advisories'
+  | 'closures'
+  | 'tideFlow'
 
 export const FACTOR_IDS: readonly FactorId[] = [
   'waves',
@@ -109,6 +113,8 @@ export const FACTOR_IDS: readonly FactorId[] = [
   'waterQuality',
   'jellyfish',
   'advisories',
+  'closures',
+  'tideFlow',
 ]
 
 export type LensId = 'snorkel' | 'dive' | 'surf' | 'beach'

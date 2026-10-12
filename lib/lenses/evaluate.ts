@@ -106,8 +106,8 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
       return numeric(f.seaF)
     case 'storms':
       if (rule.kind !== 'flag') return 'off'
-      if (f.sky === null) return 'unknown'
-      return f.sky === 'storms' ? rule.whenPresent : 'good'
+      if (f.thunder.expected === null) return 'unknown'
+      return f.thunder.expected ? rule.whenPresent : 'good'
     case 'waterQuality':
       if (rule.kind !== 'flag') return 'off'
       if (f.waterQuality.status === 'unknown') return 'unknown'
@@ -115,6 +115,13 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
     case 'jellyfish':
       if (rule.kind !== 'flag') return 'off'
       return f.jelly.expected ? rule.whenPresent : 'good'
+    case 'closures':
+      if (rule.kind !== 'flag') return 'off'
+      return f.closures.length ? rule.whenPresent : 'good'
+    case 'tideFlow':
+      if (rule.kind !== 'flag') return 'off'
+      if (f.tide.direction === null) return 'unknown'
+      return f.tide.midChange ? rule.whenPresent : 'good'
     case 'advisories': {
       if (!f.nwsHazardsKnown) return 'unknown'
       if (f.nwsHazards.length === 0) return 'good'
@@ -126,7 +133,7 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
 }
 
 /** Factors without which no lens should call an hour. */
-const CRITICAL: readonly FactorId[] = ['waves', 'wind', 'advisories', 'waterQuality']
+const CRITICAL: readonly FactorId[] = ['waves', 'wind', 'advisories', 'waterQuality', 'storms']
 
 export type HourFit = {
   timestamp: string
@@ -281,7 +288,13 @@ function problemClause(id: FactorId, f: HourFacts, lens: Lens): string | null {
     case 'rain':
       return f.rainPct !== null ? `there's a ${Math.round(f.rainPct)}% chance of rain` : null
     case 'storms':
-      return 'thunderstorms are possible'
+      return f.thunder.coverage
+        ? `the Weather Service has ${f.thunder.coverage.replace(/_/g, ' ')} thunderstorms`
+        : 'thunderstorms are possible'
+    case 'closures':
+      return f.closures[0] ? `${f.closures[0].title.charAt(0).toLowerCase()}${f.closures[0].title.slice(1)}` : null
+    case 'tideFlow':
+      return 'the tide is mid-change, when flow over the reef is strongest'
     case 'waterTemp':
       return f.seaF !== null ? `the water is ${Math.round(f.seaF)}°F` : null
     case 'waterQuality':
@@ -309,6 +322,7 @@ function goodClause(lens: Lens, f: HourFacts, tags: Record<FactorId, FactorTag>)
 
 /** Most severe problems first, waves and wind before the rest. */
 const PROBLEM_ORDER: readonly FactorId[] = [
+  'closures',
   'advisories',
   'waterQuality',
   'storms',
@@ -321,6 +335,7 @@ const PROBLEM_ORDER: readonly FactorId[] = [
   'rain',
   'uv',
   'waterTemp',
+  'tideFlow',
 ]
 
 export function lensReason(lens: Lens, f: HourFacts, hourFit: HourFit, dayFit: Fit | 'unknown'): string {

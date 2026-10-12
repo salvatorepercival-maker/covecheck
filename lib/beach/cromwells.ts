@@ -31,6 +31,9 @@ export const CROMWELLS: BeachProfile = {
   // the engine's own cross-shore deadband (|cos| < 0.25 ≈ 75.5°).
   windClasses: { offshoreHalfArcDeg: 75, onshoreHalfArcDeg: 75 },
 
+  // From GET api.weather.gov/points/21.257,-157.797, verified 2026-10-12.
+  nwsGrid: { office: 'HFO', x: 157, y: 142 },
+
   // NOTE: there is deliberately no `favorableWindDirections` list. Offshore vs
   // onshore is derived geometrically from `shoreAspect` (see `windExposureFor`),
   // so there is one source of truth. The previous hand-listed 315-45° arc was

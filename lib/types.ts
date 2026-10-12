@@ -166,7 +166,7 @@ export type SurfZoneForecast = {
 // Freshness
 // ---------------------------------------------------------------------------
 
-export type ProviderId = 'marine' | 'weather' | 'tides' | 'alerts' | 'srf' | 'doh' | 'buoy'
+export type ProviderId = 'marine' | 'weather' | 'tides' | 'alerts' | 'srf' | 'doh' | 'buoy' | 'nwsgrid'
 
 export type SourceStatus = 'ok' | 'stale' | 'failed' | 'missing'
 
@@ -318,6 +318,8 @@ export type BeachProfile = {
    * own two-way split (lib/geo.ts); this is the lenses' three-way one.
    */
   windClasses: { offshoreHalfArcDeg: number; onshoreHalfArcDeg: number }
+  /** NWS forecast grid cell for this beach (from api.weather.gov/points). */
+  nwsGrid: { office: string; x: number; y: number }
   /** Swell arcs with a direct path to this beach. Energy outside these is discounted. */
   exposedSwellDirections: readonly DirectionRange[]
   /** Explicitly pinned provider sample points. */

@@ -103,6 +103,27 @@ describe('factor tags', () => {
     }
   })
 
+  it('thunderstorms are poor in every lens, from NWS or the model fallback, and unknown without either', () => {
+    for (const id of LENS_ORDER) {
+      expect(tagFactor('storms', DEFAULT_LENSES[id].factors.storms, hourFacts({ thunder: { expected: true, source: 'nws', coverage: 'chance' } }))).toBe('poor')
+      expect(tagFactor('storms', DEFAULT_LENSES[id].factors.storms, hourFacts({ thunder: { expected: true, source: 'model', coverage: null } }))).toBe('poor')
+    }
+    expect(evaluateHour(snorkel, hourFacts({ thunder: { expected: null, source: null, coverage: null } })).fit).toBe('unknown')
+  })
+
+  it('a closure is poor in every lens', () => {
+    const closed = hourFacts({ closures: [{ kind: 'shark', title: 'Shark sighting', startsUtc: '', endsUtc: null, source: 'signs' }] })
+    for (const id of LENS_ORDER) expect(evaluateHour(DEFAULT_LENSES[id], closed).fit).toBe('poor')
+  })
+
+  it('tide mid-change is off by default and only matters when turned on', () => {
+    const mid = hourFacts({ tide: { direction: 'rising', rateFtPerHr: 0.3, nextTurn: null, midChange: true } })
+    for (const id of LENS_ORDER) expect(tagFactor('tideFlow', DEFAULT_LENSES[id].factors.tideFlow, mid)).toBe('off')
+    expect(evaluateHour(snorkel, mid).fit).toBe('good')
+    const on = withOverrides(snorkel, { tideFlow: { kind: 'flag', whenPresent: 'mixed' } })
+    expect(evaluateHour(on, mid).fit).toBe('mixed')
+  })
+
   it('clarity is tagged but does not affect fit while uncalibrated', () => {
     const murky = hourFacts({ clarity: { ft: 5, confidence: 'low', mainCause: 'swell', inputs: { swellEnergy: 10, windMph: 6, windDirectionDeg: 0, rain48hIn: 0 }, modelVersion: 't' } })
     const result = evaluateHour(snorkel, murky)

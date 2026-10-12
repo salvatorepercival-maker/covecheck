@@ -30,6 +30,9 @@ export function hourFacts(overrides: Partial<HourFacts> = {}): HourFacts {
     uv: 6,
     nwsHazards: [],
     nwsHazardsKnown: true,
+    thunder: { expected: false, source: 'nws', coverage: null },
+    closures: [],
+    tide: { direction: 'rising', rateFtPerHr: 0.1, nextTurn: null, midChange: false },
     waterQuality: { status: 'clear', radiusKm: 5 },
     jelly: { expected: false, window: { start: '2026-11-02', end: '2026-11-04' } },
     dataIssue: null,
@@ -42,6 +45,8 @@ export function dayOf(hours: Partial<HourFacts>[]): DayFacts {
     date: '2026-10-12',
     hours: hours.map((h) => hourFacts({ ...h, timestamp: `2026-10-12T${String(h.hour).padStart(2, '0')}:00` })),
     tideExtremes: [{ timestamp: '2026-10-12 11:47', heightFt: 0.5, kind: 'low' }],
+    tideRangeFt: 1.4,
+    springNeap: null,
     sunrise: 387,
     sunset: 1091,
   }
