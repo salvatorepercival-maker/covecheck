@@ -4,6 +4,8 @@ import { ConditionsApp } from '@/components/conditions-app'
 import { CROMWELLS } from '@/lib/beach/cromwells'
 import { getBeachReport } from '@/lib/forecast'
 import { buoyComparisonFor } from '@/lib/facts'
+import { longRangeDays } from '@/lib/planning/long-range'
+import { swellTrains } from '@/lib/planning/swell-trains'
 import { dayFactsFor } from '@/lib/reports/snapshot'
 import { formatClockTime } from '@/lib/format'
 import { utcToHonoluluLocal } from '@/lib/time'
@@ -20,6 +22,7 @@ import { utcToHonoluluLocal } from '@/lib/time'
 async function Report() {
   const report = await getBeachReport(CROMWELLS)
   const days = dayFactsFor(report, CROMWELLS)
+  const lr = report.longRange.status === 'ok' ? report.longRange.data : null
   const tideBandUnset = CROMWELLS.calibration.some(
     (gap) => gap.status === 'unresolved' && gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
   )
@@ -32,6 +35,9 @@ async function Report() {
       shore={CROMWELLS.shoreAspect}
       tideBand={tideBandUnset ? null : CROMWELLS.thresholds.favorableTideFt}
       buoy={buoyComparisonFor(report, CROMWELLS)}
+      // The timeline shows 10 days; choose its swells from those 10 days only.
+      trains={lr ? swellTrains(lr.times.slice(0, 240), lr.partitions.slice(0, 240), CROMWELLS.exposedSwellDirections) : []}
+      longRange={lr ? longRangeDays(lr, CROMWELLS.exposedSwellDirections).filter((d) => d.date > (days[days.length - 1]?.date ?? '')) : []}
     />
   )
 }

@@ -11,6 +11,35 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 20. Planning views: plain-words outlook, swell timeline, long range as trends
+
+**Decided:** 2026-10-12 (Sal asked) · **Status:** active · **display only**
+
+**Outlook:** up to four sentences generated from the 7-day facts — calm
+mornings (light wind and below-median swell energy, 6–11 AM) or, with a lens on,
+its best hours; the notable new swell (14 s+ first, then most energetic); the
+biggest day-to-day wind change (≥6 mph); showers (≥50 %). Factual, no hype
+words, no safety claims (tested).
+
+**Swell timeline (10 days) and long range (days 8–16)** come from Open-Meteo's
+`ncep_gfswave025` model: the only one with every swell partition for all 16 days
+(the default model stops near day 10 without a tertiary partition). They may
+differ slightly from the day tiles, which stay on the default model; the
+timeline says so. Never an engine input.
+
+**Swells are tracked by direction sector × period band**, not by partition slot:
+the model moves a swell between primary, secondary and tertiary hour to hour,
+and its direction wobbles 20–30°. Sectors: SE 135–170°, S–SW 170–225° (a
+south/southwest split cut real swells in half). Bands: short <10.5 s, mid
+10.5–13.5 s, long ≥13.5 s. Each pool is smoothed over 5 h, runs above 0.5 ft
+bridge gaps up to 6 h, and a swell must last 12 h and reach 1 ft. The eight
+most energetic within the 10 days are shown.
+
+**Long range** is one row per day with a building / easing / steady word (±25 %
+day-over-day energy), always labelled low confidence.
+
+---
+
 ## 19. Thunder from the NWS grid; closures by hand; tide dynamics as a tag
 
 **Decided:** 2026-10-12 (Sal asked; closure source pending his choice) · **Status:** active · **facts and lenses, not the engine**
