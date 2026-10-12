@@ -8,7 +8,7 @@ import { CONFIDENCE_WORDS } from '@/lib/conditions/confidence'
 import { conditionTiles, dayHeadline, sunLine } from '@/lib/conditions/describe'
 import type { DayFacts, HourFacts } from '@/lib/facts'
 import { DEFAULT_LENSES, LENS_ORDER } from '@/lib/lenses/defaults'
-import { evaluateDay, settingsSummary, withOverrides, type DayFit } from '@/lib/lenses/evaluate'
+import { evaluateDay, withOverrides, type DayFit } from '@/lib/lenses/evaluate'
 import { heroCopy } from '@/lib/lenses/hero'
 import { affectsFit, type LensId, type LensOverrides } from '@/lib/lenses/schema'
 import type { LongRangeDay } from '@/lib/planning/long-range'
@@ -239,7 +239,6 @@ export function ConditionsApp({
           reading={focusHour}
           confidence={confidence}
           buoy={buoy}
-          settings={settingsSummary(lens)}
           edited={Boolean(overrides[lens.id])}
           onEdit={() => setEditing(true)}
         />
