@@ -26,6 +26,11 @@ export const CROMWELLS: BeachProfile = {
   // discounted, which is what keeps the product from reading permanently red.
   exposedSwellDirections: [{ fromDeg: 135, toDeg: 225 }],
 
+  // South-facing: offshore is wind from 0° ± 75°, onshore from 180° ± 75°,
+  // cross-shore is the 30° either side of due east and due west. ±75° matches
+  // the engine's own cross-shore deadband (|cos| < 0.25 ≈ 75.5°).
+  windClasses: { offshoreHalfArcDeg: 75, onshoreHalfArcDeg: 75 },
+
   // NOTE: there is deliberately no `favorableWindDirections` list. Offshore vs
   // onshore is derived geometrically from `shoreAspect` (see `windExposureFor`),
   // so there is one source of truth. The previous hand-listed 315-45° arc was

@@ -1,8 +1,11 @@
 import Image from 'next/image'
 import { Suspense } from 'react'
-import { ReportView } from '@/components/report-view'
+import { ConditionsApp } from '@/components/conditions-app'
 import { CROMWELLS } from '@/lib/beach/cromwells'
 import { getBeachReport } from '@/lib/forecast'
+import { dayFactsFor } from '@/lib/reports/snapshot'
+import { formatClockTime } from '@/lib/format'
+import { utcToHonoluluLocal } from '@/lib/time'
 
 /**
  * Cromwell's beach screen.
@@ -15,7 +18,20 @@ import { getBeachReport } from '@/lib/forecast'
 
 async function Report() {
   const report = await getBeachReport(CROMWELLS)
-  return <ReportView report={report} profile={CROMWELLS} />
+  const days = dayFactsFor(report, CROMWELLS)
+  const tideBandUnset = CROMWELLS.calibration.some(
+    (gap) => gap.status === 'unresolved' && gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
+  )
+  return (
+    <ConditionsApp
+      days={days}
+      nowIso={report.evaluation.evaluatedAtUtc}
+      updatedLabel={formatClockTime(utcToHonoluluLocal(new Date(report.updatedAtUtc)))}
+      place="Black Point, Honolulu"
+      shore={CROMWELLS.shoreAspect}
+      tideBand={tideBandUnset ? null : CROMWELLS.thresholds.favorableTideFt}
+    />
+  )
 }
 
 function ReportSkeleton() {
@@ -38,9 +54,9 @@ export default function Page() {
           <span className="text-[17px] font-bold tracking-tight">CoveCheck</span>
         </span>
         {/* One beach today. A picker replaces this pill once there are more. */}
-        <h1 className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium">
+        <span className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-sm font-medium">
           Cromwell&rsquo;s
-        </h1>
+        </span>
       </header>
 
       <Suspense fallback={<ReportSkeleton />}>

@@ -78,11 +78,34 @@ const weatherSchema = z.object({
     wind_gusts_10m: nullableNumbers,
     precipitation: nullableNumbers,
     temperature_2m: nullableNumbers,
+    /**
+     * Display-and-lens inputs only. Optional so a provider change degrades these
+     * tiles to "not available" instead of failing the whole weather payload and
+     * every verdict with it.
+     */
+    precipitation_probability: nullableNumbers.optional(),
+    weather_code: nullableNumbers.optional(),
+    cloud_cover: nullableNumbers.optional(),
+    uv_index: nullableNumbers.optional(),
+  }),
+})
+
+/**
+ * Hourly rain over the last 48 hours, for the clarity estimate and water-quality
+ * context. Fetched separately rather than adding `past_days` to the forecast
+ * request: past hours there would join the hourly spine with no marine data and
+ * show up as missing-data hours.
+ */
+const rainHistorySchema = z.object({
+  hourly: z.object({
+    time: z.array(z.string()),
+    precipitation: nullableNumbers,
   }),
 })
 
 export type MarineResponse = z.infer<typeof marineSchema>
 export type WeatherResponse = z.infer<typeof weatherSchema>
+export type RainHistoryResponse = z.infer<typeof rainHistorySchema>
 
 export const MARINE_HOURLY_VARIABLES = [
   'wave_height',
@@ -112,6 +135,10 @@ export const WEATHER_HOURLY_VARIABLES = [
   'wind_gusts_10m',
   'precipitation',
   'temperature_2m',
+  'precipitation_probability',
+  'weather_code',
+  'cloud_cover',
+  'uv_index',
 ] as const
 
 /**
@@ -192,6 +219,32 @@ export function fetchWeather(
     provider: 'weather',
     url: buildWeatherUrl(cell, timezone, overrides.forecastDays),
     schema: weatherSchema,
+    fetchImpl: overrides.fetchImpl,
+  })
+}
+
+export function buildRainHistoryUrl(cell: CellRequest, timezone: string): string {
+  const params = new URLSearchParams({
+    latitude: String(cell.requestedLat),
+    longitude: String(cell.requestedLon),
+    hourly: 'precipitation',
+    timezone,
+    past_days: '2',
+    forecast_days: '1',
+    precipitation_unit: 'inch',
+  })
+  return `${WEATHER_BASE}?${params.toString()}`
+}
+
+export function fetchRainHistory(
+  cell: CellRequest,
+  timezone: string,
+  overrides: { fetchImpl?: typeof fetch } = {},
+): Promise<ProviderResult<RainHistoryResponse>> {
+  return fetchProviderJson({
+    provider: 'weather',
+    url: buildRainHistoryUrl(cell, timezone),
+    schema: rainHistorySchema,
     fetchImpl: overrides.fetchImpl,
   })
 }

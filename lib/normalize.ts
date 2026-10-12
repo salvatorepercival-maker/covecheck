@@ -34,6 +34,8 @@ export const STALENESS_LIMITS_SECONDS: Record<ProviderId, number> = {
   alerts: 30 * 60,
   // The SRF is issued roughly twice a day.
   srf: 14 * 3600,
+  // Health Dept. water-quality advisories: posted within hours of heavy rain or a spill.
+  doh: 30 * 60,
 }
 
 export type ProviderSlice<T> =
@@ -284,6 +286,10 @@ export function normalizeConditions(input: NormalizeInput): NormalizeResult {
 
       seaSurfaceTempF: marineHourly ? at(marineHourly.sea_surface_temperature, m) : null,
       airTempF: weatherHourly ? at(weatherHourly.temperature_2m, w) : null,
+      precipProbabilityPct: weatherHourly ? at(weatherHourly.precipitation_probability ?? [], w) : null,
+      weatherCode: weatherHourly ? at(weatherHourly.weather_code ?? [], w) : null,
+      cloudCoverPct: weatherHourly ? at(weatherHourly.cloud_cover ?? [], w) : null,
+      uvIndex: weatherHourly ? at(weatherHourly.uv_index ?? [], w) : null,
 
       windSpeedMph: weatherHourly ? at(weatherHourly.wind_speed_10m, w) : null,
       windGustMph: weatherHourly ? at(weatherHourly.wind_gusts_10m, w) : null,

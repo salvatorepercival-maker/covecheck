@@ -11,6 +11,55 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 16. A neutral conditions report, with activity lenses on top
+
+**Decided:** 2026-10-11 (Sal) · **Status:** active · **reframes the single kid-snorkel verdict**
+
+CoveCheck no longer leads with one "good for kids?" verdict. The default view
+describes the day ("Big south swell, breezy trades, mostly sunny.") with no
+judgement and no red/green. Choosing an activity — Snorkel, Dive, Surf, Beach —
+turns on a **lens**: a config object (`lib/lenses/schema.ts`) that tags each
+factor good / mixed / poor / not-a-factor and rolls them up into a fit, best
+hours, a headline and a one-sentence reason. One evaluator runs every lens
+(`lib/lenses/evaluate.ts`); viewers can override any threshold per lens (saved
+in their browser only).
+
+**Unchanged on purpose:** the engine. Swell-direction filtering (#1, #14), the
+tide band (#13), the NWS cross-check (#15) and the data-quality gates all run
+exactly as before; lenses read the engine's figures through `lib/facts.ts`. The
+Snorkel lens starts from the engine's own Cromwell's thresholds, but rolls up
+more strictly: wind past a lens's mixed ceiling is *poor*, where the engine only
+ever caps wind at caution.
+
+**Revised 2026-10-11 (Sal):**
+- **Three wind classes for lenses** — offshore, cross-shore, onshore — set as
+  half-arcs in the beach config (`windClasses`, ±75° at Cromwell's). The engine
+  keeps its two-way split (cross treated as onshore); only lenses use three.
+- **Offshore is never looser than cross-shore** for Snorkel, Dive and Beach
+  (`offshoreNoLooserThanCross`): offshore wind smooths the water but pushes
+  swimmers out. Enforced in the evaluator, so an override cannot loosen it.
+- **`affectsFit` per factor.** Clarity is tagged on its tile but excluded from
+  every fit until 10 visit reports have calibrated it.
+- **NWS hazards split** into advisories and warnings (Surf: mixed / poor;
+  everyone else: poor / poor). UV is never poor. Water temp is off for Dive.
+- **No agents.** The OpenClaw agents are retired; nothing in the app depends on
+  them. Surfline is no longer fetched.
+
+**New inputs, none of which reach the engine:** UV, rain chance, sky and 48 h
+rain (Open-Meteo), Hawaiʻi DOH Clean Water Branch advisories, a box-jellyfish
+calendar (8–10 days after full moon), and a water-clarity **estimate** — a
+model, labelled as one, whose inputs are stored with every visit report.
+
+**Visit reports are the calibration dataset.** Each stores the forecast for its
+hour (every factor and every lens at default thresholds). The visit log is
+private calibration data from one user (Sal); disagreements surface as
+suggestions at `/api/reports/calibration`, never applied automatically.
+
+**Would reverse it:** reports showing people misread a neutral headline as a
+go-ahead, or lens fits that disagree with reports more often than the old verdict did.
+
+---
+
 ## 15. The surf forecast cross-checks the model; it does not outvote it
 
 **Decided:** 2026-08-03 · **Status:** active · **supersedes the SRF gating in #6 and #11**

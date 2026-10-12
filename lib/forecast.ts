@@ -1,11 +1,18 @@
 import { cache } from 'react'
 import { cacheLife, cacheTag } from 'next/cache'
 import { connection } from 'next/server'
-import { fetchNearbySurfReport, KNOWN_SPOT_IDS, type SurflineReport } from './adapters/surfline'
 import { evaluateForecast, type ForecastEvaluation } from './engine'
 import { normalizeConditions, type ProviderSlice } from './normalize'
 import { fetchAlerts } from './providers/alerts'
-import { fetchMarine, fetchWeather, type MarineResponse, type WeatherResponse } from './providers/open-meteo'
+import { fetchWaterQuality, type WaterQualityReport } from './providers/doh'
+import {
+  fetchMarine,
+  fetchRainHistory,
+  fetchWeather,
+  type MarineResponse,
+  type RainHistoryResponse,
+  type WeatherResponse,
+} from './providers/open-meteo'
 import { fetchSurfZoneForecast } from './providers/srf'
 import { fetchTideExtremes, fetchTideHourly, type TideExtreme, type TidePrediction } from './providers/tides'
 import { honoluluDateOf, utcToHonoluluLocal } from './time'
@@ -38,12 +45,10 @@ export type ForecastBundle = {
   alerts: Slice<{ hazards: BeachHazard[] }>
   surfZoneForecast: SurfZoneForecast | null
   srfWarnings: string[]
-  /**
-   * Supplementary only, and structurally isolated: it is carried alongside the
-   * four providers rather than among them, is never passed to `normalizeConditions`
-   * or `evaluateForecast`, and cannot fail in a way that affects them.
-   */
-  nearbySurf: SurflineReport
+  /** Last 48 h of rain. Lens and clarity input only — never reaches the engine. */
+  rainHistory: Slice<RainHistoryResponse>
+  /** Health Dept. water-quality advisories near the beach. Lens input only. */
+  waterQuality: Slice<WaterQualityReport>
 }
 
 const toSlice = <T,>(
@@ -80,7 +85,7 @@ async function getForecastBundle(
   })
   cacheTag(`forecast:${profile.id}`)
 
-  const [marine, weather, tideHourly, tideExtremes, alerts, srf, nearbySurf] = await Promise.all([
+  const [marine, weather, tideHourly, tideExtremes, alerts, srf, rainHistory, waterQuality] = await Promise.all([
     fetchMarine(profile.cells.marine, profile.timezone),
     fetchWeather(profile.cells.weather, profile.timezone),
     fetchTideHourly(profile.tideStationId, beginDate, endDate),
@@ -88,12 +93,8 @@ async function getForecastBundle(
     // The alerts query uses the beach's own coordinates, not a model cell.
     fetchAlerts(profile.latitude, profile.longitude),
     fetchSurfZoneForecast(profile.srfIsland),
-    // Never rejects — resolves to a disabled/unavailable status instead. Safe in
-    // Promise.all precisely because it cannot throw.
-    fetchNearbySurfReport(
-      { latitude: profile.latitude, longitude: profile.longitude },
-      { knownSpotId: KNOWN_SPOT_IDS[profile.id] },
-    ),
+    fetchRainHistory(profile.cells.weather, profile.timezone),
+    fetchWaterQuality({ latitude: profile.latitude, longitude: profile.longitude }),
   ])
 
   return {
@@ -104,7 +105,8 @@ async function getForecastBundle(
     alerts: toSlice(alerts),
     surfZoneForecast: srf.ok ? srf.data.forecast : null,
     srfWarnings: srf.ok ? srf.data.warnings : [`srf unavailable: ${srf.error.kind}`],
-    nearbySurf,
+    rainHistory: toSlice(rainHistory),
+    waterQuality: toSlice(waterQuality),
   }
 }
 
@@ -136,8 +138,13 @@ export type BeachReport = {
   warnings: string[]
   /** Providers that failed outright. */
   failures: { provider: string; error: string }[]
-  /** Supplementary nearby surf break report. Display only, never an engine input. */
-  nearbySurf: SurflineReport
+  /** Hourly rain, last 48 h, keyed by local timestamp. Empty when the fetch failed. */
+  rainHistoryByTimestamp: Record<string, number>
+  /**
+   * Health Dept. advisories near the beach, or the failure. A failure is never
+   * shown as "no advisories".
+   */
+  waterQuality: { status: 'ok'; data: WaterQualityReport; fetchedAtUtc: string } | { status: 'failed'; error: string; fetchedAtUtc: string }
 }
 
 /** Group extremes by the local calendar day they fall on, each sorted by time. */
@@ -209,6 +216,8 @@ export const getBeachReport = cache(async function getBeachReport(
     ['tides (hourly)', bundle.tideHourly],
     ['tides (high/low)', bundle.tideExtremes],
     ['advisories', bundle.alerts],
+    ['rain history', bundle.rainHistory],
+    ['water quality', bundle.waterQuality],
   ] as const
 
   const fetchTimes = slices.map(([, slice]) => slice.fetchedAtUtc).sort()
@@ -226,7 +235,15 @@ export const getBeachReport = cache(async function getBeachReport(
     updatedAtUtc: fetchTimes[fetchTimes.length - 1] ?? nowUtc.toISOString(),
     surfZoneIssuedUtc: bundle.surfZoneForecast?.issuedUtc ?? null,
     warnings: [...normalizeWarnings, ...evaluation.warnings, ...bundle.srfWarnings],
-    nearbySurf: bundle.nearbySurf,
+    rainHistoryByTimestamp:
+      bundle.rainHistory.status === 'ok'
+        ? Object.fromEntries(
+            bundle.rainHistory.data.hourly.time
+              .map((time, index) => [time, bundle.rainHistory.status === 'ok' ? bundle.rainHistory.data.hourly.precipitation[index] : null] as const)
+              .filter((entry): entry is readonly [string, number] => entry[1] !== null),
+          )
+        : {},
+    waterQuality: bundle.waterQuality,
     failures: slices
       .filter(([, slice]) => slice.status === 'failed')
       .map(([provider, slice]) => ({
