@@ -5,19 +5,19 @@ import { useEffect, useMemo, useState } from 'react'
 import { SPOT_GUIDE } from '@/lib/beach/spot-guide'
 import type { BuoyComparison } from '@/lib/conditions/buoy'
 import { CONFIDENCE_WORDS } from '@/lib/conditions/confidence'
-import { conditionTiles, dayHeadline, sunLine } from '@/lib/conditions/describe'
+import { dayHeadline, sunLine } from '@/lib/conditions/describe'
 import type { DayFacts, HourFacts } from '@/lib/facts'
 import { DEFAULT_LENSES, LENS_ORDER } from '@/lib/lenses/defaults'
 import { evaluateDay, withOverrides, type DayFit } from '@/lib/lenses/evaluate'
 import { heroCopy } from '@/lib/lenses/hero'
-import { affectsFit, type LensId, type LensOverrides } from '@/lib/lenses/schema'
+import type { LensId, LensOverrides } from '@/lib/lenses/schema'
 import type { LongRangeDay } from '@/lib/planning/long-range'
 import { weekOutlook } from '@/lib/planning/outlook'
 import type { SwellTrain } from '@/lib/planning/swell-trains'
 import { formatSunTime } from '@/lib/sun'
 import { DataPanel } from './data-panel'
+import { DecidingPanel } from './deciding-panel'
 import { DaySection } from './day-section'
-import { FIT_CHIP, TAG_LABEL } from './fit'
 import { Hero } from './hero'
 import { MoonIcon } from './icons'
 import { LensSettings } from './lens-settings'
@@ -68,7 +68,6 @@ function writeStorage(key: string, value: unknown) {
 }
 
 const isLens = (v: unknown): v is LensId => typeof v === 'string' && v in DEFAULT_LENSES
-const TAG_RANK = { good: 0, mixed: 1, unknown: 2, poor: 3 } as const
 
 export function ConditionsApp({
   days,
@@ -174,16 +173,7 @@ export function ConditionsApp({
     day.hours.find((h) => h.hour === 9) ??
     day.hours[0]
 
-  const tiles = focusHour ? conditionTiles(day, focusHour, shore, buoy) : []
   const confidence = focusHour?.confidence
-  const tagFor = (tile: (typeof tiles)[number]) => {
-    if (!lens || !focusHour) return null
-    const hourFit = dayFit?.hours.find((h) => h.timestamp === focusHour.timestamp)
-    const tags = [tile.factor, ...(tile.alsoFactors ?? [])]
-      .map((f) => hourFit?.tags[f])
-      .filter((t): t is 'good' | 'mixed' | 'poor' | 'unknown' => t !== undefined && t !== 'off')
-    return tags.length ? tags.reduce((a, b) => (TAG_RANK[b] > TAG_RANK[a] ? b : a)) : null
-  }
 
   // The bands the tide-first lenses use; the snorkel rule's when no lens is on.
   const tideRule = (lens ?? DEFAULT_LENSES.snorkel).factors.waves
@@ -290,47 +280,17 @@ export function ConditionsApp({
       ) : null}
 
       {/* ---------- What's deciding it ---------- */}
-      <section aria-labelledby="tiles-heading">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="tiles-heading" className="font-display text-[2rem] font-extrabold leading-none">
-            {lens ? 'What’s deciding it' : 'Conditions'}
-          </h2>
-          {focusHour ? (
-            <span className="font-mono text-[10px] text-muted">
-              {daylightNow ? 'Now' : `At ${focusHour.hour % 12 || 12} ${focusHour.hour < 12 ? 'AM' : 'PM'}`}
-            </span>
-          ) : null}
-        </div>
-        <ul className="mt-3 grid grid-cols-2 gap-2.5">
-          {tiles.map((tile) => {
-            const tag = tagFor(tile)
-            const infoOnly = lens && tag && !affectsFit(lens.factors[tile.factor])
-            return (
-              <li key={tile.id} className="flex min-h-[9rem] flex-col rounded-[18px] bg-surface p-3.5">
-                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">{tile.label}</p>
-                <p className="mt-1.5 font-mono text-[1.35rem] font-bold leading-tight tracking-tight">{tile.value}</p>
-                <p className="mt-1.5 text-[12px] leading-snug text-muted">{tile.detail}</p>
-                {tile.note ? <p className="mt-1 text-[11px] leading-snug text-foreground/70">{tile.note}</p> : null}
-                {tag ? (
-                  <span
-                    className={`mt-auto inline-flex w-fit items-center gap-1.5 rounded-full px-2.5 py-0.5 pt-0.5 text-[11px] font-semibold ${
-                      infoOnly ? 'bg-unknown-tint text-muted' : FIT_CHIP[tag]
-                    }`}
-                    style={{ marginTop: 'auto' }}
-                  >
-                    <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
-                    {infoOnly ? 'Info only' : TAG_LABEL[tag]}
-                  </span>
-                ) : null}
-              </li>
-            )
-          })}
-        </ul>
-        <p className="mt-2 px-1 text-[12px] text-muted">
-          Clarity is an estimate from swell, wind and recent rain, not yet calibrated by your visits. It counts toward no fit
-          until 10 visit reports have calibrated it.
-        </p>
-      </section>
+      {focusHour ? (
+        <DecidingPanel
+          lens={lens}
+          day={day}
+          h={focusHour}
+          tags={lens ? (dayFit?.hours.find((x) => x.timestamp === focusHour.timestamp)?.tags ?? null) : null}
+          buoy={buoy}
+          shore={shore}
+          label={daylightNow ? 'Now' : `At ${focusHour.hour % 12 || 12} ${focusHour.hour < 12 ? 'AM' : 'PM'}`}
+        />
+      ) : null}
 
 
       {raw ? (
