@@ -45,7 +45,7 @@ export function TidePanel({
   const dayStart = Date.parse(`${day.date}T00:00:00-10:00`)
   const turns = week
     .flatMap((d) => d.tideExtremes)
-    .map((e) => ({ min: (Date.parse(`${e.timestamp.replace(' ', 'T').slice(0, 16)}:00-10:00`) - dayStart) / 60_000, ft: e.heightFt }))
+    .map((e) => ({ min: (Date.parse(`${e.timestamp.replace(' ', 'T').slice(0, 16)}:00-10:00`) - dayStart) / 60_000, ft: e.heightFt, kind: e.kind, timestamp: e.timestamp }))
     .sort((a, b) => a.min - b.min)
   const covered = turns.some((t) => t.min <= 0) && turns.some((t) => t.min >= DAY_MIN)
   const cosineAt = (min: number) => {
@@ -68,7 +68,10 @@ export function TidePanel({
   const lo = Math.min(...values) - 0.3
   const hi = Math.max(...values) + 0.3
   const y = (ft: number) => 10 + (1 - (ft - lo) / (hi - lo)) * (H - 20)
-  const path = pts.map((p, i) => `${i ? 'L' : 'M'}${x(p.min).toFixed(1)},${y(p.ft).toFixed(1)}`).join(' ')
+  const pathOf = (ps: { min: number; ft: number }[]) => ps.map((p, i) => `${i ? 'L' : 'M'}${x(p.min).toFixed(1)},${y(p.ft).toFixed(1)}`).join(' ')
+  // Earlier today is drawn dashed; from now on, solid.
+  const earlierPath = nowMinutes !== null ? pathOf(pts.filter((p) => p.min <= nowMinutes)) : null
+  const path = pathOf(nowMinutes !== null ? pts.filter((p) => p.min >= nowMinutes - 10) : pts)
   const heightAt = (min: number) => {
     if (covered) return cosineAt(min)
     const after = pts.findIndex((p) => p.min >= min)
@@ -86,28 +89,77 @@ export function TidePanel({
       ? null
       : `${picked !== null ? 'At' : 'Now'} · ${formatClockTime(`${day.date}T${String(Math.floor(readMin / 60) % 24).padStart(2, '0')}:${String(Math.round(readMin % 60)).padStart(2, '0')}`)}`
 
+  // Where the reading sits between the last turn and the next.
+  const prevTurn = readMin !== null ? [...turns].reverse().find((t) => t.min <= readMin) ?? null : null
+  const nextTurn = readMin !== null ? turns.find((t) => t.min > readMin) ?? null : null
+  const progress = prevTurn && nextTurn && readMin !== null ? (readMin - prevTurn.min) / (nextTurn.min - prevTurn.min) : null
+  const turnTime = (t: { timestamp: string }) => formatClockTime(t.timestamp)
+  const counts = { high: day.tideExtremes.filter((e) => e.kind === 'high').length, low: day.tideExtremes.filter((e) => e.kind === 'low').length }
+  const word = (n: number) => ['No', 'One', 'Two', 'Three', 'Four'][n] ?? String(n)
+  const title = `${word(counts.high)} high${counts.high === 1 ? '' : 's'}, ${word(counts.low).toLowerCase()} low${counts.low === 1 ? '' : 's'}`
+  const [, mo, dd] = day.date.split('-').map(Number)
+  const eyebrow = `${DAYS[new Date(`${day.date}T00:00:00Z`).getUTCDay()]} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][mo - 1]} ${dd} · Tides`
+  const readTime = readMin !== null ? readLabel!.replace(/^(Now|At) · /, '') : null
+  const arrow = rising ? '↑' : '↓'
+
   const named = namedExtremes(day, nowMinutes)
   const lows = daylightLows(week)
 
   return (
     <section aria-labelledby="tide-panel-heading" className="rounded-[22px] bg-surface p-4">
-      <h2 id="tide-panel-heading" className="font-display text-[2rem] font-extrabold leading-none">
-        Tide
+      <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted">{eyebrow}</p>
+      <h2 id="tide-panel-heading" className="mt-1 font-display text-[2rem] font-extrabold leading-none">
+        {title}
       </h2>
 
       {readFt !== null ? (
-        <div className="mt-3 rounded-2xl bg-surface-sunk px-4 py-3" aria-live="polite">
-          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">{readLabel}</p>
-          <p className="mt-0.5 flex items-baseline gap-2">
-            <span className="font-mono text-[1.6rem] font-bold">{readFt.toFixed(1)} ft</span>
-            <span className="text-[13px] text-muted">
-              {rising ? 'rising' : 'falling'} · {bandOfTide(readFt, bands)}
+        <div className="mt-3 rounded-2xl bg-hero px-4 py-3 text-hero-ink" aria-live="polite">
+          <div className="flex items-center justify-between gap-3 font-mono text-[11px]">
+            <span className="flex items-center gap-2 font-bold uppercase tracking-[0.1em] text-now">
+              <span className="relative flex h-3.5 w-3.5 items-center justify-center" aria-hidden>
+                {picked === null ? <span className="tide-pulse absolute inset-0 rounded-full bg-now/50" /> : null}
+                <span className="relative h-2.5 w-2.5 rounded-full bg-now" />
+              </span>
+              {picked !== null ? 'At' : 'Now'} · {readTime}
+            </span>
+            <span className="text-hero-ink/70">{bandOfTide(readFt, bands)}</span>
+          </div>
+          <p className="mt-1 flex items-baseline gap-2">
+            <span className="font-mono text-[2rem] font-bold leading-none">{readFt.toFixed(1)} ft</span>
+            <span className="text-[15px] text-hero-ink/85">
+              {arrow} {rising ? 'rising' : 'falling'}
             </span>
           </p>
+          {progress !== null ? (
+            <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-white/15" aria-hidden>
+              <span className="block h-full rounded-full bg-now" style={{ width: `${Math.round(Math.min(1, Math.max(0, progress)) * 100)}%` }} />
+            </span>
+          ) : null}
+          {prevTurn && nextTurn && readMin !== null ? (
+            <div className="mt-2 flex justify-between gap-3 font-mono text-[11px]">
+              <span className="text-hero-ink/70">
+                {prevTurn.kind === 'high' ? 'High' : 'Low'} {turnTime(prevTurn)}
+              </span>
+              <span className="font-bold">
+                {nextTurn.kind === 'high' ? 'High' : 'Low'} {nextTurn.ft.toFixed(1)} ft in {durationText(Math.round(nextTurn.min - readMin))}
+              </span>
+            </div>
+          ) : null}
         </div>
       ) : null}
 
       <div className="relative mt-3 -mx-1">
+        {readMin !== null && readFt !== null ? (
+          <div className="relative mb-1 h-7" aria-hidden>
+            <span
+              className="absolute top-0 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full bg-hero px-2.5 py-1 font-mono text-[10px] font-bold text-hero-ink"
+              style={{ left: `${Math.min(80, Math.max(20, (readMin / DAY_MIN) * 100))}%` }}
+            >
+              <span className="h-2 w-2 rounded-full bg-now" />
+              {picked !== null ? 'AT' : 'NOW'} {readTime} · {readFt.toFixed(1)} ft {arrow}
+            </span>
+          </div>
+        ) : null}
         <svg
           viewBox={`0 0 ${W} ${H}`}
           className="w-full cursor-crosshair"
@@ -124,14 +176,15 @@ export function TidePanel({
           {/* Night */}
           {day.sunrise !== null ? <rect x="0" width={x(day.sunrise)} y="0" height={H} fill="var(--foreground)" opacity="0.07" /> : null}
           {day.sunset !== null ? <rect x={x(day.sunset)} width={W - x(day.sunset)} y="0" height={H} fill="var(--foreground)" opacity="0.07" /> : null}
+          {earlierPath ? <path d={earlierPath} fill="none" stroke="var(--muted)" strokeWidth="2" strokeDasharray="3 4" strokeLinecap="round" /> : null}
           <path d={path} fill="none" stroke="var(--foreground)" strokeWidth="2.4" strokeLinecap="round" />
-          {nowMinutes !== null ? (
+          {readMin !== null ? (
             <g>
-              <line x1={x(nowMinutes)} x2={x(nowMinutes)} y1="0" y2={H} stroke="var(--now)" strokeWidth="2" />
-              <circle cx={x(nowMinutes)} cy={y(heightAt(nowMinutes))} r="5" fill="var(--now)" stroke="var(--foreground)" strokeWidth="1.5" />
+              <line x1={x(readMin)} x2={x(readMin)} y1="0" y2={H} stroke="var(--foreground)" strokeWidth="1.6" />
+              {picked === null ? <circle className="tide-pulse" cx={x(readMin)} cy={y(heightAt(readMin))} r="11" fill="var(--now)" opacity="0.35" /> : null}
+              <circle cx={x(readMin)} cy={y(heightAt(readMin))} r="6" fill="var(--now)" stroke="var(--foreground)" strokeWidth="2" />
             </g>
           ) : null}
-          {picked !== null ? <line x1={x(picked)} x2={x(picked)} y1="0" y2={H} stroke="var(--foreground)" strokeDasharray="3 3" strokeWidth="1.2" /> : null}
           {day.tideExtremes.map((e) => {
             const cx = x(minutesOf(e.timestamp))
             const cy = y(e.heightFt)
@@ -167,7 +220,7 @@ export function TidePanel({
         <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] bg-go-tint" />Low band</li>
         <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] bg-skip-tint" />High band</li>
         <li className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[3px] bg-foreground/10" />Night</li>
-        <li className="flex items-center gap-1.5"><span className="h-0.5 w-3 bg-now" />Now</li>
+        <li className="flex items-center gap-1.5"><span className="w-3 border-t-2 border-dashed border-muted" />Earlier</li>
       </ul>
 
       <ul className="mt-3 grid grid-cols-2 gap-2">

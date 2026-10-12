@@ -145,3 +145,17 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The tide panel's "now": a soft ring that breathes outward. */
+@keyframes tide-pulse {
+  0% { transform: scale(0.6); opacity: 0.6; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+.tide-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: tide-pulse 1.8s ease-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tide-pulse { animation: none; }
+}
