@@ -64,6 +64,8 @@ export type HourSpec = {
   tideStage?: TideStage
   hazards?: readonly BeachHazard[]
   precipProbabilityPct?: number | null
+  /** Period of the exposed swell, s. Default 12. */
+  swellPeriodSec?: number
   weatherCode?: number | null
   uvIndex?: number | null
   freshnessOverrides?: Partial<Record<ProviderId, SourceStatus>>
@@ -101,7 +103,10 @@ export function buildHour(spec: HourSpec): HourlyBeachConditions {
     exposedPartitions:
       exposed === null || exposed === 0
         ? []
-        : [{ partition: 'swell', heightFt: exposed, directionDeg: swellDirection }],
+        : [{ partition: 'swell', heightFt: exposed, directionDeg: swellDirection, periodSec: spec.swellPeriodSec ?? 12 }],
+    exposedSwellEnergy: exposed === null ? null : Math.round(exposed ** 2 * (spec.swellPeriodSec ?? 12) * 10) / 10,
+    exposedSwellPeriodSec: exposed === null || exposed === 0 ? null : (spec.swellPeriodSec ?? 12),
+    exposedChopFt: 0,
 
     seaSurfaceTempF: 80,
     airTempF: 78,

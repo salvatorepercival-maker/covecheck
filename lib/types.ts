@@ -65,6 +65,17 @@ export type HourlyBeachConditions = {
   exposedSwellHeightFt: number | null
   /** Which partitions were counted, for explainability. */
   exposedPartitions: readonly ExposedPartition[]
+  /**
+   * DERIVED: swell energy reaching this beach — Σ H² × T (ft²·s) over the
+   * exposed SWELL partitions only (wind waves are `exposedChopFt`). Energy flux
+   * scales with H²T, so a 2 ft 16 s groundswell carries more than a 3 ft 6 s one.
+   * Null when no exposed swell partition has a period. See DECISIONS #17.
+   */
+  exposedSwellEnergy: number | null
+  /** Period of the most energetic exposed swell partition, s. */
+  exposedSwellPeriodSec: number | null
+  /** Height of the exposed wind-wave (chop) partition, ft; 0 when it points away. */
+  exposedChopFt: number | null
 
   // --- Temperature. Display only; the engine does not read these. ---
   /** Sea surface temperature from the marine model, °F. */
@@ -109,6 +120,8 @@ export type ExposedPartition = {
   partition: SwellPartitionName
   heightFt: number
   directionDeg: number
+  /** Null when the model gave a height and direction but no period. */
+  periodSec: number | null
 }
 
 // ---------------------------------------------------------------------------

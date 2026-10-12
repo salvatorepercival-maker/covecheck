@@ -5,20 +5,24 @@ import { windExposureFor, type ShoreFacing } from '../geo'
  *
  * There is no live clarity feed for this cove, so this is a model: start from a
  * clear-day visibility and subtract for the three things that stir or cloud the
- * water — swell reaching the reef, wind (onshore counts more), and recent rain
+ * water — swell ENERGY reaching the reef (H²T, so long-period groundswell
+ * stirs the bottom more than its height suggests), wind (onshore counts more), and recent rain
  * runoff. Every coefficient is a starting guess, which is why the result is
  * always labelled an estimate and why visit reports store these exact inputs:
  * they are the calibration dataset for every number below.
  */
 
 export const CLARITY_MODEL = {
-  version: 'clarity-2026-10-11.1',
+  version: 'clarity-2026-10-12.1',
   /** Visibility on a flat, still, dry day at a south-shore Oahu reef, ft. */
   clearDayFt: 40,
-  /** Swell below this does not stir the bottom noticeably. */
-  swellFreeFt: 0.5,
-  /** Visibility lost per foot of exposed swell above `swellFreeFt`. */
-  ftLostPerSwellFt: 7,
+  /** Swell energy below this (≈ 0.5 ft at 10 s) does not stir the bottom noticeably, ft²·s. */
+  swellFreeEnergy: 2.5,
+  /**
+   * Visibility lost per unit of exposed swell energy above `swellFreeEnergy`.
+   * Set so a 3 ft 10 s swell loses the same 17.5 ft the height model took off.
+   */
+  ftLostPerEnergy: 0.2,
   /** Wind below this does not cloud the water. */
   windFreeMph: 10,
   /** Visibility lost per mph above `windFreeMph`; onshore wind multiplied by `onshoreFactor`. */
@@ -31,7 +35,8 @@ export const CLARITY_MODEL = {
 } as const
 
 export type ClarityInputs = {
-  exposedSwellFt: number | null
+  /** Σ H²T of exposed swell, ft²·s. */
+  swellEnergy: number | null
   windMph: number | null
   windDirectionDeg: number | null
   rain48hIn: number | null
@@ -48,9 +53,9 @@ export type ClarityEstimate = {
 }
 
 export function estimateClarity(inputs: ClarityInputs, facing: ShoreFacing): ClarityEstimate | null {
-  if (inputs.exposedSwellFt === null) return null
+  if (inputs.swellEnergy === null) return null
   const m = CLARITY_MODEL
-  const swellLoss = Math.max(0, inputs.exposedSwellFt - m.swellFreeFt) * m.ftLostPerSwellFt
+  const swellLoss = Math.max(0, inputs.swellEnergy - m.swellFreeEnergy) * m.ftLostPerEnergy
   const onshore =
     inputs.windDirectionDeg !== null && windExposureFor(inputs.windDirectionDeg, facing) !== 'offshore'
   const windLoss =

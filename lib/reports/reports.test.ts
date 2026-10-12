@@ -4,7 +4,7 @@ import { findingsFor, summarize } from './calibration'
 import { reportInput, type StoredReport } from './schema'
 import { getReportStore } from './store'
 
-const stored = (over: Partial<StoredReport['report']> = {}, facts = hourFacts({ clarity: { ft: 25, confidence: 'low', mainCause: null, inputs: { exposedSwellFt: 1, windMph: 6, windDirectionDeg: 0, rain48hIn: 0 }, modelVersion: 't' } })): StoredReport => ({
+const stored = (over: Partial<StoredReport['report']> = {}, facts = hourFacts({ clarity: { ft: 25, confidence: 'low', mainCause: null, inputs: { swellEnergy: 10, windMph: 6, windDirectionDeg: 0, rain48hIn: 0 }, modelVersion: 't' } })): StoredReport => ({
   version: 1,
   id: 'r1',
   receivedUtc: '2026-10-12T20:00:00Z',

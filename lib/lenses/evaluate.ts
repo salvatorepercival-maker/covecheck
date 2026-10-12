@@ -71,7 +71,7 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
 
   switch (id) {
     case 'waves': {
-      const tag = numeric(f.swellFt)
+      const tag = numeric(f.swellEnergy)
       // Calm-water lenses only: a range lens (surf) wants the big day.
       if (rule.kind === 'ceiling' && f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= NWS_EXTREME_SURF_FT) return 'poor'
       return tag
@@ -94,6 +94,8 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
       if (f.tideVsBand === null) return f.tideFt === null ? 'unknown' : 'off'
       return f.tideVsBand === 'in' ? 'good' : rule.outside
     }
+    case 'chop':
+      return numeric(f.chopFt)
     case 'clarity':
       return numeric(f.clarity?.ft ?? null)
     case 'uv':
@@ -254,9 +256,14 @@ function problemClause(id: FactorId, f: HourFacts, lens: Lens): string | null {
       if (rule.kind === 'ceiling' && f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= NWS_EXTREME_SURF_FT)
         return `the Weather Service has surf up to ${f.nwsSurfMaxFt} ft on this shore`
       const dir = formatCompassWord(f.swellFromDeg)
-      if (rule.kind === 'range' && f.swellFt < rule.good[0]) return `only ${num(f.swellFt)} ft of swell is reaching the break`
-      if (rule.kind === 'range') return `a ${num(f.swellFt)} ft${dir ? ` ${dir}` : ''} swell is bigger than your range`
-      return `a ${num(f.swellFt)} ft${dir ? ` ${dir}` : ''} swell is pushing surge over the reef`
+      const period = f.swellPeriodSec !== null ? ` at ${Math.round(f.swellPeriodSec)} s` : ''
+      if (rule.kind === 'range' && f.swellEnergy !== null && f.swellEnergy < rule.good[0])
+        return `only ${num(f.swellFt)} ft${period} of swell is reaching the break`
+      if (rule.kind === 'range') return `a ${num(f.swellFt)} ft${dir ? ` ${dir}` : ''} swell${period} is bigger than your range`
+      return `a ${num(f.swellFt)} ft${dir ? ` ${dir}` : ''} swell${period} is pushing surge over the reef`
+    }
+    case 'chop': {
+      return f.chopFt !== null ? `${num(f.chopFt)} ft of wind chop is reaching the cove` : null
     }
     case 'wind': {
       if (f.windMph === null) return null
@@ -306,6 +313,7 @@ const PROBLEM_ORDER: readonly FactorId[] = [
   'waterQuality',
   'storms',
   'waves',
+  'chop',
   'wind',
   'clarity',
   'tide',
@@ -322,6 +330,10 @@ export function lensReason(lens: Lens, f: HourFacts, hourFit: HourFit, dayFit: F
       : "Some conditions couldn't be retrieved, so CoveCheck won't call it."
   }
   if (dayFit === 'good') return goodClause(lens, f, hourFit.tags)
+  // A mixed day whose best hour is good: good hours exist, just never long enough in a row.
+  if (dayFit === 'mixed' && hourFit.fit === 'good') {
+    return `Some hours fit, but none for ${lens.minGoodHours} hours in a row.`
+  }
   const severity = dayFit === 'poor' ? ['poor'] : ['poor', 'mixed']
   const clauses = PROBLEM_ORDER.filter((id) => affectsFit(lens.factors[id]) && severity.includes(hourFit.tags[id]))
     .map((id) => problemClause(id, f, lens))
@@ -339,8 +351,10 @@ export function lensReason(lens: Lens, f: HourFacts, hourFit: HourFit, dayFit: F
 export function settingsSummary(lens: Lens): string {
   const parts: string[] = []
   const w = lens.factors.waves
-  if (w.kind === 'ceiling') parts.push(`waves under ${num(w.good)} ft`)
-  if (w.kind === 'range') parts.push(`waves ${formatRange(w.good)} ft`)
+  // Energy reads badly as a bare number, so name it by its 10 s height equivalent.
+  const at10 = (energy: number) => num(Math.sqrt(energy / 10))
+  if (w.kind === 'ceiling') parts.push(`swell energy under ${w.good} (≈ ${at10(w.good)} ft at 10 s)`)
+  if (w.kind === 'range') parts.push(`swell energy ${formatRange(w.good)} (≈ ${at10(w.good[0])}–${at10(w.good[1])} ft at 10 s)`)
   const wind = lens.factors.wind
   if (wind.kind === 'wind') {
     const off = windLimitsFor(wind, 'offshore').sustained.good

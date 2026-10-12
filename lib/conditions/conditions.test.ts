@@ -25,16 +25,22 @@ describe('box jellyfish calendar', () => {
 
 describe('clarity estimate', () => {
   it('is clear on a flat still dry day and drops with swell', () => {
-    const calm = estimateClarity({ exposedSwellFt: 0.3, windMph: 5, windDirectionDeg: 20, rain48hIn: 0 }, 'south')
-    const rough = estimateClarity({ exposedSwellFt: 3.5, windMph: 13, windDirectionDeg: 90, rain48hIn: 0 }, 'south')
+    const calm = estimateClarity({ swellEnergy: 1, windMph: 5, windDirectionDeg: 20, rain48hIn: 0 }, 'south')
+    const rough = estimateClarity({ swellEnergy: 122.5, windMph: 13, windDirectionDeg: 90, rain48hIn: 0 }, 'south')
     expect(calm?.ft).toBe(40)
     expect(rough!.ft).toBeLessThan(25)
     expect(rough?.mainCause).toBe('swell')
     expect(rough?.confidence).toBe('low')
   })
 
+  it('is driven by swell energy, so a long-period swell clouds the water more', () => {
+    const short = estimateClarity({ swellEnergy: 3 * 3 * 7, windMph: 5, windDirectionDeg: 20, rain48hIn: 0 }, 'south')
+    const long = estimateClarity({ swellEnergy: 3 * 3 * 16, windMph: 5, windDirectionDeg: 20, rain48hIn: 0 }, 'south')
+    expect(long!.ft).toBeLessThan(short!.ft)
+  })
+
   it('has no estimate without swell data', () => {
-    expect(estimateClarity({ exposedSwellFt: null, windMph: 5, windDirectionDeg: 0, rain48hIn: 0 }, 'south')).toBeNull()
+    expect(estimateClarity({ swellEnergy: null, windMph: 5, windDirectionDeg: 0, rain48hIn: 0 }, 'south')).toBeNull()
   })
 })
 
@@ -49,14 +55,14 @@ describe('sky', () => {
 
 describe('neutral description', () => {
   it('describes the day in plain words', () => {
-    const day = dayOf([8, 9, 10].map((hour) => ({ hour, swellFt: 3.5, swellFromDeg: 180, windMph: 13, windFromDeg: 80, sky: 'mostly_sunny' as const })))
+    const day = dayOf([8, 9, 10].map((hour) => ({ hour, swellFt: 3.5, swellEnergy: 184, swellPeriodSec: 15, swellFromDeg: 180, windMph: 13, windFromDeg: 80, sky: 'mostly_sunny' as const })))
     expect(dayHeadline(day)).toBe('Big south swell, breezy trades, mostly sunny.')
   })
 
-  it('has ten tiles and never judges in the neutral view', () => {
+  it('has eleven tiles and never judges in the neutral view', () => {
     const day = calmDay()
     const tiles = conditionTiles(day, day.hours[3], 'south')
-    expect(tiles).toHaveLength(10)
+    expect(tiles).toHaveLength(11)
     for (const t of tiles) expect(`${t.value} ${t.detail}`).not.toMatch(/\b(good|poor|safe)\b/i)
   })
 

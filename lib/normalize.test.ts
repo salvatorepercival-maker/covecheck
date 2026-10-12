@@ -318,3 +318,29 @@ describe('normalizeConditions with degraded inputs', () => {
     expect(hours[0].activeHazards[0]?.isBlocking).toBe(true)
   })
 })
+
+describe('swell energy (DECISIONS #17)', () => {
+  it('sums H²T over exposed swell partitions, keeps chop separate, and filters by direction', async () => {
+    const { exposedSwell } = await import('./normalize')
+    const { CROMWELLS } = await import('./beach/cromwells')
+    const x = exposedSwell(
+      [
+        { partition: 'swell', heightFt: 2, directionDeg: 180, periodSec: 15 },
+        { partition: 'secondary_swell', heightFt: 1, directionDeg: 170, periodSec: 8 },
+        { partition: 'tertiary_swell', heightFt: 3, directionDeg: 70, periodSec: 9 }, // trade windswell: outside 135-225
+        { partition: 'wind_wave', heightFt: 0.8, directionDeg: 160, periodSec: 4 },
+      ],
+      CROMWELLS,
+    )
+    expect(x.energy).toBe(2 * 2 * 15 + 1 * 1 * 8)
+    expect(x.periodSec).toBe(15)
+    expect(x.chopFt).toBe(0.8)
+  })
+
+  it('reports unknown energy rather than a partial sum when a period is missing', async () => {
+    const { exposedSwell } = await import('./normalize')
+    const { CROMWELLS } = await import('./beach/cromwells')
+    const x = exposedSwell([{ partition: 'swell', heightFt: 2, directionDeg: 180, periodSec: null }], CROMWELLS)
+    expect(x.energy).toBeNull()
+  })
+})

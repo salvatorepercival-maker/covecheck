@@ -22,8 +22,14 @@ export type HourFacts = {
   date: string
   hour: number
 
-  /** Direction-filtered swell reaching this beach (the engine's figure). */
+  /** Direction-filtered swell reaching this beach (the engine's figure). The readable label. */
   swellFt: number | null
+  /** Σ H²T of the exposed swell partitions, ft²·s — what lenses judge swell on. */
+  swellEnergy: number | null
+  /** Period of the most energetic exposed swell, s. */
+  swellPeriodSec: number | null
+  /** Exposed wind-wave (chop) height, ft. */
+  chopFt: number | null
   swellFromDeg: number | null
   /** NWS surf-face bound for this shore, day-level. */
   nwsSurfMaxFt: number | null
@@ -136,6 +142,9 @@ export function buildDayFacts(
         date: honoluluDateOf(assessment.timestamp),
         hour: honoluluHourOf(assessment.timestamp),
         swellFt,
+        swellEnergy: c?.exposedSwellEnergy ?? null,
+        swellPeriodSec: c?.exposedSwellPeriodSec ?? null,
+        chopFt: c?.exposedChopFt ?? null,
         swellFromDeg: c?.exposedPartitions[0]?.directionDeg ?? null,
         nwsSurfMaxFt: assessment.metrics.srfSouthFacingMaxFt,
         windMph: assessment.metrics.windSpeedMph,
@@ -147,7 +156,7 @@ export function buildDayFacts(
         tideVsBand:
           bandUnset || tideFt === null ? null : tideFt < band.minFt ? 'low' : tideFt > band.maxFt ? 'high' : 'in',
         clarity: estimateClarity(
-          { exposedSwellFt: swellFt, windMph: assessment.metrics.windSpeedMph, windDirectionDeg: windFromDeg, rain48hIn },
+          { swellEnergy: c?.exposedSwellEnergy ?? null, windMph: assessment.metrics.windSpeedMph, windDirectionDeg: windFromDeg, rain48hIn },
           profile.shoreAspect,
         ),
         airF: c?.airTempF ?? null,
