@@ -103,7 +103,6 @@ export function Hero({
   reading,
   confidence,
   buoy,
-  settings,
   edited,
   onEdit,
 }: {
@@ -122,7 +121,6 @@ export function Hero({
   reading: HourFacts | undefined
   confidence: Confidence | undefined
   buoy: BuoyComparison | null
-  settings: string
   edited: boolean
   onEdit: () => void
 }) {
@@ -186,13 +184,9 @@ export function Hero({
         </p>
       ) : null}
 
-      <div className="mt-3 flex items-end justify-between gap-3 border-t border-white/10 pt-3">
-        <p className="text-[11px] leading-relaxed text-hero-ink/55">
-          Judged against your settings: {settings}
-          {edited ? ' (edited)' : ''}
-        </p>
-        <button type="button" onClick={onEdit} className="shrink-0 text-xs font-semibold underline underline-offset-2">
-          Edit
+      <div className="mt-3 flex justify-end">
+        <button type="button" onClick={onEdit} className="text-xs font-semibold text-hero-ink/70 underline underline-offset-2">
+          Edit settings{edited ? ' (edited)' : ''}
         </button>
       </div>
     </section>
