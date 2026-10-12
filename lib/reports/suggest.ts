@@ -1,6 +1,7 @@
 import { CLARITY_MODEL } from '../conditions/clarity'
 import { windExposureFor } from '../geo'
 import { DEFAULT_LENSES } from '../lenses/defaults'
+import { tideSwellLimits } from '../lenses/evaluate'
 import type { LensId } from '../lenses/schema'
 import { VISIBILITY_FT, type StoredReport } from './schema'
 
@@ -248,4 +249,62 @@ export function tideSuggestion(reports: readonly StoredReport[], band: { minFt: 
       { label: 'Keep it as is', detail: 'Wait for sessions at a dead low and near high tide.' },
     ],
   }
+}
+
+// ---------------------------------------------------------------------------
+// Tide-first swell rule vs reports (DECISIONS #24)
+// ---------------------------------------------------------------------------
+
+export type TideRuleCheck = {
+  lens: 'snorkel' | 'beach'
+  /** The rule's numbers, for the table. */
+  rule: { lowTideFt: number; risenTideFt: number; low: string; risen: string; absoluteEnergy: number; nwsCeilingFt: number }
+  reports: number
+  /** Reports where "would go again" matched the waves tag, under each rule. */
+  agreeOld: number
+  agreeNew: number
+  rows: { date: string; hour: number; tideFt: number; energy: number; again: string; old: string; new: string }[]
+}
+
+/** Score each report's swell under the old fixed limits and the tide-first rule. */
+export function tideRuleChecks(reports: readonly StoredReport[]): TideRuleCheck[] {
+  const want = { yes: 'good', maybe: 'mixed', no: 'poor' } as const
+  const old = { snorkel: { good: 90, mixed: 160 }, beach: { good: 40, mixed: 160 } } as const
+  const tag = (v: number, l: { good: number; mixed: number | null }) => (v <= l.good ? 'good' : l.mixed === null || v <= l.mixed ? 'mixed' : 'poor')
+  return (['snorkel', 'beach'] as const).map((lens) => {
+    const rule = DEFAULT_LENSES[lens].factors.waves
+    if (rule.kind !== 'tideSwell') throw new Error(`${lens} waves rule is not tide-first`)
+    const rows = reports
+      .filter((r) => lensOf(r.report.activity) === lens && r.forecast.facts?.tideFt != null && r.forecast.facts?.swellEnergy != null)
+      .map((r) => {
+        const f = r.forecast.facts!
+        const energy = f.swellEnergy!
+        const tideFt = f.tideFt!
+        const limits = tideSwellLimits(rule, tideFt)
+        return {
+          date: r.date,
+          hour: r.hour,
+          tideFt: Math.round(tideFt * 10) / 10,
+          energy: Math.round(energy),
+          again: r.report.again,
+          old: tag(energy, old[lens]),
+          new: energy >= rule.absoluteEnergy ? 'poor' : tag(energy, limits),
+        }
+      })
+    return {
+      lens,
+      rule: {
+        lowTideFt: rule.lowTideFt,
+        risenTideFt: rule.risenTideFt,
+        low: `${rule.low.good} / ${rule.low.mixed ?? '—'}`,
+        risen: `${rule.risen.good} / ${rule.risen.mixed ?? '—'}`,
+        absoluteEnergy: rule.absoluteEnergy,
+        nwsCeilingFt: rule.nwsCeilingFt,
+      },
+      reports: rows.length,
+      agreeOld: rows.filter((r) => r.old === want[r.again as keyof typeof want]).length,
+      agreeNew: rows.filter((r) => r.new === want[r.again as keyof typeof want]).length,
+      rows,
+    }
+  })
 }

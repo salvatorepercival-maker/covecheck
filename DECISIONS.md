@@ -11,6 +11,59 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 24. Snorkel and Beach are tide-first: swell limits depend on the tide
+
+**Decided:** 2026-10-12 (Sal, from his own sessions) · **Status:** active · **lens rule; numbers are starting guesses**
+
+Ground truth from the only user: at Cromwell's low tide is the main signal. At
+low tide the outer reef breaks the swell before it reaches the inside, so you
+can usually go; swell matters mainly as the tide rises.
+
+The Snorkel and Beach waves factor is now a `tideSwell` rule: swell-energy
+limits that are generous in the low band (tide ≤ 0.6 ft) and tighten linearly to
+the earlier fixed limits once the tide is up (≥ 1.4 ft). Two ceilings hold at
+any tide: energy ≥ 490 (≈ 7 ft at 10 s, over the reef) and the NWS south-shore
+figure ≥ 8 ft (the NWS High Surf Advisory criterion for south shores) for the
+hours its own column covers. With no tide reading the rule judges as if risen.
+Best hours centre on the day's lowest daylight tide. Dive and Surf keep their
+fixed rules.
+
+Backtest (`lib/backtest/tide-swell.live.ts`, 2025-04-14 → 2026-10-11, 7,098
+daylight hours, swell only — the NWS surf forecast has no archive): Snorkel
+Poor days 31 → 1 (21 to Good, 9 to Mixed), 82 Mixed → Good, none got worse.
+Largest swell still passing at low tide: 5.2 ft at 13 s (energy 359) at a 0.2 ft
+tide. `/calibration` scores Sal's reports under the old and new rules.
+
+**Would reverse it:** reports of surge at the entry on low-tide days the rule passes.
+
+---
+
+## 23. The NWS surf figure bounds only the hours its own column covers
+
+**Decided:** 2026-10-12 (Sal) · **Status:** active · **engine change; supersedes the day-level bound in #6**
+
+The Surf Zone Forecast is labelled by period — "Tonight PM", "Tonight AM",
+"Monday AM", "Monday PM" — and covers roughly a day and a half. #6 took the
+worst south-shore band in the product and applied it to every hour of the run:
+a 5–7 ft tonight walled off a whole week of days the NWS never forecast, and
+with #15's 6 ft backstop it made Snorkel, Dive and Beach Poor every day.
+
+Now `lib/engine/srf-schedule.ts` places each column in time (Tonight PM =
+issue day 18–24 h, Tonight AM = next day 00–06 h, a named day's AM = 00–12 h,
+PM = 12–24 h) and each hour gets only the column covering it. Hours no column
+covers get **no** NWS bound: swell energy judges them alone. If the columns
+can't be placed at all, there is no bound — never the worst band stretched over
+the week.
+
+**Buoy cross-check (facts layer):** within six hours of a fresh in-window
+buoy reading, if the buoy's swell judges calm or marginal while the NWS figure
+is extreme, the lenses treat the backstop as a confidence hit instead of an
+automatic Poor. Compared as judgements, never feet (#1, #15).
+
+Engine version 2026-10-12.1.
+
+---
+
 ## 22. Calibration from Sal's visit reports: suggestions, never automatic
 
 **Decided:** 2026-10-12 (Sal asked) · **Status:** active

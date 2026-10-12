@@ -15,6 +15,31 @@ import type { FactorRule, Lens, LensId } from './schema'
 const off: FactorRule = { kind: 'off' }
 
 /**
+ * Tide-first swell for Snorkel and Beach (Sal, 2026-10-12; DECISIONS #24).
+ * STARTING GUESSES, set from one user's ground truth — at low tide the outer
+ * reef breaks the swell — and checked against 18 months of history in
+ * lib/backtest/tide-swell.live.ts. Visit reports calibrate them.
+ */
+const TIDE_SWELL_SNORKEL: FactorRule = {
+  kind: 'tideSwell',
+  lowTideFt: 0.6,
+  risenTideFt: 1.4,
+  low: { good: 250, mixed: 360 }, // ≈ 5 / 6 ft at 10 s
+  risen: { good: 90, mixed: 160 }, // ≈ 3 / 4 ft at 10 s — the v2 limits
+  absoluteEnergy: 490, // ≈ 7 ft at 10 s: over the reef at any tide
+  nwsCeilingFt: 8, // NWS High Surf Advisory criterion for south shores
+}
+const TIDE_SWELL_BEACH: FactorRule = {
+  kind: 'tideSwell',
+  lowTideFt: 0.6,
+  risenTideFt: 1.4,
+  low: { good: 160, mixed: 360 }, // ≈ 4 / 6 ft at 10 s
+  risen: { good: 40, mixed: 160 }, // ≈ 2 / 4 ft at 10 s — the v2 limits
+  absoluteEnergy: 490,
+  nwsCeilingFt: 8,
+}
+
+/**
  * Swell is judged on energy, Σ H²T (ft²·s). Defaults are v2's height rules
  * converted at T = 10 s — the energy-weighted mean exposed period over
  * 2025-04-14 → 2026-10-11 (lib/backtest/swell-energy.live.ts), where the
@@ -52,7 +77,7 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
     activity: 'snorkeling',
     minGoodHours: 2,
     factors: {
-      waves: { kind: 'ceiling', good: E(3), mixed: E(4) },
+      waves: TIDE_SWELL_SNORKEL,
       chop: { kind: 'ceiling', good: 1, mixed: 2 },
       wind: IN_WATER_WIND,
       tide: { kind: 'tideBand', outside: 'mixed' },
@@ -136,7 +161,7 @@ export const DEFAULT_LENSES: Record<LensId, Lens> = {
     activity: 'a beach day',
     minGoodHours: 2,
     factors: {
-      waves: { kind: 'ceiling', good: E(2), mixed: E(4) },
+      waves: TIDE_SWELL_BEACH,
       chop: { kind: 'ceiling', good: 2, mixed: 3 },
       // Sustained limits set by Sal 2026-10-11. Gusts are a starting guess,
       // kept offshore ≤ cross-shore like the sustained limits.

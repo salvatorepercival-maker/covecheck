@@ -26,6 +26,15 @@ async function Report() {
   const report = await getBeachReport(CROMWELLS)
   const days = dayFactsFor(report, CROMWELLS)
   const lr = report.longRange.status === 'ok' ? report.longRange.data : null
+  const lrDays = lr ? longRangeDays(lr, CROMWELLS.exposedSwellDirections) : []
+  // Same day, two models: list the days where they disagree enough to notice.
+  const modelGaps = days.flatMap((d) => {
+    const tiles = Math.max(0, ...d.hours.filter((h) => h.hour >= 6 && h.hour <= 18).map((h) => h.swellFt ?? 0))
+    const timeline = lrDays.find((x) => x.date === d.date)?.swellFt ?? null
+    if (timeline === null || tiles === 0) return []
+    const gap = Math.abs(tiles - timeline)
+    return gap >= 0.5 && gap / Math.max(tiles, timeline) >= 0.2 ? [{ date: d.date, tilesFt: Math.round(tiles * 10) / 10, timelineFt: timeline }] : []
+  })
   const tideBandUnset = CROMWELLS.calibration.some(
     (gap) => gap.status === 'unresolved' && gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
   )
@@ -41,7 +50,8 @@ async function Report() {
       hasSpotImage={existsSync(join(process.cwd(), 'public', SPOT_GUIDE.image.src))}
       // The timeline shows 10 days; choose its swells from those 10 days only.
       trains={lr ? swellTrains(lr.times.slice(0, 240), lr.partitions.slice(0, 240), CROMWELLS.exposedSwellDirections) : []}
-      longRange={lr ? longRangeDays(lr, CROMWELLS.exposedSwellDirections).filter((d) => d.date > (days[days.length - 1]?.date ?? '')) : []}
+      longRange={lrDays.filter((d) => d.date > (days[days.length - 1]?.date ?? ''))}
+      modelGaps={modelGaps}
     />
   )
 }

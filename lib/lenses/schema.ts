@@ -51,6 +51,29 @@ export type WindRule = RuleBase & {
   offshoreNoLooserThanCross: boolean
 }
 
+/**
+ * Swell judged by tide (DECISIONS #24). At Cromwell's the outer reef breaks the
+ * swell at low tide, so much more energy is acceptable then; the limits tighten
+ * linearly as the tide rises from `lowTideFt` to `risenTideFt`. Two ceilings
+ * hold at any tide: swell energy big enough to wash over the reef, and the NWS
+ * south-shore figure for the hours its own column covers.
+ */
+export type TideSwellRule = RuleBase & {
+  kind: 'tideSwell'
+  /** Tide at or below this, ft MLLW: the low band. */
+  lowTideFt: number
+  /** Tide at or above this: fully risen. */
+  risenTideFt: number
+  /** Swell energy limits (ft²·s) in the low band. */
+  low: Limits
+  /** Swell energy limits once the tide has risen. */
+  risen: Limits
+  /** Swell energy at or above this is poor at any tide. */
+  absoluteEnergy: number
+  /** NWS surf face at or above this, ft, is poor at any tide (its own hours only). */
+  nwsCeilingFt: number
+}
+
 /** NWS products, split by severity: anything named a Warning vs everything else. */
 export type HazardRule = RuleBase & { kind: 'hazard'; advisory: Fit; warning: Fit }
 
@@ -62,7 +85,7 @@ export type FlagRule = RuleBase & { kind: 'flag'; whenPresent: Fit }
 
 export type OffRule = { kind: 'off' }
 
-export type FactorRule = CeilingRule | FloorRule | RangeRule | WindRule | HazardRule | TideBandRule | FlagRule | OffRule
+export type FactorRule = CeilingRule | FloorRule | RangeRule | WindRule | TideSwellRule | HazardRule | TideBandRule | FlagRule | OffRule
 
 export const affectsFit = (rule: FactorRule) => rule.kind !== 'off' && rule.affectsFit !== false
 

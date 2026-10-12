@@ -115,6 +115,19 @@ function RuleEditor({ rule, unit, onChange }: { rule: FactorRule; unit: string; 
         </div>
       )
     }
+    case 'tideSwell':
+      return (
+        <div className="grid grid-cols-2 gap-2">
+          <NumberField label="Low tide at or below (ft)" value={rule.lowTideFt} onChange={(v) => onChange({ ...rule, lowTideFt: v ?? rule.lowTideFt })} />
+          <NumberField label="Tide fully up from (ft)" value={rule.risenTideFt} onChange={(v) => onChange({ ...rule, risenTideFt: v ?? rule.risenTideFt })} />
+          <NumberField label="Low tide: good up to" value={rule.low.good} onChange={(v) => onChange({ ...rule, low: { ...rule.low, good: v ?? rule.low.good } })} />
+          <NumberField label="Low tide: mixed up to" value={rule.low.mixed} onChange={(v) => onChange({ ...rule, low: { ...rule.low, mixed: v } })} />
+          <NumberField label="Tide up: good up to" value={rule.risen.good} onChange={(v) => onChange({ ...rule, risen: { ...rule.risen, good: v ?? rule.risen.good } })} />
+          <NumberField label="Tide up: mixed up to" value={rule.risen.mixed} onChange={(v) => onChange({ ...rule, risen: { ...rule.risen, mixed: v } })} />
+          <NumberField label="Over the reef at any tide" value={rule.absoluteEnergy} onChange={(v) => onChange({ ...rule, absoluteEnergy: v ?? rule.absoluteEnergy })} />
+          <NumberField label="NWS ceiling (ft face)" value={rule.nwsCeilingFt} onChange={(v) => onChange({ ...rule, nwsCeilingFt: v ?? rule.nwsCeilingFt })} />
+        </div>
+      )
     case 'hazard':
       return (
         <div className="grid grid-cols-2 gap-2 text-[11px] text-muted">

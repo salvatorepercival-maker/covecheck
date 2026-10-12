@@ -206,9 +206,11 @@ describe('NWS surf-face bound', () => {
     island: 'Oahu',
     issuedUtc: '2026-08-03T01:55:00.000Z',
     bands: [
-      { shore: 'south', column: 'Monday AM', minFt: 1, maxFt },
+      // Covers the fixture's own hours (Sunday 2026-08-02, 06:00-12:00 HST).
+      { shore: 'south', column: 'Sunday AM', minFt: 1, maxFt },
+      { shore: 'south', column: 'Sunday PM', minFt: 1, maxFt },
       // An east-facing band far above threshold must be ignored entirely.
-      { shore: 'east', column: 'Monday AM', minFt: 5, maxFt: 12 },
+      { shore: 'east', column: 'Sunday AM', minFt: 5, maxFt: 12 },
     ],
   })
 
@@ -343,5 +345,43 @@ describe('evaluation provenance', () => {
     expect(result.bestWindow).toBeNull()
     expect(result.current).toBeNull()
     expect(result.warnings).toContain('no hours to evaluate')
+  })
+})
+
+describe('NWS bound is scoped to the hours each column covers (DECISIONS #23)', () => {
+  it('maps columns to their hours', async () => {
+    const { columnWindow } = await import('./srf-schedule')
+    // Issued Sunday 2026-10-11 15:14 HST.
+    const issued = '2026-10-12T01:14:00.000Z'
+    expect(columnWindow('Tonight PM', issued)).toEqual({ start: '2026-10-11T18', end: '2026-10-12T00' })
+    expect(columnWindow('Tonight AM', issued)).toEqual({ start: '2026-10-12T00', end: '2026-10-12T06' })
+    expect(columnWindow('Monday AM', issued)).toEqual({ start: '2026-10-12T00', end: '2026-10-12T12' })
+    expect(columnWindow('Monday PM', issued)).toEqual({ start: '2026-10-12T12', end: '2026-10-13T00' })
+    expect(columnWindow('Gibberish', issued)).toBeNull()
+  })
+
+  it('bounds only covered hours, and never stretches the worst band over uncovered days', () => {
+    const forecast: SurfZoneForecast = {
+      island: 'Oahu',
+      issuedUtc: '2026-08-02T16:00:00.000Z', // Sunday 06:00 HST
+      bands: [{ shore: 'south', column: 'Monday AM', minFt: 5, maxFt: 7 }],
+    }
+    // The fixture hours are Sunday: no column covers them.
+    const result = evaluateForecast({ profile: CROMWELLS, hours: EXCELLENT_CALM_MORNING, nowUtc: NOW, surfZoneForecast: forecast })
+    for (const h of result.hours) {
+      expect(h.metrics.srfSouthFacingMaxFt).toBeNull()
+      expect(h.reasons.map((r) => r.code)).not.toContain('SRF_EXCEEDS_THRESHOLD')
+    }
+  })
+
+  it('applies a covering column to its own hours', () => {
+    const forecast: SurfZoneForecast = {
+      island: 'Oahu',
+      issuedUtc: '2026-08-02T16:00:00.000Z',
+      bands: [{ shore: 'south', column: 'Sunday AM', minFt: 5, maxFt: 7 }],
+    }
+    const result = evaluateForecast({ profile: CROMWELLS, hours: EXCELLENT_CALM_MORNING, nowUtc: NOW, surfZoneForecast: forecast })
+    expect(result.hours[0].metrics.srfSouthFacingMaxFt).toBe(7)
+    expect(result.hours[0].reasons.map((r) => r.code)).toContain('SRF_EXCEEDS_THRESHOLD')
   })
 })

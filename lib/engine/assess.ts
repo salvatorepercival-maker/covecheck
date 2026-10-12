@@ -69,6 +69,12 @@ export type EngineContext = {
    */
   srfSouthFacingMaxFt: number | null
   /**
+   * Per-hour NWS bound from the SRF column schedule (DECISIONS #23). When set it
+   * replaces `srfSouthFacingMaxFt`: each hour gets only the column covering it,
+   * and null — no NWS bound — when no column does.
+   */
+  srfBoundAt: ((localTimestamp: string) => number | null) | null
+  /**
    * True when the beach has an unresolved wind calibration gap. While true, the
    * engine must not compare raw provider wind against the shoreline-referenced
    * thresholds; it judges wind relatively instead.
@@ -117,6 +123,7 @@ export function buildContext(
   profile: BeachProfile,
   hours: readonly HourlyBeachConditions[],
   srfSouthFacingMaxFt: number | null,
+  srfBoundAt: ((localTimestamp: string) => number | null) | null = null,
 ): EngineContext {
   const windDistribution = hours
     .map((h) => h.windSpeedMph)
@@ -126,6 +133,7 @@ export function buildContext(
   return {
     profile,
     srfSouthFacingMaxFt,
+    srfBoundAt,
     windUncalibrated: hasUnresolvedWindCalibration(profile),
     tideUncalibrated: hasUnresolvedTideCalibration(profile),
     tideProvisional: hasProvisionalTideCalibration(profile),
@@ -322,7 +330,7 @@ export function assessHour(
   // for a whole shore; `exposedSwellHeightFt` is filtered to the directions this
   // cove is actually open to. Letting the shore-wide number veto the beach-specific
   // one inverts which is more relevant, and capped entire weeks at caution twice.
-  const srfMax = context.srfSouthFacingMaxFt
+  const srfMax = context.srfBoundAt ? context.srfBoundAt(hour.timestamp) : context.srfSouthFacingMaxFt
   if (srfMax !== null) {
     if (srfMax >= thresholds.srfExtremeSurfFaceFt) {
       // The one unilateral case: no local sheltering argument should survive this.
@@ -470,7 +478,7 @@ export function assessHour(
       ? null
       : tideFavorabilityOf(hour.tideHeightFt, thresholds.favorableTideFt),
     recentRainIn,
-    srfSouthFacingMaxFt: context.srfSouthFacingMaxFt,
+    srfSouthFacingMaxFt: context.srfBoundAt ? context.srfBoundAt(hour.timestamp) : context.srfSouthFacingMaxFt,
   }
 
   const verdict = resolveVerdict(reasons)

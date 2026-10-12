@@ -40,8 +40,14 @@ export type HourFacts = {
   /** Computed from source agreement, freshness and lead time. */
   confidence: Confidence
   swellFromDeg: number | null
-  /** NWS surf-face bound for this shore, day-level. */
+  /** NWS surf-face bound for this shore — only the column covering this hour (DECISIONS #23). */
   nwsSurfMaxFt: number | null
+  /**
+   * A fresh in-window buoy reading (within 6 h) judges the swell calm or
+   * marginal while the NWS bound is extreme. The lenses then treat the NWS
+   * backstop as a confidence hit instead of an automatic Poor.
+   */
+  nwsContradictedByBuoy: boolean
 
   windMph: number | null
   gustMph: number | null
@@ -198,6 +204,19 @@ export function buildDayFacts(
       const modelEnergy = c?.exposedSwellEnergy ?? null
       const swellEnergy = modelEnergy === null ? null : corrected ? Math.round(modelEnergy * mult * mult * 10) / 10 : modelEnergy
       const dataIssue = codes.has('STALE_DATA') ? 'stale' : codes.has('MISSING_CRITICAL_DATA') ? 'missing' : null
+      // Compared as judgements, never feet (#1, #15): the buoy's in-window swell
+      // against the NWS band, only while the reading is fresh enough to apply.
+      const nwsMax = assessment.metrics.srfSouthFacingMaxFt
+      const nwsContradicted =
+        buoy !== null &&
+        !buoy.stale &&
+        buoy.inWindow &&
+        buoy.buoySwellFt !== null &&
+        hoursAfter >= 0 &&
+        hoursAfter <= 6 &&
+        nwsMax !== null &&
+        nwsMax >= profile.thresholds.srfExtremeSurfFaceFt &&
+        bandOf(buoy.buoySwellFt, profile.thresholds.exposedSwellFt) !== 'excessive'
       return {
         timestamp: assessment.timestamp,
         date: honoluluDateOf(assessment.timestamp),
@@ -219,6 +238,7 @@ export function buildDayFacts(
                 bandOf(assessment.metrics.srfSouthFacingMaxFt, profile.thresholds.srfSurfFaceFt)),
           nwsMissing: assessment.metrics.srfSouthFacingMaxFt === null,
           buoyDivergencePct: hoursAfter >= 0 && hoursAfter <= 6 ? (buoy?.divergencePct ?? null) : null,
+          nwsContradictedByBuoy: nwsContradicted,
           daysAhead: dayIndex(honoluluDateOf(assessment.timestamp)),
           uncheckedSources: [
             ...(c?.sourceFreshness.alerts?.status === 'ok' ? [] : ['advisories']),
@@ -227,6 +247,7 @@ export function buildDayFacts(
         }),
         swellFromDeg: c?.exposedPartitions[0]?.directionDeg ?? null,
         nwsSurfMaxFt: assessment.metrics.srfSouthFacingMaxFt,
+        nwsContradictedByBuoy: nwsContradicted,
         windMph: assessment.metrics.windSpeedMph,
         gustMph: assessment.metrics.windGustMph,
         windFromDeg,

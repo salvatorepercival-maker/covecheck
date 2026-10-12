@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { hourFacts } from '../lenses/test-facts'
 import type { StoredReport } from './schema'
-import { bestCeiling, claritySuggestion, fitClarity, lensAgreement, MIN_REPORTS_FOR_CLARITY, thresholdSuggestions, tideSuggestion } from './suggest'
+import { bestCeiling, claritySuggestion, fitClarity, lensAgreement, MIN_REPORTS_FOR_CLARITY, thresholdSuggestions, tideRuleChecks, tideSuggestion } from './suggest'
 
 let n = 0
 function report(over: Partial<StoredReport['report']>, facts: Partial<ReturnType<typeof hourFacts>>, snorkelFit: 'good' | 'mixed' | 'poor' = 'good'): StoredReport {
@@ -69,5 +69,16 @@ describe('tide band', () => {
     const s = tideSuggestion(rs, { minFt: 0, maxFt: 1.5 })!
     expect(s.evidence).toMatch(/5 good sessions between 0.2 and 1.8 ft \(2 outside/)
     expect(s.options[0]).toMatchObject({ label: 'Set the band to 0.2–1.8 ft', recommended: true })
+  })
+})
+
+describe('tide-first rule vs reports', () => {
+  it('scores each report under the old fixed limits and the tide-first rule', () => {
+    // A 4.5 ft swell (energy 200) at a 0.2 ft tide that Sal would go again in.
+    const [snorkel] = tideRuleChecks([report({ again: 'yes' }, { swellEnergy: 200, tideFt: 0.2 })])
+    expect(snorkel.reports).toBe(1)
+    expect(snorkel.rows[0]).toMatchObject({ old: 'poor', new: 'good' })
+    expect(snorkel).toMatchObject({ agreeOld: 0, agreeNew: 1 })
+    expect(snorkel.rule).toMatchObject({ lowTideFt: 0.6, risenTideFt: 1.4, low: '250 / 360', risen: '90 / 160', absoluteEnergy: 490, nwsCeilingFt: 8 })
   })
 })

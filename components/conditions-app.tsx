@@ -16,6 +16,7 @@ import { weekOutlook } from '@/lib/planning/outlook'
 import type { SwellTrain } from '@/lib/planning/swell-trains'
 import { DataPanel } from './data-panel'
 import { SpotGuide } from './spot-guide'
+import { SPOT_GUIDE } from '@/lib/beach/spot-guide'
 import { LongRangeList, Outlook, SwellTimeline } from './planning'
 import { DaySection } from './day-section'
 import { FitChip, TAG_LABEL, FIT_CHIP } from './fit'
@@ -72,7 +73,10 @@ export function ConditionsApp({
   trains,
   longRange,
   hasSpotImage,
+  modelGaps,
 }: {
+  /** Days where the tiles' model and the timeline's model differ noticeably. */
+  modelGaps: { date: string; tilesFt: number; timelineFt: number }[]
   /** Whether Sal's aerial photo is in public/spot/. */
   hasSpotImage: boolean
   /** Swell trains over the next 10+ days (GFS-Wave). */
@@ -333,7 +337,7 @@ export function ConditionsApp({
         sunLine={sunLine(day)}
       />
 
-      <SpotGuide day={day} hasImage={hasSpotImage} />
+      {SPOT_GUIDE.enabled && hasSpotImage ? <SpotGuide day={day} hasImage={hasSpotImage} /> : null}
 
       {/* ---------- The week ---------- */}
       <section id="week" aria-labelledby="week-heading" className="scroll-mt-4">
@@ -366,7 +370,7 @@ export function ConditionsApp({
         </ul>
       </section>
 
-      <SwellTimeline trains={trains} startDate={todayDate} />
+      <SwellTimeline trains={trains} startDate={todayDate} modelGaps={modelGaps} />
 
       <LongRangeList days={longRange} />
 

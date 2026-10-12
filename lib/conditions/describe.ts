@@ -6,6 +6,7 @@ import { formatSunTime } from '../sun'
 import { dominantSky, SKY_WORDS } from './sky'
 import { WIND_CLASS_WORDS } from './wind'
 import type { BuoyComparison } from './buoy'
+import { CLOSURES_LAST_CHECKED } from '../beach/closures'
 
 /**
  * The neutral view: what the day is like, in words and tiles, with no judgement.
@@ -264,14 +265,20 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string, buoy:
     factor: 'advisories',
     alsoFactors: ['waterQuality', 'closures'],
     label: 'Advisories',
-    value: items.length === 0 ? (unchecked.length ? "Couldn't check" : 'None in effect') : items.length === 1 ? 'One in effect' : `${items.length} in effect`,
+    value: items.length === 0 ? (unchecked.length ? "Couldn't check" : 'No advisories') : items.length === 1 ? 'One in effect' : `${items.length} in effect`,
     detail:
       items.length > 0
         ? items.join(' · ')
         : unchecked.length
           ? `Couldn't check ${unchecked.join(' or ')}`
-          : 'Weather Service, Health Dept. water quality, closures',
-    note: items.length > 0 && unchecked.length ? `Couldn't check ${unchecked.join(' or ')}` : undefined,
+          : 'Weather Service and Health Dept. water quality',
+    // Closures are hand-entered: say so every time, so no one reads "all clear".
+    note: [
+      items.length > 0 && unchecked.length ? `Couldn't check ${unchecked.join(' or ')}` : null,
+      `Closures aren't monitored automatically · ${CLOSURES_LAST_CHECKED ? `last checked by hand ${shortDate(CLOSURES_LAST_CHECKED)}` : 'not checked by hand yet'}`,
+    ]
+      .filter(Boolean)
+      .join(' · '),
   })
 
   // Box jellyfish
