@@ -1,6 +1,6 @@
 import type { LensId } from '@/lib/lenses/schema'
 
-/** Lens tabs with icons, and the switch for the raw (no-lens) conditions view. */
+/** Lens tabs with icons. */
 
 const ICON: Record<LensId, React.ReactNode> = {
   // Snorkel: mask and tube.
@@ -32,16 +32,14 @@ export function LensTabs({
   active,
   onChoose,
   raw,
-  onRaw,
 }: {
   lenses: { id: LensId; name: string }[]
   active: LensId
   onChoose: (id: LensId) => void
   raw: boolean
-  onRaw: (raw: boolean) => void
 }) {
   return (
-    <div className="space-y-2.5">
+    <div>
       <div role="tablist" aria-label="Activity" className="grid grid-cols-4 gap-1 rounded-2xl bg-surface-sunk p-1">
         {lenses.map((l) => {
           const selected = !raw && active === l.id
@@ -64,14 +62,20 @@ export function LensTabs({
           )
         })}
       </div>
-      <label className="flex cursor-pointer items-center justify-center gap-2 text-[13px] text-muted">
-        <span className="relative inline-flex h-5 w-9 items-center">
-          <input type="checkbox" role="switch" checked={raw} onChange={(e) => onRaw(e.target.checked)} className="peer sr-only" />
-          <span className="absolute inset-0 rounded-full bg-surface-sunk transition-colors peer-checked:bg-hero" />
-          <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
-        </span>
-        Show raw conditions
-      </label>
     </div>
+  )
+}
+
+/** "Raw" — turns the lens off for the plain, judgement-free conditions. Lives in the header. */
+export function RawSwitch({ raw, onRaw }: { raw: boolean; onRaw: (raw: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-[13px] font-semibold">
+      <span className="relative inline-flex h-5 w-9 items-center">
+        <input type="checkbox" role="switch" aria-label="Raw conditions" checked={raw} onChange={(e) => onRaw(e.target.checked)} className="peer sr-only" />
+        <span className="absolute inset-0 rounded-full bg-surface-sunk transition-colors peer-checked:bg-hero" />
+        <span className="absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
+      </span>
+      Raw
+    </label>
   )
 }
