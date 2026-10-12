@@ -166,7 +166,7 @@ export type SurfZoneForecast = {
 // Freshness
 // ---------------------------------------------------------------------------
 
-export type ProviderId = 'marine' | 'weather' | 'tides' | 'alerts' | 'srf' | 'doh'
+export type ProviderId = 'marine' | 'weather' | 'tides' | 'alerts' | 'srf' | 'doh' | 'buoy'
 
 export type SourceStatus = 'ok' | 'stale' | 'failed' | 'missing'
 

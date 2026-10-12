@@ -1,4 +1,7 @@
+import { compareBuoy, correctionAt, type BuoyComparison } from './conditions/buoy'
 import { estimateClarity, type ClarityEstimate } from './conditions/clarity'
+import { confidenceFor, type Confidence } from './conditions/confidence'
+import { bandOf } from './engine/assess'
 import { jellyOutlook, type JellyWindow } from './conditions/jellyfish'
 import { skyOf, type SkyKind } from './conditions/sky'
 import type { BeachReport } from './forecast'
@@ -30,6 +33,10 @@ export type HourFacts = {
   swellPeriodSec: number | null
   /** Exposed wind-wave (chop) height, ft. */
   chopFt: number | null
+  /** Buoy multiplier applied to this hour's swell height (energy × its square); null when none. */
+  buoyCorrection: number | null
+  /** Computed from source agreement, freshness and lead time. */
+  confidence: Confidence
   swellFromDeg: number | null
   /** NWS surf-face bound for this shore, day-level. */
   nwsSurfMaxFt: number | null
@@ -86,6 +93,20 @@ export type DayFacts = {
   sunset: number | null
 }
 
+/** Model exposed swell height from the swell partitions only (no wind waves), ft. */
+function swellOnlyFt(partitions: readonly { partition: string; heightFt: number }[]): number {
+  return Math.sqrt(partitions.filter((p) => p.partition !== 'wind_wave').reduce((s, p) => s + p.heightFt ** 2, 0))
+}
+
+/** The buoy against the model at the observation hour, or null without a buoy reading. */
+export function buoyComparisonFor(report: BeachReport, profile: BeachProfile): BuoyComparison | null {
+  if (report.buoy.status !== 'ok') return null
+  const obs = report.buoy.data
+  const obsLocalHour = new Date(new Date(obs.observedUtc).getTime() - 10 * 3_600_000).toISOString().slice(0, 13) + ':00'
+  const c = report.conditionsByTimestamp[obsLocalHour]
+  return compareBuoy(obs, c ? swellOnlyFt(c.exposedPartitions) : null, profile.exposedSwellDirections, new Date(report.evaluation.evaluatedAtUtc))
+}
+
 /** Rain in the 48 h before `timestamp`, from history plus forecast hours. */
 function rain48hBefore(timestamp: string, rainByTimestamp: Map<string, number>): number | null {
   const endMs = honoluluLocalToUtc(timestamp).getTime()
@@ -123,6 +144,10 @@ export function buildDayFacts(
   }
 
   const water = waterQualityFact(report)
+  const buoy = buoyComparisonFor(report, profile)
+  const obsMs = buoy ? Math.floor(new Date(buoy.observedUtc).getTime() / 3_600_000) * 3_600_000 : null
+  const today = honoluluDateOf(new Date(new Date(report.evaluation.evaluatedAtUtc).getTime() - 10 * 3_600_000).toISOString().slice(0, 16))
+  const dayIndex = (date: string) => Math.round((Date.parse(date) - Date.parse(today)) / 86_400_000)
   const band = profile.thresholds.favorableTideFt
   const bandUnset = profile.calibration.some(
     (gap) => gap.status === 'unresolved' && gap.affectedThresholds.some((t) => t.toLowerCase().includes('tide')),
@@ -136,15 +161,42 @@ export function buildDayFacts(
       const windFromDeg = c?.windDirectionDeg ?? null
       const tideFt = assessment.metrics.tideHeightFt
       const rain48hIn = rain48hBefore(assessment.timestamp, rain)
-      const swellFt = assessment.metrics.exposedSwellHeightFt
+      // Near-term buoy correction: full at the observation hour, fading to none over 6 h.
+      const hoursAfter = obsMs === null ? -1 : (honoluluLocalToUtc(assessment.timestamp).getTime() - obsMs) / 3_600_000
+      const mult = buoy ? correctionAt(buoy.correction, hoursAfter) : 1
+      const corrected = mult !== 1
+      const modelSwellFt = assessment.metrics.exposedSwellHeightFt
+      const swellFt = modelSwellFt === null ? null : corrected ? Math.round(modelSwellFt * mult * 10) / 10 : modelSwellFt
+      const modelEnergy = c?.exposedSwellEnergy ?? null
+      const swellEnergy = modelEnergy === null ? null : corrected ? Math.round(modelEnergy * mult * mult * 10) / 10 : modelEnergy
+      const dataIssue = codes.has('STALE_DATA') ? 'stale' : codes.has('MISSING_CRITICAL_DATA') ? 'missing' : null
       return {
         timestamp: assessment.timestamp,
         date: honoluluDateOf(assessment.timestamp),
         hour: honoluluHourOf(assessment.timestamp),
         swellFt,
-        swellEnergy: c?.exposedSwellEnergy ?? null,
+        swellEnergy,
         swellPeriodSec: c?.exposedSwellPeriodSec ?? null,
         chopFt: c?.exposedChopFt ?? null,
+        buoyCorrection: corrected ? Math.round(mult * 100) / 100 : null,
+        confidence: confidenceFor({
+          dataIssue,
+          // Compared as judgements (calm / marginal / excessive), never as feet —
+          // the engine's own rule (DECISIONS #1, #15). Covers the extreme case too.
+          nwsDisagrees:
+            codes.has('SRF_DISAGREES_WITH_MODEL') ||
+            (modelSwellFt !== null &&
+              assessment.metrics.srfSouthFacingMaxFt !== null &&
+              bandOf(modelSwellFt, profile.thresholds.exposedSwellFt) !==
+                bandOf(assessment.metrics.srfSouthFacingMaxFt, profile.thresholds.srfSurfFaceFt)),
+          nwsMissing: assessment.metrics.srfSouthFacingMaxFt === null,
+          buoyDivergencePct: hoursAfter >= 0 && hoursAfter <= 6 ? (buoy?.divergencePct ?? null) : null,
+          daysAhead: dayIndex(honoluluDateOf(assessment.timestamp)),
+          uncheckedSources: [
+            ...(c?.sourceFreshness.alerts?.status === 'ok' ? [] : ['advisories']),
+            ...(water.status === 'unknown' ? ['water quality'] : []),
+          ],
+        }),
         swellFromDeg: c?.exposedPartitions[0]?.directionDeg ?? null,
         nwsSurfMaxFt: assessment.metrics.srfSouthFacingMaxFt,
         windMph: assessment.metrics.windSpeedMph,
@@ -156,7 +208,7 @@ export function buildDayFacts(
         tideVsBand:
           bandUnset || tideFt === null ? null : tideFt < band.minFt ? 'low' : tideFt > band.maxFt ? 'high' : 'in',
         clarity: estimateClarity(
-          { swellEnergy: c?.exposedSwellEnergy ?? null, windMph: assessment.metrics.windSpeedMph, windDirectionDeg: windFromDeg, rain48hIn },
+          { swellEnergy, windMph: assessment.metrics.windSpeedMph, windDirectionDeg: windFromDeg, rain48hIn },
           profile.shoreAspect,
         ),
         airF: c?.airTempF ?? null,
@@ -169,7 +221,7 @@ export function buildDayFacts(
         nwsHazardsKnown: c?.sourceFreshness.alerts?.status === 'ok',
         waterQuality: water,
         jelly,
-        dataIssue: codes.has('STALE_DATA') ? 'stale' : codes.has('MISSING_CRITICAL_DATA') ? 'missing' : null,
+        dataIssue,
       }
     })
 

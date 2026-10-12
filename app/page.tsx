@@ -3,6 +3,7 @@ import { Suspense } from 'react'
 import { ConditionsApp } from '@/components/conditions-app'
 import { CROMWELLS } from '@/lib/beach/cromwells'
 import { getBeachReport } from '@/lib/forecast'
+import { buoyComparisonFor } from '@/lib/facts'
 import { dayFactsFor } from '@/lib/reports/snapshot'
 import { formatClockTime } from '@/lib/format'
 import { utcToHonoluluLocal } from '@/lib/time'
@@ -30,6 +31,7 @@ async function Report() {
       place="Black Point, Honolulu"
       shore={CROMWELLS.shoreAspect}
       tideBand={tideBandUnset ? null : CROMWELLS.thresholds.favorableTideFt}
+      buoy={buoyComparisonFor(report, CROMWELLS)}
     />
   )
 }

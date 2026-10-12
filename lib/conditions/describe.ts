@@ -5,6 +5,7 @@ import { formatCompassWord } from '../lenses/words'
 import { formatSunTime } from '../sun'
 import { dominantSky, SKY_WORDS } from './sky'
 import { WIND_CLASS_WORDS } from './wind'
+import type { BuoyComparison } from './buoy'
 
 /**
  * The neutral view: what the day is like, in words and tiles, with no judgement.
@@ -66,6 +67,8 @@ export type Tile = {
   label: string
   value: string
   detail: string
+  /** A second, quieter line — e.g. the buoy reading against the forecast. */
+  note?: string
   /** The lens factor this tile shows a fit tag for. */
   factor: FactorId
 }
@@ -108,7 +111,16 @@ const dateRange = (start: string, end: string) => {
   return sm === em ? `${MONTHS[sm - 1]} ${sd}–${ed}` : `${shortDate(start)} – ${shortDate(end)}`
 }
 
-export function conditionTiles(day: DayFacts, h: HourFacts, shore: string): Tile[] {
+/** "Forecast 3.7 ft · Buoy 2.3 ft now", or why the buoy can't be compared. */
+export function buoyNote(b: BuoyComparison): string {
+  const ago = b.ageMinutes < 90 ? 'now' : `${Math.round(b.ageMinutes / 60)} h ago`
+  if (b.stale) return `Buoy hasn't reported for ${Math.round(b.ageMinutes / 60)} h`
+  if (b.buoySwellFt === null) return 'Buoy: no swell reading'
+  if (!b.inWindow) return `Buoy ${num(b.buoySwellFt)} ft from ${b.buoyFromText ?? '?'} — outside the cove's window`
+  return `Forecast ${b.forecastSwellFt === null ? '—' : num(b.forecastSwellFt)} ft · Buoy ${num(b.buoySwellFt)} ft${b.buoyPeriodSec ? ` at ${Math.round(b.buoyPeriodSec)} s` : ''} ${ago}`
+}
+
+export function conditionTiles(day: DayFacts, h: HourFacts, shore: string, buoy: BuoyComparison | null = null): Tile[] {
   const later = daylight(day.hours).filter((x) => x.hour > h.hour)
   const tiles: Tile[] = []
 
@@ -126,6 +138,7 @@ export function conditionTiles(day: DayFacts, h: HourFacts, shore: string): Tile
     ]
       .filter(Boolean)
       .join(' · '),
+    note: [buoy ? buoyNote(buoy) : null, h.buoyCorrection !== null ? 'Buoy-corrected' : null].filter(Boolean).join(' · ') || undefined,
   })
 
   // Chop

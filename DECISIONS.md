@@ -11,6 +11,35 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 18. A real-time buoy checks the swell, corrects the next six hours, and sets confidence
+
+**Decided:** 2026-10-12 (Sal asked) · **Status:** active · **facts layer, not the engine**
+
+**Buoy:** NDBC 51211 / CDIP 233, Pearl Harbor Entrance (21.297 N, 157.959 W,
+35 m), ~17 km west — chosen over Barbers Point (51212, 280 m, ~37 km, open to
+west swell Black Point never gets). Read from the NDBC `.spec` summary, which
+splits swell from wind waves. Only buoy swell from inside the cove's window
+(135°–225°) is compared; anything else is shown and never used. Older than 90
+minutes = stale = ignored.
+
+**Correction:** the ratio of buoy swell to the model's exposed swell at the
+observation hour, capped at ×0.5–×2, applied to swell height (energy by its
+square) and fading linearly to nothing over six hours. Applied in
+`lib/facts.ts`, so lenses and the clarity estimate see it; the engine's own
+inputs and verdict do not.
+
+**Confidence** is computed per hour, never a fixed label: it starts high and
+steps down for stale/missing data, unchecked advisories or water quality, the
+NWS surf band disagreeing with the model as a *judgement* (calm / marginal /
+excessive — never feet, #1, #15), buoy divergence (≥30 % medium, ≥60 % low,
+within six hours of the reading), and lead time (3+ days medium, 6+ low). Every
+step carries its reason, shown under the chip.
+
+**Would reverse it:** the buoy proving a worse guide to the cove than the model
+(visit reports will show it).
+
+---
+
 ## 17. Swell is judged on energy (H² × T), not height alone
 
 **Decided:** 2026-10-12 (Sal asked; thresholds pending his review) · **Status:** active · **engine input change**

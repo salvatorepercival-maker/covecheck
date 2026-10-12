@@ -36,6 +36,8 @@ export const STALENESS_LIMITS_SECONDS: Record<ProviderId, number> = {
   srf: 14 * 3600,
   // Health Dept. water-quality advisories: posted within hours of heavy rain or a spill.
   doh: 30 * 60,
+  // The buoy reports every 30 min; 90 min means transmissions have dropped.
+  buoy: 90 * 60,
 }
 
 export type ProviderSlice<T> =
