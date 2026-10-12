@@ -12,6 +12,7 @@ import { evaluateDay, withOverrides, type DayFit } from '@/lib/lenses/evaluate'
 import { heroCopy } from '@/lib/lenses/hero'
 import type { LensId, LensOverrides } from '@/lib/lenses/schema'
 import type { LongRangeDay } from '@/lib/planning/long-range'
+import type { HistoryDay } from '@/lib/providers/advisory-history'
 import { weekOutlook } from '@/lib/planning/outlook'
 import type { SwellTrain } from '@/lib/planning/swell-trains'
 import { formatSunTime } from '@/lib/sun'
@@ -81,7 +82,13 @@ export function ConditionsApp({
   longRange,
   hasSpotImage,
   modelGaps,
+  advisoryHistory,
+  closuresLastChecked,
 }: {
+  /** Last 30 days of advisories near the beach, or null if unavailable. */
+  advisoryHistory: HistoryDay[] | null
+  /** Last hand check for closures (HST date), or null. */
+  closuresLastChecked: string | null
   /** Days where the tiles' model and the timeline's model differ noticeably. */
   modelGaps: { date: string; tilesFt: number; timelineFt: number }[]
   /** Whether Sal's aerial photo is in public/spot/. */
@@ -289,6 +296,10 @@ export function ConditionsApp({
           buoy={buoy}
           shore={shore}
           label={daylightNow ? 'Now' : `At ${focusHour.hour % 12 || 12} ${focusHour.hour < 12 ? 'AM' : 'PM'}`}
+          days={days}
+          todayDate={todayDate}
+          advisoryHistory={advisoryHistory}
+          closuresLastChecked={closuresLastChecked}
         />
       ) : null}
 

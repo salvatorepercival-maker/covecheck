@@ -16,6 +16,9 @@ export type ReportStore = {
   list(limit: number): Promise<string[]>
   /** Increment a counter that expires after `ttlSeconds`; returns the new count. */
   hit(key: string, ttlSeconds: number): Promise<number>
+  /** A small JSON value by key (closure checks). */
+  getValue(key: string): Promise<string | null>
+  setValue(key: string, value: string): Promise<void>
 }
 
 const LIST_KEY = 'covecheck:reports:v1'
@@ -45,12 +48,19 @@ function upstashStore(url: string, token: string): ReportStore {
       if (count === 1) await call(['EXPIRE', key, ttlSeconds])
       return count
     },
+    async getValue(key) {
+      return ((await call(['GET', key])) as string | null) ?? null
+    },
+    async setValue(key, value) {
+      await call(['SET', key, value])
+    },
   }
 }
 
 function memoryStore(): ReportStore {
   const reports: string[] = []
   const counters = new Map<string, { count: number; until: number }>()
+  const values = new Map<string, string>()
   return {
     async append(json) {
       reports.unshift(json)
@@ -67,6 +77,12 @@ function memoryStore(): ReportStore {
       }
       entry.count += 1
       return entry.count
+    },
+    async getValue(key) {
+      return values.get(key) ?? null
+    },
+    async setValue(key, value) {
+      values.set(key, value)
     },
   }
 }
