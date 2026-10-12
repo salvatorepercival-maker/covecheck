@@ -14,6 +14,7 @@ export function hourFacts(overrides: Partial<HourFacts> = {}): HourFacts {
     confidence: { level: 'high', reasons: [] },
     swellFromDeg: 180,
     nwsSurfMaxFt: 3,
+    nwsContradictedByBuoy: false,
     windMph: 6,
     gustMph: 9,
     windFromDeg: 20,

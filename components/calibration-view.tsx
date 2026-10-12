@@ -14,6 +14,14 @@ type Data = {
   findings: { kind: string; date: string; hour: number; summary: string }[]
   lensAgreement: { lens: string; reports: number; agree: number; tooStrict: number; tooLoose: number }[]
   suggestions: { id: string; title: string; evidence: string; options: Option[] }[]
+  tideRule: {
+    lens: string
+    rule: { lowTideFt: number; risenTideFt: number; low: string; risen: string; absoluteEnergy: number; nwsCeilingFt: number }
+    reports: number
+    agreeOld: number
+    agreeNew: number
+    rows: { date: string; hour: number; tideFt: number; energy: number; again: string; old: string; new: string }[]
+  }[]
   recent: { id: string; date: string; hour: number; report: { activity: string; visibility: string; surge: string; again: string; note: string } }[]
 }
 
@@ -93,6 +101,37 @@ export function CalibrationView() {
                 </li>
               ))}
             </ul>
+          </div>
+        ))}
+      </section>
+
+      <section>
+        <h2 className="text-[17px] font-semibold">Tide-first swell rule (starting guesses)</h2>
+        <p className="mt-1 text-xs text-muted">
+          Swell energy limits (ft²·s; 3 ft at 10 s = 90) by tide, scored against your reports: did the swell tag match &ldquo;would
+          go again&rdquo;?
+        </p>
+        {data.tideRule.map((t) => (
+          <div key={t.lens} className="mt-2.5 rounded-2xl bg-surface p-4 text-sm">
+            <p className="font-semibold capitalize">{t.lens}</p>
+            <p className="mt-1 text-xs text-muted">
+              Low tide ≤ {t.rule.lowTideFt} ft: {t.rule.low} · tide ≥ {t.rule.risenTideFt} ft: {t.rule.risen} · over the reef at any
+              tide ≥ {t.rule.absoluteEnergy} · NWS ceiling {t.rule.nwsCeilingFt} ft
+            </p>
+            <p className="mt-2">
+              {t.reports === 0
+                ? 'No reports yet.'
+                : `${t.reports} report${t.reports === 1 ? '' : 's'}: tide-first agrees with ${t.agreeNew}, the old fixed limits with ${t.agreeOld}.`}
+            </p>
+            {t.rows.length ? (
+              <ul className="mt-2 space-y-1 text-xs text-muted">
+                {t.rows.slice(0, 15).map((r) => (
+                  <li key={`${r.date}-${r.hour}`}>
+                    {r.date} {r.hour}:00 · tide {r.tideFt} ft · energy {r.energy} · went again: {r.again} · old {r.old} · tide-first {r.new}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </div>
         ))}
       </section>

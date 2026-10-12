@@ -1,7 +1,7 @@
 import type { DayFacts, HourFacts } from '../facts'
 import { formatCompassWord, formatRange } from './words'
 import type { FactorId, FactorRule, FactorTag, Fit, Lens, LensOverrides } from './schema'
-import { FACTOR_IDS, affectsFit, type Limits, type WindRule } from './schema'
+import { FACTOR_IDS, affectsFit, type Limits, type TideSwellRule, type WindRule } from './schema'
 import { WIND_CLASS_WORDS, type WindClass } from '../conditions/wind'
 
 /**
@@ -28,6 +28,18 @@ export function withOverrides(lens: Lens, overrides: LensOverrides | undefined):
 
 const RANK: Record<Fit, number> = { good: 0, mixed: 1, poor: 2 }
 const worse = (a: Fit, b: Fit): Fit => (RANK[a] >= RANK[b] ? a : b)
+
+/** Swell energy limits at a tide height: low-band limits, tightening linearly to risen limits. */
+export function tideSwellLimits(rule: TideSwellRule, tideFt: number | null): Limits {
+  // No tide reading: judge as if risen — the strictest case.
+  if (tideFt === null) return rule.risen
+  const t = Math.min(1, Math.max(0, (tideFt - rule.lowTideFt) / (rule.risenTideFt - rule.lowTideFt)))
+  const mix = (a: number, b: number) => Math.round(a + (b - a) * t)
+  return {
+    good: mix(rule.low.good, rule.risen.good),
+    mixed: rule.low.mixed === null || rule.risen.mixed === null ? null : mix(rule.low.mixed, rule.risen.mixed),
+  }
+}
 
 /** The sustained and gust limits that apply to a wind class, with the offshore cap applied. */
 export function windLimitsFor(rule: WindRule, windClass: WindClass): { sustained: Limits; gust: Limits } {
@@ -71,9 +83,16 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
 
   switch (id) {
     case 'waves': {
+      if (rule.kind === 'tideSwell') {
+        if (f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= rule.nwsCeilingFt && !f.nwsContradictedByBuoy) return 'poor'
+        if (f.swellEnergy === null) return 'unknown'
+        if (f.swellEnergy >= rule.absoluteEnergy) return 'poor'
+        return ceiling(f.swellEnergy, tideSwellLimits(rule, f.tideFt))
+      }
       const tag = numeric(f.swellEnergy)
       // Calm-water lenses only: a range lens (surf) wants the big day.
-      if (rule.kind === 'ceiling' && f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= NWS_EXTREME_SURF_FT) return 'poor'
+      // The buoy can overrule an extreme NWS figure for the hours it is fresh (#23).
+      if (rule.kind === 'ceiling' && f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= NWS_EXTREME_SURF_FT && !f.nwsContradictedByBuoy) return 'poor'
       return tag
     }
     case 'wind': {
@@ -117,7 +136,9 @@ export function tagFactor(id: FactorId, rule: FactorRule, f: HourFacts): FactorT
       return f.jelly.expected ? rule.whenPresent : 'good'
     case 'closures':
       if (rule.kind !== 'flag') return 'off'
-      return f.closures.length ? rule.whenPresent : 'good'
+      // Closures are entered by hand, so an empty list is "not known", never
+      // "clear": it adds nothing to the fit and no Good tag to the tile.
+      return f.closures.length ? rule.whenPresent : 'off'
     case 'tideFlow':
       if (rule.kind !== 'flag') return 'off'
       if (f.tide.direction === null) return 'unknown'
@@ -177,6 +198,28 @@ export type DayFit = {
 
 const daylight = (hours: readonly HourFacts[]) => hours.filter((h) => h.hour >= DAY_HOURS.first && h.hour <= DAY_HOURS.last)
 
+/** Every run of consecutive `good` hours at least `min` long. */
+export function goodRuns(fits: readonly HourFit[], min: number): { start: number; end: number }[] {
+  const runs: { start: number; end: number }[] = []
+  let start: number | null = null
+  let prev: number | null = null
+  for (const h of fits) {
+    const contiguous = prev !== null && h.hour === prev + 1
+    if (h.fit === 'good') {
+      if (start === null || !contiguous) {
+        if (start !== null && prev !== null && prev - start + 1 >= min) runs.push({ start, end: prev })
+        start = h.hour
+      }
+    } else if (start !== null && prev !== null) {
+      if (prev - start + 1 >= min) runs.push({ start, end: prev })
+      start = null
+    }
+    prev = h.hour
+  }
+  if (start !== null && prev !== null && prev - start + 1 >= min) runs.push({ start, end: prev })
+  return runs
+}
+
 /** Longest run of `good` hours ≥ min length, earliest on ties. */
 export function bestRun(fits: readonly HourFit[], min: number): { start: number; end: number } | null {
   let best: { start: number; end: number } | null = null
@@ -206,10 +249,22 @@ export function bestRun(fits: readonly HourFit[], min: number): { start: number;
 
 const FIT_RANK: Record<Fit | 'unknown', number> = { good: 0, mixed: 1, unknown: 2, poor: 3 }
 
+/** Hours between a run and an hour (0 when the run contains it). */
+const distance = (run: { start: number; end: number }, hour: number) =>
+  hour < run.start ? run.start - hour : hour > run.end ? hour - run.end : 0
+
 export function evaluateDay(lens: Lens, day: DayFacts, options: { fromHour?: number } = {}): DayFit {
   const usable = daylight(day.hours).filter((h) => h.hour >= (options.fromHour ?? 0))
   const fits = usable.map((h) => evaluateHour(lens, h))
-  const bestHours = bestRun(fits, lens.minGoodHours)
+  // Tide-first lenses centre the best hours on the day's lowest daylight tide (#24).
+  const lowest = [...usable].filter((h) => h.tideFt !== null).sort((a, b) => a.tideFt! - b.tideFt!)[0]
+  const bestHours =
+    lens.factors.waves.kind === 'tideSwell' && lowest
+      ? (goodRuns(fits, lens.minGoodHours).sort(
+          (a, b) =>
+            distance(a, lowest.hour) - distance(b, lowest.hour) || b.end - b.start - (a.end - a.start),
+        )[0] ?? null)
+      : bestRun(fits, lens.minGoodHours)
 
   let fit: Fit | 'unknown'
   if (bestHours) fit = 'good'
@@ -260,8 +315,16 @@ function problemClause(id: FactorId, f: HourFacts, lens: Lens): string | null {
   switch (id) {
     case 'waves': {
       if (f.swellFt === null) return null
-      if (rule.kind === 'ceiling' && f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= NWS_EXTREME_SURF_FT)
+      if (rule.kind === 'ceiling' && f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= NWS_EXTREME_SURF_FT && !f.nwsContradictedByBuoy)
         return `the Weather Service has surf up to ${f.nwsSurfMaxFt} ft on this shore`
+      if (rule.kind === 'tideSwell' && f.nwsSurfMaxFt !== null && f.nwsSurfMaxFt >= rule.nwsCeilingFt && !f.nwsContradictedByBuoy)
+        return `the Weather Service has surf up to ${f.nwsSurfMaxFt} ft on this shore`
+      if (rule.kind === 'tideSwell' && f.swellEnergy !== null && f.swellEnergy >= rule.absoluteEnergy) {
+        return `a ${num(f.swellFt ?? 0)} ft swell${f.swellPeriodSec !== null ? ` at ${Math.round(f.swellPeriodSec)} s` : ''} is big enough to wash over the reef even at low tide`
+      }
+      if (rule.kind === 'tideSwell' && f.tideFt !== null && f.tideFt > rule.lowTideFt) {
+        return `a ${num(f.swellFt ?? 0)} ft swell${f.swellPeriodSec !== null ? ` at ${Math.round(f.swellPeriodSec)} s` : ''} reaches the inside with the tide up at ${num(f.tideFt)} ft`
+      }
       const dir = formatCompassWord(f.swellFromDeg)
       const period = f.swellPeriodSec !== null ? ` at ${Math.round(f.swellPeriodSec)} s` : ''
       if (rule.kind === 'range' && f.swellEnergy !== null && f.swellEnergy < rule.good[0])
@@ -370,6 +433,10 @@ export function settingsSummary(lens: Lens): string {
   const at10 = (energy: number) => num(Math.sqrt(energy / 10))
   if (w.kind === 'ceiling') parts.push(`swell energy under ${w.good} (≈ ${at10(w.good)} ft at 10 s)`)
   if (w.kind === 'range') parts.push(`swell energy ${formatRange(w.good)} (≈ ${at10(w.good[0])}–${at10(w.good[1])} ft at 10 s)`)
+  if (w.kind === 'tideSwell')
+    parts.push(
+      `swell energy under ${w.low.good} at low tide (≈ ${at10(w.low.good)} ft at 10 s), ${w.risen.good} once the tide is up (≈ ${at10(w.risen.good)} ft)`,
+    )
   const wind = lens.factors.wind
   if (wind.kind === 'wind') {
     const off = windLimitsFor(wind, 'offshore').sustained.good

@@ -37,3 +37,9 @@ describe('live notes', () => {
     expect(liveNote(undefined, day)).toBeNull()
   })
 })
+
+describe('spot guide is hidden until the photo exists', () => {
+  it('is disabled in config', () => {
+    expect(SPOT_GUIDE.enabled).toBe(false)
+  })
+})

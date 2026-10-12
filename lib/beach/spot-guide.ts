@@ -41,6 +41,11 @@ export type SpotMarker = {
 }
 
 export const SPOT_GUIDE = {
+  /**
+   * Off until Sal's aerial photo exists (Sal, 2026-10-12): no placeholder text
+   * may go live. Turn on once the photo and the marker text are in.
+   */
+  enabled: false,
   image: { src: '/spot/cromwells-aerial.jpg', alt: "Aerial view of Cromwell's Beach and the reef at Black Point" },
   markers: [
     {

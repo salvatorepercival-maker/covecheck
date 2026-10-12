@@ -17,8 +17,10 @@ export type ConfidenceInputs = {
   dataIssue: 'stale' | 'missing' | null
   /** The engine's SRF_DISAGREES_WITH_MODEL for this hour. */
   nwsDisagrees: boolean
-  /** NWS surf forecast unavailable. */
+  /** No NWS surf forecast covers this hour. */
   nwsMissing: boolean
+  /** The buoy contradicts an extreme NWS figure (DECISIONS #23). */
+  nwsContradictedByBuoy?: boolean
   /** Buoy vs model divergence %, when comparable and this hour is within its reach. */
   buoyDivergencePct: number | null
   /** Whole days between today and this hour's date. */
@@ -38,7 +40,8 @@ export function confidenceFor(i: ConfidenceInputs): Confidence {
   if (i.dataIssue === 'missing') step('low', 'some forecast data is missing')
   if (i.uncheckedSources.length) step('medium', `couldn't check ${i.uncheckedSources.join(' or ')}`)
   if (i.nwsDisagrees) step('medium', 'the Weather Service forecasts more surf than the model')
-  if (i.nwsMissing) step('medium', 'no Weather Service surf forecast to cross-check')
+  if (i.nwsMissing) step('medium', 'no Weather Service surf forecast covers this day')
+  if (i.nwsContradictedByBuoy) step('medium', 'the buoy contradicts the Weather Service surf forecast')
   if (i.buoyDivergencePct !== null) {
     const off = Math.abs(i.buoyDivergencePct)
     if (off >= 60) step('low', `the buoy reads ${off}% ${i.buoyDivergencePct > 0 ? 'above' : 'below'} the model`)

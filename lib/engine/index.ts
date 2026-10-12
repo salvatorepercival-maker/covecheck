@@ -12,6 +12,7 @@ import {
   type UsableHours,
 } from './windows'
 import { VERDICT_LABEL, type Verdict } from './reasons'
+import { srfBoundAt } from './srf-schedule'
 
 export * from './reasons'
 export { assessHour, buildContext, hasUnresolvedWindCalibration } from './assess'
@@ -25,7 +26,7 @@ export * from './windows'
  * Verdicts carry both this and the beach `configVersion` so a stored verdict can
  * always be traced to the logic that produced it.
  */
-export const ENGINE_VERSION = '2026-09-23.1'
+export const ENGINE_VERSION = '2026-10-12.1'
 
 export type DaySummary = {
   date: string
@@ -114,7 +115,14 @@ export function evaluateForecast(options: EvaluateOptions): ForecastEvaluation {
     )
   }
 
-  const context = buildContext(profile, hours, srfBound)
+  // Each hour gets only the NWS column that covers it (DECISIONS #23). If no
+  // column can be placed in time, there is NO NWS bound — never the worst band
+  // stretched over the week; swell energy judges alone.
+  const schedule = srfBoundAt(options.surfZoneForecast, profile.shoreAspect)
+  if (options.surfZoneForecast && !schedule) {
+    warnings.push('NWS surf columns could not be placed in time; no NWS bound applied')
+  }
+  const context = buildContext(profile, hours, null, schedule ?? (() => null))
 
   if (context.windUncalibrated) {
     warnings.push(

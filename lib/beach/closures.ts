@@ -25,6 +25,13 @@ export type Closure = {
 
 export const CROMWELLS_CLOSURES: readonly Closure[] = []
 
+/**
+ * The last date (HST, "YYYY-MM-DD") someone checked for posted closures and
+ * updated this file. Null = never. The Advisories tile shows it, so an empty
+ * list is never read as "all clear".
+ */
+export const CLOSURES_LAST_CHECKED: string | null = null
+
 /** Closures in effect at an instant. */
 export function closuresAt(closures: readonly Closure[], atMs: number): Closure[] {
   return closures.filter((c) => Date.parse(c.startsUtc) <= atMs && (c.endsUtc === null || Date.parse(c.endsUtc) > atMs))

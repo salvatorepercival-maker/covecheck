@@ -2,7 +2,7 @@ import { CROMWELLS } from '@/lib/beach/cromwells'
 import { summarize } from '@/lib/reports/calibration'
 import type { StoredReport } from '@/lib/reports/schema'
 import { getReportStore } from '@/lib/reports/store'
-import { claritySuggestion, lensAgreement, thresholdSuggestions, tideSuggestion } from '@/lib/reports/suggest'
+import { claritySuggestion, lensAgreement, thresholdSuggestions, tideRuleChecks, tideSuggestion } from '@/lib/reports/suggest'
 
 /**
  * Calibration findings and suggestions from Sal's visit reports. Private
@@ -22,6 +22,7 @@ export async function GET(request: Request) {
     ok: true,
     ...summarize(reports),
     lensAgreement: lensAgreement(reports),
+    tideRule: tideRuleChecks(reports),
     suggestions: [...thresholdSuggestions(reports), claritySuggestion(reports), ...(tide ? [tide] : [])],
     recent: reports.slice(0, 20).map((r) => ({ id: r.id, date: r.date, hour: r.hour, report: r.report })),
   })

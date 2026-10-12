@@ -271,7 +271,7 @@ export const getBeachReport = cache(async function getBeachReport(
     thunder: bundle.thunder,
     longRange: bundle.longRange,
     sourceStatus: [
-      ['marine', 'Open-Meteo Marine (swell)', bundle.marine],
+      ['marine', 'Open-Meteo Marine, default model — swell for the day tiles, lenses and week', bundle.marine],
       ['weather', 'Open-Meteo (wind, sky, UV, rain)', bundle.weather],
       ['rain', 'Open-Meteo (last 48 h rain)', bundle.rainHistory],
       ['tides', 'NOAA tides, Honolulu 1612340', bundle.tideHourly],
@@ -279,7 +279,7 @@ export const getBeachReport = cache(async function getBeachReport(
       ['doh', 'Hawaiʻi Dept. of Health water quality', bundle.waterQuality],
       ['buoy', 'Buoy: Pearl Harbor Entrance (NDBC 51211)', bundle.buoy],
       ['nwsgrid', 'National Weather Service forecast (thunderstorms)', bundle.thunder],
-      ['longrange', 'Open-Meteo GFS-Wave 16-day (planning views)', bundle.longRange],
+      ['longrange', 'Open-Meteo Marine, GFS-Wave model — swell timeline and long range only', bundle.longRange],
     ].map(([id, name, slice]) => {
       const s = slice as Slice<unknown>
       return { id: id as string, name: name as string, status: s.status, fetchedAtUtc: s.fetchedAtUtc }

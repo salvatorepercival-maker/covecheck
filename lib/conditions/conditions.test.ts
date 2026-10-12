@@ -75,6 +75,10 @@ describe('neutral description', () => {
     expect(tile.alsoFactors).toEqual(['waterQuality', 'closures'])
     const unchecked = conditionTiles(day, { ...day.hours[3], waterQuality: { status: 'unknown' } }, 'south').find((t) => t.id === 'advisories')!
     expect(unchecked.value).toBe("Couldn't check")
+    const clear = conditionTiles(day, day.hours[3], 'south').find((t) => t.id === 'advisories')!
+    expect(clear.value).toBe('No advisories')
+    expect(clear.note).toBe("Closures aren't monitored automatically · not checked by hand yet")
+    expect(`${clear.value} ${clear.detail} ${clear.note}`).not.toMatch(/all clear|none in effect/i)
   })
 
   it('finds the UV peak window and summarises the week row', () => {

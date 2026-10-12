@@ -30,7 +30,17 @@ export function Outlook({ lines }: { lines: string[] }) {
   )
 }
 
-export function SwellTimeline({ trains, startDate, days = 10 }: { trains: SwellTrain[]; startDate: string; days?: number }) {
+export function SwellTimeline({
+  trains,
+  startDate,
+  days = 10,
+  modelGaps = [],
+}: {
+  trains: SwellTrain[]
+  startDate: string
+  days?: number
+  modelGaps?: { date: string; tilesFt: number; timelineFt: number }[]
+}) {
   const start = Date.parse(`${startDate}T00:00:00-10:00`)
   const span = days * 86_400_000
   const x = (local: string) => ((Date.parse(`${local}:00-10:00`) - start) / span) * 100
@@ -84,7 +94,16 @@ export function SwellTimeline({ trains, startDate, days = 10 }: { trains: SwellT
             <li key={d}>{dayLabel(d).split(' ')[0]}</li>
           ))}
         </ol>
-        <p className="mt-2 text-[11px] text-muted">GFS-Wave model; can differ slightly from the day tiles above.</p>
+        <p className="mt-2 text-[11px] leading-relaxed text-muted">
+          Each row is one swell on its own, from the GFS-Wave model. The Waves tile above is all in-window swell combined, from
+          Open-Meteo&rsquo;s default model, so the two can read differently.
+        </p>
+        {modelGaps.length ? (
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+            Where the two models differ most:{' '}
+            {modelGaps.map((g) => `${dayLabel(g.date)} — tiles ${g.tilesFt} ft, GFS-Wave ${g.timelineFt} ft`).join('; ')}.
+          </p>
+        ) : null}
       </div>
     </section>
   )
