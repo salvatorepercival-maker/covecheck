@@ -11,6 +11,26 @@ and use a suffix such as `#5b` for an entry that belongs beside an existing one.
 
 ---
 
+## 21. Spot guide: Sal's photo, markers as config, rule-driven live notes
+
+**Decided:** 2026-10-12 (Sal asked) · **Status:** active · **display only**
+
+The guide overlays numbered markers on Sal's own aerial photo
+(`public/spot/cromwells-aerial.jpg`; never a Google Maps screenshot). Until the
+photo exists a labelled placeholder renders. Markers live in
+`lib/beach/spot-guide.ts` as x/y percentages of the image with a title and a
+short note; every starting title and note is marked [PLACEHOLDER] for Sal.
+
+Live notes are data, not code: a marker lists rules, each a set of conditions
+that must all hold in the same daylight hour (swell energy, tide mid-change,
+tide vs band, wind speed or class). The first rule that holds shows its note
+with the hour runs it holds for. Defaults: channel "Current likely today" at
+swell energy ≥ 90 (≈ 3 ft at 10 s) during a mid-change tide; entry "Surge likely"
+and ledge "Waves washing over" at ≥ 160 (≈ 4 ft at 10 s); reef flat "Very
+shallow" when the tide is below the band. They describe, never judge fit.
+
+---
+
 ## 20. Planning views: plain-words outlook, swell timeline, long range as trends
 
 **Decided:** 2026-10-12 (Sal asked) · **Status:** active · **display only**
